@@ -5,6 +5,8 @@
   "description": "A DataGrip-style database IDE with VS Code theme compatibility",
   "main": "./out/main/index.js",
   "license": "MIT",
+  "author": { "name": "LC-jhony", "email": "jhonyapm94@gmail.com" },
+  "homepage": "https://github.com/LC-jhony/stratum",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
