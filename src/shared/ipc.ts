@@ -1,0 +1,37 @@
+import type { ConnectionConfig, DatabaseModel, QueryResult, ThemeFile, ThemeManifestEntry } from './types'
+
+/** Single typed contract between renderer and main. Every channel is request/response. */
+export interface StratumApi {
+  connections: {
+    list(): Promise<ConnectionConfig[]>
+    save(c: ConnectionConfig): Promise<void>
+    remove(id: string): Promise<void>
+    test(c: ConnectionConfig): Promise<{ ok: boolean; version?: string; error?: string }>
+    open(id: string): Promise<{ version?: string }>
+    close(id: string): Promise<void>
+  }
+  db: {
+    introspect(id: string): Promise<DatabaseModel>
+    execute(id: string, sql: string, opts?: { limit?: number; offset?: number }): Promise<QueryResult>
+    cancel(id: string): Promise<void>
+    /** Apply edits from the data grid (DataGrip "Submit"). Runs inside one transaction. */
+    submit(id: string, statements: string[]): Promise<{ ok: boolean; error?: string }>
+  }
+  themes: {
+    list(): Promise<ThemeManifestEntry[]>
+    read(path: string): Promise<ThemeFile>
+    /** Scan an installed VS Code / VSCodium extensions folder for themes. */
+    importVsCodeExtensions(): Promise<ThemeManifestEntry[]>
+  }
+  settings: { get(): Promise<Record<string, unknown>>; set(patch: Record<string, unknown>): Promise<void> }
+  dialogs: { pickFile(filters?: { name: string; extensions: string[] }[]): Promise<string | undefined> }
+  export: {
+    /** Save text through a native save dialog; returns the chosen path or null when cancelled. */
+    save(defaultName: string, content: string): Promise<string | null>
+  }
+  /** Main -> renderer menu commands (global menu on macOS/Linux, window menu on Windows). */
+  onCommand(cb: (cmd: string, arg?: unknown) => void): () => void
+  platform: NodeJS.Platform
+}
+
+declare global { interface Window { stratum: StratumApi } }

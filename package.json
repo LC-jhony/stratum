@@ -1,0 +1,44 @@
+{
+  "name": "stratum",
+  "productName": "Stratum",
+  "version": "0.1.0",
+  "description": "A DataGrip-style database IDE with VS Code theme compatibility",
+  "main": "./out/main/index.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "fetch:jdbc": "node scripts/fetch-jdbc-adapter.mjs",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "smoke": "electron-vite build && STRATUM_SMOKE=$PWD/scripts/smoke.js xvfb-run -a electron . --no-sandbox --disable-gpu"
+  },
+  "dependencies": {
+    "@vscode/codicons": "^0.0.46-24",
+    "elkjs": "^0.9.3",
+    "jsonc-parser": "^3.3.1",
+    "monaco-editor": "^0.52.2",
+    "mysql2": "^3.11.4",
+    "pg": "^8.13.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sql.js": "^1.12.0",
+    "zustand": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/sql.js": "^1.4.9",
+    "@vitejs/plugin-react": "^4.3.3",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.5"
+  }
+}

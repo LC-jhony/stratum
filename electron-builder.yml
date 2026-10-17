@@ -1,0 +1,18 @@
+appId: dev.stratum.app
+productName: Stratum
+directories: { output: dist, buildResources: stratum-brand/build }   # icon.png / icon.ico / icon.icns / icons/*
+files: ["out/**", "package.json"]
+asarUnpack: ["node_modules/sql.js/dist/*.wasm"]
+extraResources:
+  - { from: themes, to: themes }
+  - { from: resources/jdbc-adapter, to: jdbc-adapter }   # populated by `npm run fetch:jdbc`
+  - { from: stratum-brand/png/stratum-512.png, to: icons/stratum-512.png }      # BrowserWindow icon (Linux) + About panel
+  - { from: stratum-brand/tray/tray-32.png, to: icons/tray-32.png }             # tray, Windows/Linux
+  - { from: stratum-brand/tray/trayTemplate.png, to: icons/trayTemplate.png }   # tray, macOS (Electron picks up the @2x next to it)
+  - { from: stratum-brand/tray/trayTemplate@2x.png, to: icons/trayTemplate@2x.png }
+mac:  { category: public.app-category.developer-tools, target: [dmg, zip], hardenedRuntime: true }
+win:  { target: [nsis, portable] }
+linux:
+  target: [AppImage, deb, rpm]
+  category: Development
+  desktop: { StartupWMClass: stratum }
