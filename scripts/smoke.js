@@ -41,7 +41,18 @@
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms)), wb = window.__wb
   wb.getState().openDiagram('shop'); await sleep(1500)
-  return { nodes: document.querySelectorAll('.erd-svg .node').length, edges: document.querySelectorAll('.erd-svg .edge').length }
+  // Type through the native setter so React sees the finder input like a real keystroke.
+  const input = document.querySelector('.erd-search input')
+  if (input) { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(input, 'cust'); input.dispatchEvent(new Event('input', { bubbles: true })) }
+  await sleep(400)
+  return {
+    nodes: document.querySelectorAll('.erd-svg .node').length,
+    edges: document.querySelectorAll('.erd-svg .edge').length,
+    zoom: document.querySelector('.zoom-pct')?.textContent,
+    search: document.querySelector('.erd-search-count')?.textContent,
+    hits: [...document.querySelectorAll('.erd-svg .node.on')].map((n) => n.dataset.id),
+    exportMenu: !!document.querySelector('.editor-toolbar button[title="Export diagram"]'),
+  }
 })()
 //--- dark
 (async () => {
@@ -158,7 +169,9 @@
   findRow().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 140, clientY: 140 })); await sleep(300)
   menuItems().find((li) => li.textContent.includes('Find Usages')).click(); await sleep(400)
   const udlg = document.querySelector('.dialog[aria-label="Find usages"]')
-  return { open, hasRename, hasUsages, renamed, usageDialog: !!udlg, hits: udlg ? udlg.querySelectorAll('.usage').length : -1 }
+  const usageDialog = !!udlg, hits = udlg ? udlg.querySelectorAll('.usage').length : -1
+  udlg?.querySelector('footer button')?.click(); await sleep(300) // a lingering dialog leaves its scrim over the workbench
+  return { open, hasRename, hasUsages, renamed, usageDialog, hits, closed: !document.querySelector('.scrim') }
 })()
 //--- icons
 (async () => {
@@ -178,4 +191,52 @@
   wb.setState({ palette: null }); await sleep(150)
   const colors = t.catalog.filter((e) => e.kind === 'color')
   return { entries: entries.length, unique: new Set(colors.map((e) => e.label.trim().toLowerCase())).size === colors.length, hasCarbon: entries.some((l) => l.startsWith('Carbon Dark')), hasMin: entries.some((l) => l.startsWith('Min Light')) }
+})()
+//--- layout & grid: wide results scroll inside the editor, sort/filter/paging work
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms)), wb = window.__wb
+  wb.getState().setActive(wb.getState().tabs[0].id); await sleep(400)
+  const tab = wb.getState().tabs[0]
+  await wb.getState().run(tab.id, ['select c.id, c.name, c.email, c.country_id, o.id, o.customer_id, o.placed_at, o.status, co.id, co.code, co.name, c2.id, c2.name, c2.email, c2.country_id from customers c, orders o, countries co, customers c2'])
+  await sleep(700)
+  const vis = (sel) => [...document.querySelectorAll(sel)].find((e) => e.getBoundingClientRect().width > 0)
+  const box = (sel) => { const e = vis(sel); if (!e) return null; const b = e.getBoundingClientRect(); return { l: Math.round(b.left), r: Math.round(b.right) } }
+  const split = vis('.split'), grid = vis('.grid')
+  const ed = box('.editor-area'), res = box('.results')
+  const layout = {
+    gridScrolls: !!grid && grid.scrollWidth > grid.clientWidth,
+    splitOverflow: split ? split.scrollWidth - split.clientWidth : -1,
+    insideEditor: !!ed && !!res && res.l >= ed.l - 1 && res.r <= ed.r + 1,
+  }
+  const head = [...document.querySelectorAll('.grid-head .cell.head')][1]
+  head.click(); await sleep(200)
+  const sorted = !!document.querySelector('.grid-head .sort-asc')
+  const input = vis('.grid-filter input'), setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+  setter.call(input, 'Ana'); input.dispatchEvent(new Event('input', { bubbles: true })); await sleep(250)
+  const filterMeta = document.querySelector('.grid-filter .result-meta')?.textContent ?? ''
+  setter.call(input, ''); input.dispatchEvent(new Event('input', { bubbles: true })); await sleep(200)
+  await wb.getState().run(tab.id, ['select c.id, c.name, c.email, o.id, o.status, co.code, c2.name, o2.id, c3.email from customers c, orders o, countries co, customers c2, orders o2, customers c3'])
+  await sleep(600)
+  const count = () => wb.getState().tabs[0].results.at(-1).result.rows.length
+  const before = count()
+  const next = [...document.querySelectorAll('.grid-foot button')].find((b) => b.textContent.includes('Fetch next'))
+  if (next) next.click()
+  await sleep(700)
+  const onePage = count()
+  const all = [...document.querySelectorAll('.grid-foot button')].find((b) => b.textContent.includes('Fetch all'))
+  if (all) all.click()
+  await sleep(900)
+  // Export menu: portal over the tab strip, so opening it must be visible (hit-test inside the menu), not clipped.
+  const expBtn = document.querySelector('.result-tabs button[title="Export data"]')
+  if (expBtn) expBtn.click()
+  await sleep(250)
+  const menu = document.querySelector('body > .popmenu')
+  const first = menu?.querySelector('button'), fr = first?.getBoundingClientRect()
+  const hit = fr ? document.elementFromPoint(fr.left + fr.width / 2, fr.top + fr.height / 2) : null
+  const exportMenu = { button: !!expBtn, opened: !!menu, items: menu ? menu.querySelectorAll('button').length : 0, hitTest: hit ? `${hit.tagName.toLowerCase()}.${typeof hit.className === 'string' ? hit.className.split(' ')[0] : ''}` : null, visible: !!(menu && fr && fr.bottom <= window.innerHeight && hit && menu.contains(hit)) }
+  if (menu) { expBtn.click(); await sleep(250) } // close again (React flushes after the handler)
+  // Activity bar: hover label per position, no accent line on the active entry.
+  const on = document.querySelector('.stripe button.on')
+  const activityBar = { boxShadow: getComputedStyle(on).boxShadow, label: on.dataset.label, tooltip: getComputedStyle(on, '::after').content, count: document.querySelectorAll('.stripe [data-label]').length }
+  return { ...layout, sorted, filterMeta, fetch: { before, onePage, all: count(), nextButton: !!next, allButton: !!all, hasMore: wb.getState().tabs[0].results.at(-1).result.hasMore }, exportMenu, activityBar }
 })()
