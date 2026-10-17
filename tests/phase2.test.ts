@@ -43,11 +43,16 @@ const columns: ColumnMeta[] = [{ name: 'id' }, { name: 'name' }, { name: 'notes'
 const rows = [[1, 'Ada, countess', 'line1\nline2'], [2, 'He said "hi"', null]]
 
 describe('grid export (DataGrip csv-formats + JSON/INSERTs)', () => {
-  it('writes CSV with as-needed quoting and doubíe-quote escaping', () => {
+  it('writes CSV with a UTF-8 BOM (Excel accents) and as-needed quoting', () => {
     const csv = exportText(columns, rows, 'csv', 't', 'postgres')
-    expect(csv.split('\n')[0]).toBe('id,name,notes')
+    expect(csv.charCodeAt(0)).toBe(0xfeff)
+    expect(csv.split('\n')[0]).toBe('\uFEFFid,name,notes')
     expect(csv).toContain('1,"Ada, countess","line1')
     expect(csv).toContain('"He said ""hi"""')
+  })
+  it('writes semicolon CSV with the BOM too, and TSV without it', () => {
+    expect(exportText(columns, rows, 'semicolon', 't', 'postgres').startsWith('\uFEFF')).toBe(true)
+    expect(exportText(columns, rows, 'tsv', 't', 'postgres').startsWith('\uFEFF')).toBe(false)
   })
   it('writes TSV with the tab separator', () => {
     const tsv = exportText(columns, rows, 'tsv', 't', 'postgres')

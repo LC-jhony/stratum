@@ -138,6 +138,8 @@ svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
 .popmenu button { display: block; width: 100%; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 5px; }
 .popmenu button:hover { background: var(--vscode-menu-selectionBackground, var(--sel)); }
 .popmenu.popmenu-wide { max-width: 460px; }
+/* Floating variant for hosts that scroll (the results tab strip): the portal computes top/right inline. */
+.popmenu.popmenu-fixed { position: fixed; top: auto; right: auto; bottom: auto; }
 .menu-host .result-meta { display: inline-flex; align-items: center; gap: 4px; }
 .param-dialog code { color: var(--muted); font-family: var(--stratum-mono); }
 .rename-dialog { width: 420px; }

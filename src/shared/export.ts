@@ -1,14 +1,19 @@
 /**
  * Grid export (DataGrip "Export Data"): the CSV / TSV / Pipe / Semicolon formats come from
  * DataGrip's `csv-formats` (as-needed `"` quoting, `""` escaping, LF records) plus JSON and
- * SQL INSERTs for the active dialect.
+ * SQL INSERTs for the active dialect. The Excel workbook is built by `xlsx.ts` and leaves
+ * through the binary save channel.
  */
 import { quote } from './quoting'
 import type { ColumnMeta, DialectId } from './types'
 
 export type ExportFormat = 'csv' | 'tsv' | 'pipe' | 'semicolon' | 'json' | 'insert'
 
-export const EXPORT_FORMATS: readonly { id: ExportFormat; label: string; ext: string }[] = [
+/** Every format the toolbar offers: the text ones above plus the binary .xlsx workbook. */
+export type ExportId = ExportFormat | 'xlsx'
+
+export const EXPORT_FORMATS: readonly { id: ExportId; label: string; ext: string }[] = [
+  { id: 'xlsx', label: 'Excel (.xlsx)', ext: 'xlsx' },
   { id: 'csv', label: 'CSV (comma-separated)', ext: 'csv' },
   { id: 'tsv', label: 'TSV (tab-separated)', ext: 'tsv' },
   { id: 'pipe', label: 'Pipe-separated', ext: 'txt' },
@@ -46,5 +51,7 @@ export function exportText(columns: ColumnMeta[], rows: unknown[][], format: Exp
   const sep = SEPARATORS[format] ?? ','
   const lines = [columns.map((c) => delimited(c.name, sep)).join(sep)]
   for (const r of rows) lines.push(r.map((v) => delimited(text(v), sep)).join(sep))
-  return lines.join('\n')
+  // Excel reads CSV using the legacy ANSI codepage unless a UTF-8 byte-order mark is present.
+  const bom = format === 'csv' || format === 'semicolon' ? '\uFEFF' : ''
+  return bom + lines.join('\n')
 }
