@@ -53,30 +53,32 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
 
   return (
     <div className="console">
-      <div className="editor-toolbar">
-        <button className="run" title="Execute (Ctrl/⌘+Enter)" disabled={tab.running} onClick={() => exec(false)}><Icon id="play" /></button>
-        <button title="Execute script (Ctrl/⌘+Shift+Enter)" disabled={tab.running} onClick={() => exec(true)}><Icon id="run-all" /></button>
-        <button title="Cancel (Ctrl/⌘+F2)" disabled={!tab.running} onClick={() => void cancel(tab.id)}><Icon id="debug-stop" /></button>
-        <div className="menu-host">
-          <button title="Query history" disabled={!history.length} onClick={() => setHistOpen((o) => !o)}><Icon id="history" /></button>
-          {histOpen && (
-            <div className="popmenu popmenu-wide" onMouseLeave={() => setHistOpen(false)}>
-              {history.map((h, i) => (
-                <button key={i} title={h} onClick={() => { setHistOpen(false); ed.current?.trigger('history', 'type', { text: h }) }}>
-                  {h.replace(/\s+/g, ' ').slice(0, 80)}{h.length > 80 ? '…' : ''}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <span className="sep" />
-        <span className="ds"><Icon id="database" /> {conn?.name}</span>
-        <span className="grow" />
-        <button title="Toggle results" onClick={() => set({ showResults: !showResults })}><Icon id={showResults ? 'layout-panel' : 'layout-panel-off'} /></button>
-      </div>
       <div className="split">
-        <div className="editor-host" ref={host} />
-        {showResults && <ResultsPane results={tab.results} active={tab.activeResult} onActive={(i) => patchTab(tab.id, { activeResult: i })} running={tab.running} dialect={dialect} />}
+        <div className="editor-card">
+          <div className="editor-toolbar">
+            <button className="run" title="Execute (Ctrl/⌘+Enter)" disabled={tab.running} onClick={() => exec(false)}><Icon id="play" /></button>
+            <button title="Execute script (Ctrl/⌘+Shift+Enter)" disabled={tab.running} onClick={() => exec(true)}><Icon id="run-all" /></button>
+            <button title="Cancel (Ctrl/⌘+F2)" disabled={!tab.running} onClick={() => void cancel(tab.id)}><Icon id="debug-stop" /></button>
+            <div className="menu-host">
+              <button title="Query history" disabled={!history.length} onClick={() => setHistOpen((o) => !o)}><Icon id="history" /></button>
+              {histOpen && (
+                <div className="popmenu popmenu-wide" onMouseLeave={() => setHistOpen(false)}>
+                  {history.map((h, i) => (
+                    <button key={i} title={h} onClick={() => { setHistOpen(false); ed.current?.trigger('history', 'type', { text: h }) }}>
+                      {h.replace(/\s+/g, ' ').slice(0, 80)}{h.length > 80 ? '…' : ''}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <span className="sep" />
+            <span className="ds"><Icon id="database" /> <span className="ds-name">{conn?.name}</span></span>
+            <span className="grow" />
+            <button title="Toggle results" onClick={() => set({ showResults: !showResults })}><Icon id={showResults ? 'layout-panel' : 'layout-panel-off'} /></button>
+          </div>
+          <div className="editor-host" ref={host} />
+        </div>
+        {showResults && <ResultsPane tabId={tab.id} results={tab.results} active={tab.activeResult} onActive={(i) => patchTab(tab.id, { activeResult: i })} running={tab.running} dialect={dialect} />}
       </div>
     </div>
   )

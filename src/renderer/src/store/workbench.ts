@@ -5,7 +5,7 @@ import { findParams, substituteParams } from '../../../shared/sqlParams'
 import type { ConnectionConfig, DatabaseModel, QueryResult } from '../../../shared/types'
 import type { ErdOptions } from '../erd/erd'
 
-export interface ResultEntry { id: string; title: string; result: QueryResult }
+export interface ResultEntry { id: string; title: string; result: QueryResult; /** Failure of an incremental page fetch; loaded rows are kept. */ fetchError?: string }
 interface TabBase { id: string; title: string; connectionId: string }
 export interface ConsoleTab extends TabBase { type: 'console'; sql: string; results: ResultEntry[]; activeResult: number; running: boolean }
 export interface TableTab extends TabBase { type: 'table'; schema?: string; table: string }
@@ -17,6 +17,8 @@ let seq = 0
 const uid = (p: string) => `${p}-${Date.now().toString(36)}-${seq++}`
 /** Pending SQL-parameter prompt resolver, set while ParamDialog is open. */
 let paramResolver: ((values: Record<string, string> | null) => void) | null = null
+/** Tabs whose multi-page fetch must stop; Cancel marks the tab while a fetch loop runs. */
+const fetchStop = new Set<string>()
 
 interface State {
   connections: ConnectionConfig[]
@@ -51,6 +53,10 @@ interface State {
   patchTab(id: string, patch: Partial<Tab>): void
   run(tabId: string, statements: string[]): Promise<void>
   cancel(tabId: string): Promise<void>
+  /** Append the next page of rows to a console result (DataGrip "Fetch next page"). */
+  fetchMore(tabId: string, index: number): Promise<void>
+  /** Keep fetching pages until `hasMore` is false, the cap is hit or the user cancels. */
+  fetchAll(tabId: string, index: number): Promise<void>
   /** Close the parameter prompt: values to substitute, or null to abort the run. */
   respondParams(values: Record<string, string> | null): void
   set(p: Partial<Pick<State, 'dialog' | 'palette' | 'showResults'>>): void
@@ -130,6 +136,7 @@ export const useWorkbench = create<State>((set, get) => ({
   async run(tabId, statements) {
     const tab = get().tabs.find((t) => t.id === tabId)
     if (tab?.type !== 'console' || !statements.length) return
+    fetchStop.delete(tabId)
     await get().connect(tab.connectionId)
     get().patchTab(tabId, { running: true })
     const prefs = get().prefs
@@ -171,6 +178,35 @@ export const useWorkbench = create<State>((set, get) => ({
     if (results.some((r) => /^\s*(create|alter|drop|rename)\b/i.test(r.result.sql) && !r.result.error)) void get().refresh(tab.connectionId)
   },
   respondParams: (values) => paramResolver?.(values),
-  async cancel(tabId) { const t = get().tabs.find((x) => x.id === tabId); if (t) await window.stratum.db.cancel(t.connectionId) },
+  async fetchMore(tabId, index) {
+    const tab = get().tabs.find((t) => t.id === tabId)
+    if (tab?.type !== 'console' || tab.running) return
+    const entry = tab.results[index], r = entry?.result
+    if (!entry || !r || r.error || !r.hasMore) return
+    const fail = (message: string) => set((s) => ({
+      tabs: s.tabs.map((t) => (t.id === tabId && t.type === 'console' ? { ...t, results: t.results.map((e, i) => (i === index ? { ...e, fetchError: message } : e)) } : t)),
+    }))
+    get().patchTab(tabId, { running: true })
+    try {
+      const page = await window.stratum.db.execute(tab.connectionId, r.sql, { limit: get().prefs['query.pageSize'], offset: r.offset + r.rows.length })
+      const patch = (e: ResultEntry): ResultEntry => ({ ...e, fetchError: page.error, result: { ...r, rows: [...r.rows, ...page.rows], hasMore: page.hasMore, durationMs: r.durationMs + page.durationMs } })
+      set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId && t.type === 'console' ? { ...t, results: t.results.map((e, i) => (i === index ? patch(e) : e)) } : t)) }))
+    } catch (e) { fail(String(e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')) }
+    finally { get().patchTab(tabId, { running: false }) }
+  },
+  async fetchAll(tabId, index) {
+    fetchStop.delete(tabId)
+    for (let page = 0; page < 50; page++) { // safety cap: 50 pages per click
+      const tab = get().tabs.find((t) => t.id === tabId)
+      const entry = tab?.type === 'console' ? tab.results[index] : undefined
+      if (!entry || entry.result.error || !entry.result.hasMore || fetchStop.has(tabId)) return
+      const before = entry.result.rows.length
+      await get().fetchMore(tabId, index)
+      const after = get().tabs.find((t) => t.id === tabId)
+      const now = after?.type === 'console' ? after.results[index] : undefined
+      if (!now || now.result.rows.length === before) return // error or no progress: stop instead of looping
+    }
+  },
+  async cancel(tabId) { fetchStop.add(tabId); const t = get().tabs.find((x) => x.id === tabId); if (t) await window.stratum.db.cancel(t.connectionId) },
   set: (p) => set(p),
 }))
