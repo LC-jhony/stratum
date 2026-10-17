@@ -7,7 +7,7 @@ import { DbSession } from '../src/main/db/session'
 import { SqliteTransport } from '../src/main/db/transports/sqlite'
 import type { Run } from '../src/main/db/types'
 import type { ConnectionConfig } from '../src/shared/types'
-import { buildErdGraph, layoutErd, renderErdSvg, cssPalette } from '../src/renderer/src/erd/erd'
+import { buildErdGraph, layoutErd, renderErdSvg, cssPalette, exportPalette } from '../src/renderer/src/erd/erd'
 
 const dir = mkdtempSync(path.join(tmpdir(), 'stratum-'))
 const cfg: ConnectionConfig = { id: 't', name: 't', kind: 'sqlite', filePath: path.join(dir, 'shop.db') }
@@ -81,6 +81,20 @@ describe('ERD', () => {
     const svg = renderErdSvg(l, cssPalette())
     expect(svg).toContain('var(--vscode-editor-foreground)')
     expect(svg.match(/class="node"/g)).toHaveLength(5)
+    expect(renderErdSvg(l, cssPalette(), { standalone: true })).toContain('<rect width="100%" height="100%"')
+    expect(renderErdSvg(l, cssPalette(), { standalone: true, background: false })).not.toContain('<rect width="100%" height="100%"')
+  })
+  it('standalone export is light on white and XML-escaped', async () => {
+    const l = await layoutErd(buildErdGraph(await s.introspect()))
+    expect(exportPalette().bg).toBe('#ffffff')
+    // Resolved font stacks carry double quotes; the standalone SVG must escape them or the XML breaks (and PNG rasterizing fails with it).
+    const svg = renderErdSvg(l, { ...exportPalette(), font: '"Segoe UI", sans-serif', mono: '"JetBrains Mono", monospace' }, { standalone: true })
+    expect(svg).toContain('<rect width="100%" height="100%" fill="#ffffff"/>')
+    expect(svg).toContain('fill="#24292f"')
+    expect(svg).toContain('font-family="&quot;Segoe UI&quot;, sans-serif"')
+    expect(svg).toContain('font-family="&quot;JetBrains Mono&quot;, monospace"')
+    const attrs = [...svg.matchAll(/[\w:-]+="([^"]*)"/g)].map((m) => m[1])
+    expect(attrs.every((v) => !/[<>]/.test(v) && !/&(?!(amp|lt|gt|quot|apos);)/.test(v))).toBe(true)
   })
   it('focus mode keeps only FK neighbours', async () => {
     const g = buildErdGraph(await s.introspect(), { focus: { table: 'orders', depth: 1 } })

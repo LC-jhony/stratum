@@ -103,6 +103,12 @@ export function resolvePalette(p: ErdPalette, cs: CSSStyleDeclaration): ErdPalet
   const r = (v: string): string => v.replace(/var\((--[\w-]+)(?:,\s*(.*))?\)/g, (_m, n, f) => cs.getPropertyValue(n).trim() || (f ? r(f.replace(/\)$/, '')) : '#888'))
   return Object.fromEntries(Object.entries(p).map(([k, v]) => [k, r(v)])) as unknown as ErdPalette
 }
+/** Fixed light palette for file exports: diagrams saved to disk are always light on a white background, whatever the active theme. Fonts stay configurable through the caller. */
+export const exportPalette = (fonts?: Pick<ErdPalette, 'font' | 'mono'>): ErdPalette => ({
+  bg: '#ffffff', card: '#ffffff', header: '#f3f3f3', border: '#d4d4d4', text: '#24292f', muted: '#6e7681',
+  accent: '#005fb8', pk: '#b7791f', fk: '#1976d2', line: '#8c959f',
+  font: fonts?.font ?? 'system-ui, sans-serif', mono: fonts?.mono ?? 'ui-monospace, Menlo, Consolas, monospace',
+})
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 /** Crow's foot (many) at the FK end: three prongs touch the card edge and converge outward on the connector. */
@@ -111,8 +117,10 @@ function crow(p: Pt, side: 1 | -1) { const t = p.x + side * 10; return `M${t},${
 function one(p: Pt, side: 1 | -1) { return `M${p.x + side * 8},${p.y - 6} v12 M${p.x + side * 13},${p.y - 6} v12` }
 const hash = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h) }
 
-export function renderErdSvg(l: ErdLayout, p: ErdPalette, o: { showTypes?: boolean; standalone?: boolean } = {}): string {
+export function renderErdSvg(l: ErdLayout, palette: ErdPalette, o: { showTypes?: boolean; standalone?: boolean; /** false drops the page-filling background rect (transparent export) */ background?: boolean } = {}): string {
   const showTypes = o.showTypes ?? true
+  // Resolved font stacks contain double quotes; escape every palette value so attributes and the <style> block stay valid XML.
+  const p = Object.fromEntries(Object.entries(palette).map(([k, v]) => [k, esc(v)])) as unknown as ErdPalette
   const edges = l.edges.map((e) => `<g class="edge" data-from="${esc(e.from)}" data-to="${esc(e.to)}"><path d="${e.d}" class="ln"/><path d="${crow(e.start, e.startSide)}" class="ln cf"/><path d="${one(e.end, e.endSide)}" class="ln cf"/><path d="${e.d}" class="hit"/></g>`).join('')
   const nodes = l.nodes.map((n) => {
     const rows = n.columns.map((c, i) => {
@@ -124,5 +132,5 @@ export function renderErdSvg(l: ErdLayout, p: ErdPalette, o: { showTypes?: boole
   }).join('')
   const css = `.ln{fill:none;stroke:${p.line};stroke-width:1.3;opacity:.55;transition:opacity .12s,stroke .12s}.cf{stroke-linecap:round}.hit{fill:none;stroke:transparent;stroke-width:10}.card{transition:stroke .12s}.dim .node{opacity:.35}.dim .edge{opacity:.12}.dim .node.on,.dim .edge.on{opacity:1}.edge.on .ln{stroke:${p.accent};opacity:1}.node.on .card{stroke:${p.accent}}`
   const attrs = o.standalone ? ` xmlns="http://www.w3.org/2000/svg" width="${l.width}" height="${l.height}"` : ''
-  return `<svg viewBox="0 0 ${Math.max(l.width, 1)} ${Math.max(l.height, 1)}"${attrs} font-family="${p.font}"><style>${css}</style>${o.standalone ? `<rect width="100%" height="100%" fill="${p.bg}"/>` : ''}<g class="edges">${edges}</g><g class="nodes">${nodes}</g></svg>`
+  return `<svg viewBox="0 0 ${Math.max(l.width, 1)} ${Math.max(l.height, 1)}"${attrs} font-family="${p.font}"><style>${css}</style>${o.standalone && o.background !== false ? `<rect width="100%" height="100%" fill="${p.bg}"/>` : ''}<g class="edges">${edges}</g><g class="nodes">${nodes}</g></svg>`
 }
