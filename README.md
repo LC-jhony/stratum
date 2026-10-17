@@ -95,8 +95,10 @@ sudo apt install ./dist/stratum_0.1.0_amd64.deb   # artifact name: stratum_<vers
 stratum
 ```
 
-`apt` resolves the runtime dependencies (GTK 3, NSS, libsecret and friends) automatically. The app
-installs under `/opt/Stratum` with a `.desktop` entry; `apt remove stratum` uninstalls it.
+`apt` resolves the runtime dependencies (GTK 3, NSS, libsecret and friends) automatically; all of
+them ship with a standard desktop installation, so installing with
+`sudo dpkg -i dist/stratum_*.deb` also works. The app installs under `/opt/Stratum` with a
+`.desktop` entry; `apt remove stratum` uninstalls it.
 
 ### Other packages
 
@@ -476,6 +478,11 @@ The smoke run complements them with an end-to-end pass through the real Electron
   the brand icons (window icon, tray icons including the macOS template variants).
 - **Targets:** macOS `dmg` + `zip` (hardened runtime), Windows `nsis` + `portable`, Linux
   `AppImage` + `deb` + `rpm` (category *Development*, `StartupWMClass=stratum`).
+- **deb dependencies:** the top-level `deb` block overrides electron-builder's default list to drop
+  the legacy `libxss1` hard dependency — the packaged Electron neither links nor `dlopen`s
+  `libXss.so.1`, so requiring it only made `dpkg -i` fail on distributions that no longer ship the
+  library (Ubuntu 26.04) — and keeps `libxss1` and `libappindicator3-1` (tray indicator) as
+  `Recommends`.
 
 The deb/rpm metadata (maintainer, homepage) comes from `author` and `homepage` in `package.json`.
 Running a single target is fine too:

@@ -16,3 +16,10 @@ linux:
   target: [AppImage, deb, rpm]
   category: Development
   desktop: { StartupWMClass: stratum }
+# electron-builder's default deb list still hard-depends on libxss1, but the packaged Electron
+# binary neither links nor dlopens libXss.so.1 (verified with readelf/ldd), so requiring it
+# only breaks `dpkg -i` on distros that no longer ship it (e.g. Ubuntu 26.04). Keep it as a
+# recommendation. The depends list below mirrors the 25.1.8 defaults minus libxss1.
+deb:
+  depends: [libgtk-3-0, libnotify4, libnss3, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0]
+  recommends: [libappindicator3-1, libxss1]
