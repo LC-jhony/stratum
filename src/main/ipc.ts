@@ -1,5 +1,6 @@
-import { dialog, ipcMain, type BrowserWindow } from 'electron'
-import { writeFile } from 'node:fs/promises'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { rm, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 import type { StratumApi } from '../shared/ipc'
 import type { ConnectionManager } from './services/connectionManager'
 import type { ConnectionStore, JsonStore } from './services/store'
@@ -29,13 +30,41 @@ export function registerIpc(d: { connections: ConnectionStore; manager: Connecti
     settings: { get: () => d.settings.read(), set: async (patch) => { await d.settings.write({ ...(await d.settings.read()), ...patch }); d.onSettingsChanged?.(patch) } },
     dialogs: { pickFile: async (filters) => (await dialog.showOpenDialog(d.window()!, { properties: ['openFile'], filters })).filePaths[0] },
     export: {
-      save: async (defaultName, content) => {
+      save: async (defaultName, content, filters) => {
         const win = d.window()
         if (!win) return null
-        const { canceled, filePath } = await dialog.showSaveDialog(win, { defaultPath: defaultName })
+        const { canceled, filePath } = await dialog.showSaveDialog(win, { defaultPath: defaultName, filters })
         if (canceled || !filePath) return null
         await writeFile(filePath, content, 'utf8')
         return filePath
+      },
+      saveBinary: async (defaultName, base64, filters) => {
+        const win = d.window()
+        if (!win) return null
+        const { canceled, filePath } = await dialog.showSaveDialog(win, { defaultPath: defaultName, filters })
+        if (canceled || !filePath) return null
+        await writeFile(filePath, base64, 'base64')
+        return filePath
+      },
+      /** Vector PDF sized to the diagram: a hidden window renders the standalone SVG and Chromium prints the page. */
+      pdf: async (defaultName, svg, size) => {
+        const win = d.window()
+        if (!win) return null
+        const { canceled, filePath } = await dialog.showSaveDialog(win, { defaultPath: defaultName, filters: [{ name: 'PDF', extensions: ['pdf'] }] })
+        if (canceled || !filePath) return null
+        const w = Math.max(1, Math.round(size.width)), h = Math.max(1, Math.round(size.height))
+        const tmp = path.join(app.getPath('temp'), `stratum-print-${process.pid}-${Date.now()}.html`)
+        const page = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false } })
+        try {
+          await writeFile(tmp, `<!doctype html><meta charset="utf-8"><style>@page{size:${w}px ${h}px;margin:0}html,body{margin:0;padding:0}svg{display:block}</style>${svg}`, 'utf8')
+          await page.loadFile(tmp)
+          const data = await page.webContents.printToPDF({ preferCSSPageSize: true, printBackground: true, margins: { top: 0, right: 0, bottom: 0, left: 0 } })
+          await writeFile(filePath, data)
+          return filePath
+        } finally {
+          if (!page.isDestroyed()) page.destroy()
+          await rm(tmp, { force: true })
+        }
       },
     },
   }

@@ -1,5 +1,8 @@
 import type { ConnectionConfig, DatabaseModel, QueryResult, ThemeFile, ThemeManifestEntry } from './types'
 
+/** Native save-dialog filter (matches Electron's FileFilter). */
+export interface SaveFilter { name: string; extensions: string[] }
+
 /** Single typed contract between renderer and main. Every channel is request/response. */
 export interface StratumApi {
   connections: {
@@ -27,7 +30,11 @@ export interface StratumApi {
   dialogs: { pickFile(filters?: { name: string; extensions: string[] }[]): Promise<string | undefined> }
   export: {
     /** Save text through a native save dialog; returns the chosen path or null when cancelled. */
-    save(defaultName: string, content: string): Promise<string | null>
+    save(defaultName: string, content: string, filters?: SaveFilter[]): Promise<string | null>
+    /** Save base64-encoded bytes (raster export) through a native save dialog. */
+    saveBinary(defaultName: string, base64: string, filters?: SaveFilter[]): Promise<string | null>
+    /** Print a standalone SVG as a single-page vector PDF sized to the diagram. */
+    pdf(defaultName: string, svg: string, size: { width: number; height: number }): Promise<string | null>
   }
   /** Main -> renderer menu commands (global menu on macOS/Linux, window menu on Windows). */
   onCommand(cb: (cmd: string, arg?: unknown) => void): () => void
