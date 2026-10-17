@@ -73,12 +73,12 @@ export function App() {
   return (
     <div className={`workbench${sideRight ? ' right' : ''}`}>
       <nav className="stripe" aria-label="Tool windows">
-        <button className="on" title="Database Explorer (⌘/Ctrl+1)"><Icon id="database" /></button>
-        <button title="New Query Console" onClick={() => void command('console.new')}><Icon id="terminal" /></button>
-        <button title="Diagram" onClick={() => void command('erd.open')}><Icon id="type-hierarchy" /></button>
+        <button className="on" data-label="Database Explorer (⌘/Ctrl+1)" aria-label="Database Explorer"><Icon id="database" /></button>
+        <button data-label="New Query Console" aria-label="New Query Console" onClick={() => void command('console.new')}><Icon id="terminal" /></button>
+        <button data-label="Diagram" aria-label="Diagram" onClick={() => void command('erd.open')}><Icon id="type-hierarchy" /></button>
         <span className="grow" />
-        <button title="Find Action (⌘/Ctrl+Shift+A)" onClick={() => command('palette')}><Icon id="search" /></button>
-        <button title="Settings (Ctrl+Alt+S)" onClick={() => command('settings')}><Icon id="settings-gear" /></button>
+        <button data-label="Find Action (⌘/Ctrl+Shift+A)" aria-label="Find Action" onClick={() => command('palette')}><Icon id="search" /></button>
+        <button data-label="Settings (Ctrl+Alt+S)" aria-label="Settings" onClick={() => command('settings')}><Icon id="settings-gear" /></button>
       </nav>
       <div className="side" style={{ width }}><Explorer /></div>
       <div className="sash" onMouseDown={startResize} />
@@ -101,9 +101,9 @@ export function App() {
         </div>
       </main>
       <footer className="app-status">
-        <span><Icon id={activeConn && live[activeConn.id]?.status === 'ready' ? 'pass-filled' : 'circle-slash'} /> {activeConn ? `${activeConn.name}${live[activeConn.id]?.version ? ' · ' + live[activeConn.id]!.version : ''}` : 'No data source'}</span>
+        <span className="conn"><Icon id={activeConn && live[activeConn.id]?.status === 'ready' ? 'pass-filled' : 'circle-slash'} /><span className="conn-name">{activeConn ? `${activeConn.name}${live[activeConn.id]?.version ? ' · ' + live[activeConn.id]!.version : ''}` : 'No data source'}</span></span>
         <span className="grow" />
-        <button onClick={() => command('theme.color')} title="Select color theme"><Icon id="symbol-color" /> {activeThemes.color?.entry.label}</button>
+        <button onClick={() => command('theme.color')} title="Select color theme"><Icon id="symbol-color" /> <span className="theme-label">{activeThemes.color?.entry.label}</span></button>
       </footer>
       <CommandPalette actions={actions} />
       {wb.dialog && <DatasourceDialog key={wb.dialog.editing?.id ?? 'new'} />}

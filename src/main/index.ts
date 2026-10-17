@@ -63,7 +63,7 @@ async function main() {
   const create = async () => {
     const prefs = await settings.read()
     win = new BrowserWindow({
-      width: 1440, height: 900, minWidth: 900, minHeight: 600, show: false,
+      width: 1440, height: 900, minWidth: 820, minHeight: 560, show: false,
       icon: brandPath('png/stratum-512.png'),
       backgroundColor: (prefs.windowBackground as string) ?? '#171717',
       // On Linux the in-window menu bar is drawn with the system GTK colours, so it cannot follow the app theme

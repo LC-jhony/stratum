@@ -67,27 +67,29 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
 
   return (
     <div className="table-editor">
-      <div className="editor-toolbar">
-        <button title="Reload" onClick={() => void load(offset)}><Icon id="refresh" /></button>
-        <button title="Previous page" disabled={!offset} onClick={() => void load(Math.max(0, offset - PAGE))}><Icon id="chevron-left" /></button>
-        <span className="page">{res ? `${offset + 1}–${offset + len}` : '…'}</span>
-        <button title="Next page" disabled={!res?.hasMore} onClick={() => void load(offset + PAGE)}><Icon id="chevron-right" /></button>
-        <span className="sep" />
-        <button title="Add row" disabled={!editable} onClick={addRow}><Icon id="add" /></button>
-        <button title="Delete row" disabled={!editable || selRow === undefined} onClick={delRow}><Icon id="remove" /></button>
-        <button title="Revert" disabled={!pending} onClick={() => void load(offset)}><Icon id="discard" /></button>
-        <button className={pending ? 'primary' : ''} title="Submit (Ctrl/⌘+Alt+Enter)" disabled={!pending || busy} onClick={() => void submit()}><Icon id="check" /> Submit{pending ? ` (${pending})` : ''}</button>
-        <span className="grow" />
-        <ExportMenu columns={res?.columns ?? []} rows={rows} table={tab.table} dialect={dialect} disabled={!res || !!res.error || !rows.length} />
-        {!editable && info && <span className="hint"><Icon id="lock" /> {info.kind === 'view' ? 'View' : 'No primary key'} — read-only</span>}
+      <div className="editor-card">
+        <div className="editor-toolbar">
+          <button title="Reload" onClick={() => void load(offset)}><Icon id="refresh" /></button>
+          <button title="Previous page" disabled={!offset} onClick={() => void load(Math.max(0, offset - PAGE))}><Icon id="chevron-left" /></button>
+          <span className="page">{res ? `${offset + 1}–${offset + len}` : '…'}</span>
+          <button title="Next page" disabled={!res?.hasMore} onClick={() => void load(offset + PAGE)}><Icon id="chevron-right" /></button>
+          <span className="sep" />
+          <button title="Add row" disabled={!editable} onClick={addRow}><Icon id="add" /></button>
+          <button title="Delete row" disabled={!editable || selRow === undefined} onClick={delRow}><Icon id="remove" /></button>
+          <button title="Revert" disabled={!pending} onClick={() => void load(offset)}><Icon id="discard" /></button>
+          <button className={pending ? 'primary' : ''} title="Submit (Ctrl/⌘+Alt+Enter)" disabled={!pending || busy} onClick={() => void submit()}><Icon id="check" /> Submit{pending ? ` (${pending})` : ''}</button>
+          <span className="grow" />
+          <ExportMenu columns={res?.columns ?? []} rows={rows} table={tab.table} dialect={dialect} disabled={!res || !!res.error || !rows.length} />
+          {!editable && info && <span className="hint"><Icon id="lock" /> {info.kind === 'view' ? 'View' : 'No primary key'} — read-only</span>}
+        </div>
+        <div className="filters">
+          <label><span>WHERE</span><input value={where} placeholder="e.g. id > 10" onChange={(e) => setWhere(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load(0)} /></label>
+          <label><span>ORDER BY</span><input value={order} placeholder="e.g. created_at desc" onChange={(e) => setOrder(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load(0)} /></label>
+        </div>
+        {msg && <div className={`banner ${res?.error || /fail|error|constraint/i.test(msg) ? 'error' : ''}`}>{msg}</div>}
+        {res && !res.error ? <DataGrid columns={res.columns} rows={rows} edits={edits} deleted={deleted} insertedFrom={len} readOnlyColumns={editable ? undefined : new Set(res.columns.map((_, i) => i))} onEdit={editable ? onEdit : undefined} onSelectRow={setSelRow} /> : <div className="empty-state">{busy ? 'Loading…' : ''}</div>}
+        <div className="grid-foot">{res && !res.error ? `${len} rows${res.hasMore ? '+' : ''} · ${res.durationMs} ms` : ''}</div>
       </div>
-      <div className="filters">
-        <label><span>WHERE</span><input value={where} placeholder="e.g. id > 10" onChange={(e) => setWhere(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load(0)} /></label>
-        <label><span>ORDER BY</span><input value={order} placeholder="e.g. created_at desc" onChange={(e) => setOrder(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load(0)} /></label>
-      </div>
-      {msg && <div className={`banner ${res?.error || /fail|error|constraint/i.test(msg) ? 'error' : ''}`}>{msg}</div>}
-      {res && !res.error ? <DataGrid columns={res.columns} rows={rows} edits={edits} deleted={deleted} insertedFrom={len} readOnlyColumns={editable ? undefined : new Set(res.columns.map((_, i) => i))} onEdit={editable ? onEdit : undefined} onSelectRow={setSelRow} /> : <div className="empty-state">{busy ? 'Loading…' : ''}</div>}
-      <div className="grid-foot">{res && !res.error ? `${len} rows${res.hasMore ? '+' : ''} · ${res.durationMs} ms` : ''}</div>
     </div>
   )
 }
