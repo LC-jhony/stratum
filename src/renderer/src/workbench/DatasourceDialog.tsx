@@ -1,10 +1,11 @@
 import { Fragment, useState } from 'react'
+import { ipc } from '../ipc/client'
 import type { CSSProperties, ReactNode } from 'react'
 import type { ConnectionConfig, ConnectionView, DialectId, DriverKind, SshConfig } from '../../../shared/types'
 import { DIALECTS } from '../../../shared/dialects'
 import { inferDockerKind, publishedPorts, type DockerContainer, type DockerPort } from '../../../shared/docker'
 import { useWorkbench } from '../store/workbench'
-import { Icon } from './Icon'
+import { Icon } from '../ui/Icon'
 import { DbIcon, DbLogo } from './dbIcons'
 
 /**
@@ -205,7 +206,7 @@ export function DatasourceDialog() {
 
   const doTest = async () => {
     setBusy(true)
-    const r = await window.stratum.connections.test({ ...c, name })
+    const r = await ipc.connections.test({ ...c, name })
     setBusy(false)
     setNote(r.ok ? { tone: 'ok', text: `Succeeded · ${c.kind} ${r.version ?? ''}`.trim() } : { tone: 'bad', text: r.error ?? 'Failed' })
   }
@@ -215,14 +216,14 @@ export function DatasourceDialog() {
     set({ dialog: null })
     if (thenConnect) void connect(cfg.id)
   }
-  const pick = async (apply: (p: string) => void, exts?: string[]) => { const f = await window.stratum.dialogs.pickFile(exts ? [{ name: 'Files', extensions: exts }] : undefined); if (f) apply(f) }
+  const pick = async (apply: (p: string) => void, exts?: string[]) => { const f = await ipc.dialogs.pickFile(exts ? [{ name: 'Files', extensions: exts }] : undefined); if (f) apply(f) }
 
   /* --- Docker helper: read-only container/port picker that fills the form --- */
   const scanDocker = async (state: DockerHelper | null) => {
     if (!state) return
     setDockerHelper((x) => (x ? { ...x, busy: true, error: undefined } : x))
     try {
-      const containers = await window.stratum.docker.list({
+      const containers = await ipc.docker.list({
         socketPath: state.mode === 'socket' ? state.socketPath : undefined,
         host: state.mode === 'tcp' ? state.host : undefined,
         port: state.mode === 'tcp' ? state.port : undefined,

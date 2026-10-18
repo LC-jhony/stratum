@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { ipc } from '../ipc/client'
 import { DEFAULT_SETTINGS, mergeSettings, type AppearanceMode, type KeywordCase, type SideBarPosition, type StratumSettings } from '../../../shared/settings'
 import type { ThemeManifestEntry } from '../../../shared/types'
 import { useWorkbench } from '../store/workbench'
 import { themes } from '../theme/themeManager'
 import { themeKind, type ColorThemeJson } from '../theme/colorTheme'
 import { MONO_FONTS, systemFonts } from '../theme/fonts'
-import { Icon } from './Icon'
+import { Icon } from '../ui/Icon'
 
 const KEYWORD_CASES: { id: KeywordCase; label: string }[] = [
   { id: 'upper', label: 'UPPERCASE (SELECT)' },
@@ -76,7 +77,7 @@ export function SettingsDialog() {
     void themes.applyMode(patch['appearance.mode'] as AppearanceMode) // The saved mode wins even when the store value did not change.
     closeSettings()
   }
-  const pickJar = async () => { const f = await window.stratum.dialogs.pickFile([{ name: 'Java archive', extensions: ['jar'] }]); if (f) up({ 'jdbc.jarPath': f }) }
+  const pickJar = async () => { const f = await ipc.dialogs.pickFile([{ name: 'Java archive', extensions: ['jar'] }]); if (f) up({ 'jdbc.jarPath': f }) }
   const colorThemes = themes.catalog.filter((e) => e.kind === 'color')
   const themeGroups: { label: string; items: ThemeManifestEntry[] }[] = [
     { label: 'Built-in', items: colorThemes.filter((e) => e.source === 'builtin') },

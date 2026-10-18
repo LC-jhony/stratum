@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { ipc } from './ipc/client'
 import logoDark from './assets/brand/stratum-logo-vertical-on-dark.svg'
 import logoLight from './assets/brand/stratum-logo-vertical-on-light.svg'
 import { setCompletionPrefs } from './monaco'
@@ -11,7 +12,7 @@ import { ConsoleEditor } from './workbench/ConsoleEditor'
 import { DatasourceDialog } from './workbench/DatasourceDialog'
 import { ErdView } from './workbench/ErdView'
 import { Explorer } from './workbench/Explorer'
-import { Icon } from './workbench/Icon'
+import { Icon } from './ui/Icon'
 import { ParamDialog } from './workbench/ParamDialog'
 import { SettingsDialog } from './workbench/SettingsDialog'
 import { TableEditor } from './workbench/TableEditor'
@@ -36,7 +37,7 @@ export function App() {
     const s = useWorkbench.getState(), cur = s.tabs.find((t) => t.id === s.activeTab)
     switch (cmd) {
       case 'datasource.new': return s.set({ dialog: {} })
-      case 'datasource.openSqlite': { const f = await window.stratum.dialogs.pickFile([{ name: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3', 'db3'] }]); if (!f) return; const c = { id: crypto.randomUUID(), name: f.split(/[\\/]/).pop()!, kind: 'sqlite' as const, filePath: f }; await s.saveConnection(c); void s.connect(c.id); return s.openConsole(c.id) }
+      case 'datasource.openSqlite': { const f = await ipc.dialogs.pickFile([{ name: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3', 'db3'] }]); if (!f) return; const c = { id: crypto.randomUUID(), name: f.split(/[\\/]/).pop()!, kind: 'sqlite' as const, filePath: f }; await s.saveConnection(c); void s.connect(c.id); return s.openConsole(c.id) }
       case 'console.new': return void s.openConsole(cur?.connectionId)
       case 'erd.open': return cur && isSqlKind(s.connections.find((c) => c.id === cur.connectionId)?.kind) ? s.openDiagram(cur.connectionId) : undefined
       case 'explorer.refresh': return void (cur && s.refresh(cur.connectionId))
@@ -48,7 +49,7 @@ export function App() {
       case 'theme.productIcon': return s.set({ palette: 'productIconTheme' })
     }
   }, [])
-  useEffect(() => window.stratum.onCommand((c) => void command(c)), [command])
+  useEffect(() => ipc.onCommand((c) => void command(c)), [command])
   useEffect(() => { // Cmd/Ctrl+Shift+A is also bound in the native menu; this keeps it working when the menu is hidden.
     const h = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); void command('palette') } if (e.key === 'Escape') set({ palette: null, dialog: null }) }
     addEventListener('keydown', h); return () => removeEventListener('keydown', h)
@@ -61,7 +62,7 @@ export function App() {
     { id: 'erd', label: 'Show Diagram for Current Data Source', run: () => void command('erd.open') },
     { id: 'refresh', label: 'Refresh Database Explorer', run: () => void command('explorer.refresh') },
     { id: 'results', label: 'Toggle Results Panel', run: () => void command('view.results') },
-    { id: 'prefs', label: 'Preferences: Open Settings', hint: window.stratum.platform === 'darwin' ? '⌘,' : 'Ctrl+Alt+S', run: () => void command('settings') },
+    { id: 'prefs', label: 'Preferences: Open Settings', hint: ipc.platform === 'darwin' ? '⌘,' : 'Ctrl+Alt+S', run: () => void command('settings') },
     { id: 'ct', label: 'Preferences: Color Theme', hint: activeThemes.color?.entry.label, run: () => void command('theme.color') },
     { id: 'fi', label: 'Preferences: File Icon Theme', hint: activeThemes.fileIcon?.entry.label ?? 'none', run: () => void command('theme.fileIcon') },
     { id: 'pi', label: 'Preferences: Product Icon Theme', hint: activeThemes.productIcon?.entry.label ?? 'Codicons', run: () => void command('theme.productIcon') },
@@ -89,7 +90,7 @@ export function App() {
               <img className="logo" src={light ? logoLight : logoDark} alt="Stratum" draggable={false} />
               <p>Connect a data source to browse schemas, run queries, edit data and explore ER diagrams.</p>
               <div className="actions"><button className="primary" onClick={() => command('datasource.new')}>New Data Source…</button><button onClick={() => command('datasource.openSqlite')}>Open SQLite File…</button></div>
-              <dl><dt>Find Action</dt><dd>{window.stratum.platform === 'darwin' ? '⇧⌘A' : 'Ctrl+Shift+A'}</dd><dt>Run statement</dt><dd>{window.stratum.platform === 'darwin' ? '⌘↵' : 'Ctrl+Enter'}</dd></dl>
+              <dl><dt>Find Action</dt><dd>{ipc.platform === 'darwin' ? '⇧⌘A' : 'Ctrl+Shift+A'}</dd><dt>Run statement</dt><dd>{ipc.platform === 'darwin' ? '⌘↵' : 'Ctrl+Enter'}</dd></dl>
             </div>
           )}
           {tabs.map((t) => (

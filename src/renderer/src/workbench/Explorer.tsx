@@ -4,7 +4,7 @@ import { connectionDialect } from '../../../shared/dialects'
 import { isSqlKind } from '../../../shared/kinds'
 import { qualify, quote } from '../../../shared/quoting'
 import { useWorkbench } from '../store/workbench'
-import { Icon } from './Icon'
+import { Icon } from '../ui/Icon'
 
 type Kind = 'connection' | 'schema' | 'group' | 'table' | 'view' | 'column' | 'index'
 interface Row { key: string; depth: number; kind: Kind; label: string; detail?: string; expandable: boolean; icon: string; color?: string; conn: ConnectionView; schema?: string; table?: string; pk?: boolean; fk?: boolean; extra?: string }

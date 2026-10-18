@@ -1,6 +1,5 @@
-import { useSyncExternalStore } from 'react'
-import { themes } from '../theme/themeManager'
 import { resolveFileIcon } from '../theme/fileIconTheme'
+import { useFileIconTheme, useProductIconTheme } from '../theme/useTheme'
 import { hasProductIcon, type ProductIconThemeJson } from '../theme/productIconTheme'
 import { APP_ICONS } from './iconMap'
 import { LUCIDE } from './lucide'
@@ -11,7 +10,7 @@ import { LUCIDE } from './lucide'
  * theme's injected CSS re-targets — same override order as VS Code.
  */
 export const Icon = ({ id, className = '', style, title }: { id: string; className?: string; style?: React.CSSProperties; title?: string }) => {
-  const pi = useSyncExternalStore(themes.subscribe.bind(themes), () => themes.active.productIcon)
+  const pi = useProductIconTheme()
   const name = pi && hasProductIcon(pi.json as ProductIconThemeJson, id) ? undefined : (APP_ICONS as Record<string, string>)[id]
   const glyph = name ? LUCIDE[name as keyof typeof LUCIDE] : undefined
   if (glyph) return (
@@ -22,7 +21,7 @@ export const Icon = ({ id, className = '', style, title }: { id: string; classNa
 
 /** File-type icon from the active file icon theme; falls back to a product icon when no theme (or no match). */
 export function FileIcon({ name, kind = 'file', fallback = 'file' }: { name: string; kind?: 'file' | 'folder' | 'folderExpanded'; fallback?: string }) {
-  const active = useSyncExternalStore(themes.subscribe.bind(themes), () => themes.active.fileIcon)
+  const active = useFileIconTheme()
   const light = document.documentElement.dataset.theme === 'light'
   const r = active ? resolveFileIcon(active.json as never, active.baseUrl, name, kind, light) : undefined
   if (r?.kind === 'image') return <img className="file-icon" src={r.url} alt="" draggable={false} />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ipc } from '../ipc/client'
 import { isSqlKind } from '../../../shared/kinds'
 import { qualify, quote } from '../../../shared/quoting'
 import { buildDelete, buildInsert, buildUpdate } from '../../../shared/sqlgen'
@@ -6,7 +7,7 @@ import type { QueryResult } from '../../../shared/types'
 import { useWorkbench, type TableTab } from '../store/workbench'
 import { DataGrid } from './DataGrid'
 import { ExportMenu } from './ExportMenu'
-import { Icon } from './Icon'
+import { Icon } from '../ui/Icon'
 
 const PAGE = 500
 
@@ -54,13 +55,13 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
     const q = sqlKind
       ? `select * from ${target}${where.trim() ? ` where ${where}` : ''}${order.trim() ? ` order by ${order}` : ''}`
       : source
-    const r = await window.stratum.db.execute(tab.connectionId, q, { limit: PAGE, offset: off })
+    const r = await ipc.db.execute(tab.connectionId, q, { limit: PAGE, offset: off })
     setRes(r); setOffset(off); setBusy(false)
     if (r.error) setMsg(r.error)
     setEdits(new Map()); setDeleted(new Set()); setInserted([])
   }, [tab.connectionId, sqlKind, target, source, where, order, offset])
   useEffect(() => { if (model && !res) void load(0) }, [model])
-  useEffect(() => window.stratum.onCommand((c) => { if (visible && c === 'grid.submit') void submit() }), [visible, edits, deleted, inserted, res])
+  useEffect(() => ipc.onCommand((c) => { if (visible && c === 'grid.submit') void submit() }), [visible, edits, deleted, inserted, res])
 
   const len = res?.rows.length ?? 0
   const pending = edits.size + deleted.size + inserted.length
@@ -88,7 +89,7 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
     for (const r of deleted) stmts.push(buildDelete(q, target, key(r)))
     for (const row of inserted) stmts.push(buildInsert(q, target, Object.fromEntries(res.columns.map((c, i) => [c.name, row[i]]).filter(([, v]) => v !== null && v !== ''))))
     setBusy(true)
-    const out = await window.stratum.db.submit(tab.connectionId, stmts)
+    const out = await ipc.db.submit(tab.connectionId, stmts)
     setBusy(false)
     if (out.ok) { setMsg(`${stmts.length} change(s) submitted`); await load(offset) } else setMsg(out.error)
   }

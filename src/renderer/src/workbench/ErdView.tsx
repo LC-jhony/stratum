@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ipc } from '../ipc/client'
 import { buildErdGraph, cssPalette, exportPalette, layoutErd, renderErdSvg, resolvePalette, type ErdLayout, type ErdNode } from '../erd/erd'
 import { useWorkbench, type DiagramTab } from '../store/workbench'
-import { Icon } from './Icon'
+import { Icon } from '../ui/Icon'
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v))
 /** Raster exports above this many pixels per side trip canvas limits; the PNG scale is lowered to fit. */
@@ -157,7 +158,7 @@ export function ErdView({ tab, visible }: { tab: DiagramTab; visible: boolean })
     finally { setBusy(undefined) }
   }
   useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(undefined), 6000); return () => clearTimeout(t) }, [msg])
-  const saveSvg = () => window.stratum.export.save(`${fileBase()}.svg`, standalone(!transparent), [{ name: 'SVG image', extensions: ['svg'] }])
+  const saveSvg = () => ipc.export.save(`${fileBase()}.svg`, standalone(!transparent), [{ name: 'SVG image', extensions: ['svg'] }])
   const savePng = async (scale: number) => {
     if (!layout) return null
     const s = Math.min(scale, MAX_PX / layout.width, MAX_PX / layout.height)
@@ -172,9 +173,9 @@ export function ErdView({ tab, visible }: { tab: DiagramTab; visible: boolean })
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(standalone(!transparent))
     })
     if (!blob) throw new Error('image rendering failed')
-    return window.stratum.export.saveBinary(`${fileBase()}.png`, await blobBase64(blob), [{ name: 'PNG image', extensions: ['png'] }])
+    return ipc.export.saveBinary(`${fileBase()}.png`, await blobBase64(blob), [{ name: 'PNG image', extensions: ['png'] }])
   }
-  const savePdf = () => (layout ? window.stratum.export.pdf(`${fileBase()}.pdf`, standalone(true), { width: layout.width, height: layout.height }) : Promise.resolve(null))
+  const savePdf = () => (layout ? ipc.export.pdf(`${fileBase()}.pdf`, standalone(true), { width: layout.width, height: layout.height }) : Promise.resolve(null))
 
   return (
     <div className="erd">

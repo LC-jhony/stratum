@@ -4,7 +4,7 @@ import { filterRows, sortRows, type GridSort } from '../../../shared/gridView'
 import { useWorkbench, type ResultEntry } from '../store/workbench'
 import { DataGrid } from './DataGrid'
 import { ExportMenu } from './ExportMenu'
-import { Icon } from './Icon'
+import { Icon } from '../ui/Icon'
 import { ValueDialog } from './ValueDialog'
 
 export function ResultsPane({ tabId, results, active, onActive, running, dialect }: { tabId: string; results: ResultEntry[]; active: number; onActive(i: number): void; running: boolean; dialect: DialectId }) {

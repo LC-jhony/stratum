@@ -1,5 +1,5 @@
 import { useWorkbench } from '../store/workbench'
-import { FileIcon, Icon } from './Icon'
+import { FileIcon, Icon } from '../ui/Icon'
 
 export function Tabs() {
   const { tabs, activeTab, setActive, closeTab, connections } = useWorkbench()

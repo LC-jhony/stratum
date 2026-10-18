@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ipc } from '../ipc/client'
 import { isSqlKind } from '../../../shared/kinds'
 import { elasticStatementAt, splitElasticStatements } from '../../../shared/elastic'
 import { mongoStatementAt, splitMongoStatements } from '../../../shared/mongo'
@@ -9,7 +10,7 @@ import { ensureMonaco, setCompletionModel, syncMonacoTheme } from '../monaco'
 import { themes } from '../theme/themeManager'
 import { monoFontStack } from '../theme/fonts'
 import { useWorkbench, type ConsoleTab } from '../store/workbench'
-import { Icon } from './Icon'
+import { Icon } from '../ui/Icon'
 import { ResultsPane } from './ResultsPane'
 import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api'
 
@@ -61,7 +62,7 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
     e.updateOptions({ fontSize: prefs['editor.fontSize'], fontFamily: monoFontStack(prefs['editor.fontFamily']), wordWrap: prefs['editor.wordWrap'], minimap: { enabled: prefs['editor.minimap'] }, quickSuggestions: { other: sqlKind && prefs['completion.enabled'], strings: false, comments: false } })
     e.getModel()?.updateOptions({ tabSize: prefs['editor.tabSize'] })
   }, [prefs, sqlKind])
-  useEffect(() => window.stratum.onCommand((c) => { if (!visible) return; if (c === 'run.statement') execRef.current(false); if (c === 'run.script') execRef.current(true); if (c === 'run.cancel') void cancel(tab.id) }), [visible])
+  useEffect(() => ipc.onCommand((c) => { if (!visible) return; if (c === 'run.statement') execRef.current(false); if (c === 'run.script') execRef.current(true); if (c === 'run.cancel') void cancel(tab.id) }), [visible])
 
   return (
     <div className="console">

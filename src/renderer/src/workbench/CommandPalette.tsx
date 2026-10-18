@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { themes } from '../theme/themeManager'
 import { useWorkbench } from '../store/workbench'
-import { Icon } from './Icon'
+import { Icon } from '../ui/Icon'
 
 interface Item { id: string; label: string; hint?: string; run(): void }
 

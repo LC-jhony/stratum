@@ -1,9 +1,10 @@
 import { useState } from 'react'
+import { ipc } from '../ipc/client'
 import { createPortal } from 'react-dom'
 import { EXPORT_FORMATS, exportText, type ExportId } from '../../../shared/export'
 import { bytesToBase64, exportXlsx } from '../../../shared/xlsx'
 import type { ColumnMeta, DialectId } from '../../../shared/types'
-import { Icon } from './Icon'
+import { Icon } from '../ui/Icon'
 
 /** Export the visible grid (DataGrip CSV formats + JSON/SQL INSERTs + an Excel workbook) through a native save dialog. */
 export function ExportMenu({ columns, rows, table, dialect, disabled }: { columns: ColumnMeta[]; rows: unknown[][]; table?: string; dialect: DialectId; disabled?: boolean }) {
@@ -15,8 +16,8 @@ export function ExportMenu({ columns, rows, table, dialect, disabled }: { column
     const name = `${table ?? 'result'}.${spec.ext}`
     const filters = [{ name: spec.label, extensions: [spec.ext] }]
     const path = format === 'xlsx'
-      ? await window.stratum.export.saveBinary(name, bytesToBase64(exportXlsx(columns, rows, table ?? 'result')), filters)
-      : await window.stratum.export.save(name, exportText(columns, rows, format, table ?? 'result', dialect), filters)
+      ? await ipc.export.saveBinary(name, bytesToBase64(exportXlsx(columns, rows, table ?? 'result')), filters)
+      : await ipc.export.save(name, exportText(columns, rows, format, table ?? 'result', dialect), filters)
     setMsg(path ? `Saved to ${path}` : undefined)
     if (path) setTimeout(() => setMsg(undefined), 5000)
   }

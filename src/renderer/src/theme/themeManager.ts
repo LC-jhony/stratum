@@ -1,4 +1,5 @@
 import type { AppearanceMode } from '../../../shared/settings'
+import { ipc } from '../ipc/client'
 import type { ThemeFile, ThemeManifestEntry } from '../../../shared/types'
 import { applyColorTheme, themeKind, type ColorThemeJson } from './colorTheme'
 import { fileIconFontCss, type FileIconThemeJson } from './fileIconTheme'
@@ -70,7 +71,7 @@ class ThemeManager {
   private osDark = () => window.matchMedia('(prefers-color-scheme: dark)').matches
 
   async init() {
-    const [builtin, imported, settings] = await Promise.all([window.stratum.themes.list(), window.stratum.themes.importVsCodeExtensions().catch(() => []), window.stratum.settings.get()])
+    const [builtin, imported, settings] = await Promise.all([ipc.themes.list(), ipc.themes.importVsCodeExtensions().catch(() => []), ipc.settings.get()])
     const { catalog, aliases } = dedupeCatalog([...builtin, ...imported])
     this.catalog = catalog
     /** Resolves a persisted id; a duplicate dropped from the picker still resolves to the kept twin. */
@@ -81,7 +82,7 @@ class ThemeManager {
     // A stored mode wins; installs that pinned a theme before Appearance existed keep it; fresh installs follow the OS.
     this.mode = stored === 'dark' || stored === 'light' || stored === 'system' ? stored : (pinnedKind ?? 'system')
     // Persist a derived mode: without it the store's default ('system') would override the pinned theme after load().
-    if (this.mode !== stored) void window.stratum.settings.set({ 'appearance.mode': this.mode })
+    if (this.mode !== stored) void ipc.settings.set({ 'appearance.mode': this.mode })
     const kind: 'dark' | 'light' = this.mode === 'system' ? (this.osDark() ? 'dark' : 'light') : this.mode
     const color = pinned && (pinnedKind === undefined || pinnedKind === kind) ? pinned : siblingTheme(pinned, kind, this.catalog)
     if (color) await this.set(color, false)
@@ -104,27 +105,27 @@ class ThemeManager {
 
   async set(entry: ThemeManifestEntry, persist = true) {
     const key = entry.kind
-    const file = await window.stratum.themes.read(entry.path)
+    const file = await ipc.themes.read(entry.path)
     this.active = { ...this.active, [key]: file }
     if (entry.kind === 'color') {
       const json = file.json as ColorThemeJson
       if (persist) this.mode = themeKind(json) // Picking a theme explicitly pins its kind, like VS Code.
       const colors = applyColorTheme(json)
       // colorScheme drives the native chrome (menu bar, dialogs) in the main process; 'system' keeps following the OS.
-      void window.stratum.settings.set({ windowBackground: colors['editor.background'], colorScheme: this.mode === 'system' ? 'system' : themeKind(json) })
+      void ipc.settings.set({ windowBackground: colors['editor.background'], colorScheme: this.mode === 'system' ? 'system' : themeKind(json) })
     } else if (entry.kind === 'fileIcon') {
       this.styleEl('stratum-file-icon-fonts').textContent = fileIconFontCss(file.json as FileIconThemeJson, file.baseUrl)
     } else {
       this.styleEl('stratum-product-icons').textContent = productIconCss(file.json as ProductIconThemeJson, file.baseUrl)
     }
-    if (persist) await window.stratum.settings.set(entry.kind === 'color' ? { colorTheme: entry.id, 'appearance.mode': this.mode } : { [`${key}Theme`]: entry.id })
+    if (persist) await ipc.settings.set(entry.kind === 'color' ? { colorTheme: entry.id, 'appearance.mode': this.mode } : { [`${key}Theme`]: entry.id })
     this.emit()
   }
   /** Clear an icon theme (back to defaults). */
   async clear(kind: 'fileIcon' | 'productIcon') {
     this.active = { ...this.active, [kind]: undefined }
     this.styleEl(kind === 'fileIcon' ? 'stratum-file-icon-fonts' : 'stratum-product-icons').textContent = ''
-    await window.stratum.settings.set({ [`${kind}Theme`]: null })
+    await ipc.settings.set({ [`${kind}Theme`]: null })
     this.emit()
   }
   monacoTheme() { return this.active.color ? toMonacoTheme(this.active.color.json as ColorThemeJson) : undefined }
