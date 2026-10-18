@@ -40,10 +40,15 @@ Windows · macOS · Linux (native menu; global menu bar on macOS, and on Linux d
 
 ## What you get
 
-- **Data sources.** PostgreSQL, MySQL / MariaDB and SQLite work out of the box; anything with a JDBC
-  driver (Oracle, Db2, SQL Server, Snowflake, ClickHouse…) works through the bundled
-  [jdbc-adapter-server](https://github.com/database-client/jdbc-adapter-server) sidecar. Connections
-  support SSL, a read-only mode, Test Connection, and passwords are sealed with the OS keychain.
+- **Data sources.** PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis, Elasticsearch, Cassandra, S3,
+  FTP, Kafka and RabbitMQ work out of the box; anything with a JDBC driver (Oracle, Db2, SQL Server,
+  Snowflake, ClickHouse…) works through the bundled
+  [jdbc-adapter-server](https://github.com/database-client/jdbc-adapter-server) sidecar.
+  Connections support SSL, a read-only mode, Test Connection, an SSH tunnel connection helper, and
+  passwords are sealed with the OS keychain.
+- **Docker helper.** The **Docker** tile in the connection dialog lists running containers over the
+  local unix socket or TCP and fills Host/Port from a published port — plus the matching server type
+  when the image is recognized. It is read-only: only `GET /containers/json` is ever called.
 - **Database Explorer.** Schemas, tables, views, columns (with PK / FK badges and nullability), and
   indexes; a filter box; context menus for opening consoles, data editors and diagrams; plus
   light Rename… / Find Usages helpers that generate SQL instead of silently executing it.
@@ -100,6 +105,17 @@ them ship with a standard desktop installation, so installing with
 `sudo dpkg -i dist/stratum_*.deb` also works. The app installs under `/opt/Stratum` with a
 `.desktop` entry; `apt remove stratum` uninstalls it.
 
+If the app silently fails to open on Ubuntu 24.04+ (no window, nothing in the launcher), the
+sandbox helper is missing its setuid bit — repair an existing install with:
+
+```bash
+sudo chown root:root /opt/Stratum/chrome-sandbox
+sudo chmod 4755 /opt/Stratum/chrome-sandbox
+```
+
+Packages built from the current tree set this up in the post-install script, see
+[Packaging installers](#packaging-installers).
+
 ### Other packages
 
 `npm run dist` builds every target configured for the current OS in `electron-builder.yml`:
@@ -109,8 +125,10 @@ built on (or for) each OS.
 ## Quick start
 
 1. **Add a data source.** Press `Ctrl/⌘+Alt+Shift+D` (or click **New Data Source…** on the welcome
-   screen). Pick PostgreSQL, MySQL / MariaDB, SQLite or *Other (JDBC)*, fill in the fields and press
-   **Test Connection** before **OK**.
+   screen). Pick PostgreSQL, MySQL / MariaDB, SQLite, MongoDB, Redis, Elasticsearch, Cassandra, S3,
+   FTP, Kafka, RabbitMQ or *Other (JDBC)*, fill in the fields — the **Docker** tile can fill
+   host/port from a running container and the **SSH Tunnel** tab reaches any network source behind a
+   jump host — and press **Test Connection** before **OK**.
    For SQLite you can also use **File → Open SQLite File…**, point the *File* field at a `.db` path,
    or use `:memory:` for a scratch database.
 2. **Browse the schema.** Expand the connection in the side bar: schemas → tables/views → columns
@@ -135,13 +153,213 @@ built on (or for) each OS.
 | PostgreSQL | `pg` (bundled) | SSL toggle; read-only enforced with `default_transaction_read_only`. |
 | MySQL / MariaDB | `mysql2` (bundled) | SSL toggle; read-only enforced with `session transaction read only`; big numbers arrive as strings. |
 | SQLite | `sql.js` (WASM, bundled) | No native modules; file or `:memory:`; writes persist to the file after each write outside an open transaction. |
+| MongoDB | `mongodb` (bundled) | Documents, not SQL: the console speaks mongosh-style expressions, collections load read-only in the data editor, and the Explorer shows databases → collections → sampled fields and indexes. |
+| Redis | `ioredis` (bundled) | Key-value, not SQL: the console takes `redis-cli` commands under a read-only allowlist, keys load as paged values in the data editor, and the Explorer shows databases → sampled keys with their type. |
+| Elasticsearch | `fetch` (HTTP, no extra dependency) | Search engine, not SQL: the console takes Dev Tools-style requests (`GET /_cat/indices?format=json`, `POST /index/_search` + JSON body) under a read-only allowlist, indices load as paged hits in the data editor, and the Explorer shows one `indices` schema with mapping columns. |
+| Cassandra | `cassandra-driver` (bundled) | CQL, not SQL: the console takes `SELECT`, `USE` and client-side `DESCRIBE` under a read-only allowlist, tables load with page-state paging in the data editor, and the Explorer shows keyspaces → tables → columns (partition/clustering keys marked). |
+| S3 | `@aws-sdk/client-s3` (bundled) | Object storage, not SQL: no console in this MVP; buckets list in the Explorer and each one opens a read-only `objects` grid (root listing: objects plus folder prefixes, paged by continuation token). Works with AWS and S3-compatible endpoints (MinIO, R2…). |
+| FTP / FTPS | `basic-ftp` (bundled) | File transfer, not SQL: no console in this MVP; the Explorer shows the root folders as tables under one `files` schema and each opens a read-only grid (name, type, size, modified, permissions). Explicit FTPS (`AUTH TLS`) via the SSL switch. |
+| Kafka | `kafkajs` (bundled) | Event streams, not SQL: no console in this MVP; the Explorer lists user topics and each opens a read-only peek (partition, offset, timestamp, key, value, headers) bounded by retained offsets, 5 000 messages and a 10 s budget. SASL/PLAIN and SSL supported; offsets are never committed. |
+| RabbitMQ | `fetch` (Management HTTP API, no extra dependency) | Message broker, not SQL: no console in this MVP; the Explorer lists vhosts → queues and each opens a read-only peek (exchange, routingKey, redelivered, payload, properties, headers). Peeking requeues (`ack_requeue_true`); nothing is acknowledged or deleted. |
 | Other (JDBC) | jdbc-adapter-server (bundled sidecar) | Any JDBC driver JAR; choose the SQL dialect used for quoting/completion. |
+
+Every network source above can ride an **SSH tunnel** (see [SSH tunnels](#ssh-tunnels-connection-helper)).
 
 Anything with a JDBC driver already works through the generic JDBC transport. Engines without an ANSI
 `information_schema` get catalog-specific introspection instead: Oracle (`ALL_*` dictionary views),
 Db2 (`SYSCAT`), SAP ASE (`sysobjects`/`syscolumns`, DataGrip's bit-8 nullability mask), ClickHouse
 (`system.*`), Cassandra CQL (`system_schema`) and BigQuery (region-scoped `INFORMATION_SCHEMA`). All
 of these paths are covered by tests (`tests/db.test.ts`).
+
+### MongoDB
+
+MongoDB is the first provider that is not SQL, so the workbench reaches it through a capability
+registry instead of the SQL-only paths: `src/shared/kinds.ts` marks each `DriverKind` as `sql` or not,
+and the connection dialog, data editor, console and Explorer hide (or adapt) the SQL affordances for
+non-SQL sources.
+
+Statements are mongosh-style text — `db.users.find({age:{$gt:30}}).sort({age:1}).limit(20)`,
+`db.orders.aggregate([…])`, `countDocuments`, `estimatedDocumentCount`, `distinct`,
+`db.getSiblingDB("other").getCollection("logs-2024").find({})` — parsed by a hand-written reader
+(`src/main/db/transports/mongodb.ts`), never `eval`. Writes and JavaScript (`deleteMany`, `updateOne`,
+`dropDatabase`, arrow functions) fail fast with an explanatory message before reaching the server.
+Argument documents accept unquoted keys, both quote styles and the `ObjectId`/`ISODate`/`NumberLong`/
+`NumberInt`/`NumberDecimal`/`Timestamp`/`UUID` constructors.
+
+Paging is injected as `.skip(offset).limit(n)`, unless the statement already carries its own `limit`,
+in which case it runs as written. Introspection lists every visible database (`listDatabases`, capped
+at 25), lists collections including views, samples 25 documents per collection to name and type the
+fields (`_id` is the primary key) and reads `listIndexes`; `admin`, `config` and `local` are listed
+but not sampled. The connection dialog accepts a `mongodb://…` connection string that overrides the
+host/port/user/password/auth-source fields. The optional live suite is described under
+[Testing](#testing).
+
+### Redis (read-only)
+
+Redis is the second non-SQL provider and shares the MongoDB pattern: a hand-written reader for
+`redis-cli` text (`src/main/db/transports/redis.ts`) instead of `eval`, guarded by an allowlist of
+read-only commands and subcommand families (`CLIENT LIST`, `OBJECT ENCODING`, `XINFO STREAM`,
+`JSON.GET`…). Writes and stateful/admin commands (`SET`, `DEL`, `FLUSHALL`, `EXPIRE`, `EVAL`,
+`CONFIG`, `SUBSCRIBE`, `SORT … STORE`…) fail fast with an explanatory message in the results pane
+before reaching the server; `SELECT` is allowed because it only changes which database the session
+queries. Arguments parse like redis-cli's `sdssplitargs` (`"…"` with `\n`/`\xHH` escapes, `'…'`
+literal), and replies become grid rows per shape: flat maps as field/value pairs, `SCAN`/`SSCAN`/
+`HSCAN` with the cursor visible in its own column, `ZRANGE … WITHSCORES` as member/score pairs and
+stream entries as id + JSON fields.
+
+The Explorer maps databases to schemas (`db0`, `db1`…) and keys to tables. Introspection reads
+`INFO keyspace`, samples up to 500 keys per database (2 000 total, 8 s budget) with `SCAN` on a
+second (duplicated) connection — so user `SELECT`s never disturb it — and records each key's `TYPE`
+as its column. Opening a key runs `INSPECT`, the paged reader the data editor drives: strings show
+their value, hashes/lists/sets/zsets/streams show their natural columns with offset paging per type
+(`LRANGE` windows, bounded `HGETALL`/`SSCAN` walks). Everything is read-only, like the MongoDB MVP.
+The dialog accepts host/port, an ACL username/password, a database index (or a unix socket path),
+and a connection string works for tests/tunnels (`redis://…`).
+
+### Elasticsearch (read-only)
+
+Elasticsearch is the third non-SQL provider and the first one that is pure HTTP: the transport
+(`src/main/db/transports/elastic.ts`) speaks the Dev Tools dialect directly with `fetch` — no extra
+dependency — and the console (`src/shared/elastic.ts`) splits requests at lines that start with an
+HTTP method (`GET /_cat/indices?format=json`, `POST /my-index/_search` followed by a JSON body), so
+a multi-line body never splits a statement. Only relative paths are accepted: the console can never
+be pointed at an arbitrary host.
+
+Reads are classified by method: `GET`/`HEAD` everywhere, `POST` only on search/count/analysis
+endpoints (`_search`, `_search/template`, `_msearch`, `_count`, `_field_caps`, `_analyze`…).
+Everything else — `PUT`, `PATCH`, `DELETE`, `POST /index/_doc`, `_bulk`, `_update_by_query`,
+`_reindex`… — fails fast with an explanatory message in the results pane before a byte leaves the
+process. A `GET` with a JSON body (Dev Tools style) is sent as `POST` on read endpoints, because
+`fetch` cannot carry a GET body — anywhere else it is refused instead of silently becoming a write.
+Search requests are paged like every other provider: the grid and the console add `from`/`size` to
+`_search` calls, and the data editor drives its own `SEARCH <index>` reader (`sort: _doc` for stable
+windows).
+
+Search hits map to rows as `_id` plus flattened `_source` fields (dotted paths, up to depth 4);
+`_cat/*?format=json` tables and plain JSON objects map generically, and server errors
+(`index_not_found_exception`, …) become one readable line in the results pane. The Explorer shows a
+single `indices` schema: indices as tables, mappings as columns (`name`, `name.keyword`,
+`address.city`…, multi-fields included), fetched with an index cap and a time budget so a huge
+cluster still introspects quickly. The dialog accepts host/port, an optional username/password and
+an SSL switch; a full URL works for tests/tunnels (`uri`, `http://127.0.0.1:9200`).
+
+### Cassandra (read-only)
+
+Cassandra is the fourth non-SQL provider and speaks CQL through the official `cassandra-driver`
+(`src/main/db/transports/cassandra.ts`). The console accepts `SELECT`, `USE` and client-side
+`DESCRIBE KEYSPACES|TABLES|TABLE ks.tbl`; everything else — `INSERT`, `UPDATE`, `DELETE`,
+`TRUNCATE`, `CREATE`/`ALTER`/`DROP`, `BATCH` — fails with an explanatory message in the results pane
+before a statement reaches a node. `USE` is real session state: the transport validates the keyspace
+and applies it per query through the driver's `keyspace` option, so it survives the driver's host
+routing instead of depending on one connection.
+
+CQL has no `OFFSET`, so paging is honest about it: a read is re-run from the first row and the
+transport walks Cassandra's native page states (fetch size capped at 5 000, at most 20 000 rows
+walked per query) until it reaches the requested window. The Explorer model comes from
+`system_schema`: keyspaces are schemas, tables are tables, `partition_key`/`clustering_key` columns
+are marked as primary keys and ordered first, and native types arrive as their full CQL type
+(`frozen<map<text, int>>`…). The data editor opens a table with `SELECT *`, paged read-only like the
+other non-SQL providers. The dialog accepts host/port, the local data center (default
+`datacenter1`), an optional keyspace, username/password and SSL.
+
+### S3 (read-only)
+
+S3 is the first storage provider and has no console: it exists for browsing. The Explorer lists
+buckets as schemas (`ListBuckets`) and every bucket exposes one `objects` table; opening it runs the
+internal reader `LIST "<bucket>"` (`src/main/db/transports/s3.ts`), a `ListObjectsV2` root listing
+with a `/` delimiter, so common prefixes arrive as `folder` rows next to object rows (`key`, `kind`,
+`size`, `lastModified`, `storageClass`). Paging walks continuation tokens from the start — S3 has no
+offset — capped at 10 000 rows and 1 000 keys per request. Any other statement is refused locally
+with a pointer to the Explorer, and nothing in the transport writes.
+
+Leave the endpoint blank for AWS S3 (the SDK's default endpoint and region chain); set host/port for
+an S3-compatible service, which switches to path-style addressing and uses `http`/`https` by the SSL
+switch (MinIO and friends). Credentials are optional — access key ID and secret key when provided,
+otherwise the SDK's default provider chain (environment, profile, instance role).
+
+### FTP (read-only)
+
+FTP/FTPS is another browsing-only provider (`src/main/db/transports/ftp.ts`, `basic-ftp`). The
+Explorer shows one `files` schema: `(root)` lists the server root and each root folder is a table
+that lists that folder when opened — one level, since deeper navigation needs a console or a lazy
+tree, and this MVP has neither. The internal reader `LIST "<path>"` maps the directory listing to
+`name`, `type` (`file`/`folder`/`link`), `size`, `modified` (parsed date, raw server text as a
+fallback) and `permissions` (symbolic `rwxr-xr-x`). FTP servers always return a whole directory, so
+each call is capped at 10 000 entries and paging slices that snapshot locally. Nothing is uploaded,
+renamed or deleted; every other statement is refused locally.
+
+The dialog takes host/port and optional credentials (anonymous otherwise) and the SSL switch enables
+explicit FTPS via `AUTH TLS`; implicit FTPS is not offered because it is the legacy variant. An SSH
+tunnel works like it does for any other network source.
+
+### Kafka (read-only)
+
+Kafka is a peeking provider, not a SQL one (`src/main/db/transports/kafka.ts`, `kafkajs`). The
+Explorer connects an admin client, hides internal topics (`__…`) and lists up to 200 user topics as
+tables under one `topics` schema. Opening a topic runs the internal reader
+`CONSUME "<topic>" <offset> <limit>`, which is deliberately bounded: it reads the retained
+low/high offsets, subscribes from the beginning with a transient unique consumer group and
+auto-commit disabled, then stops as soon as the requested window is filled, the retained messages
+drain, or a 10 s budget expires — walking at most 5 000 messages. The budget is generous because
+the first peek against a fresh broker pays for the consumer-group join. Nothing is produced and no offsets
+are committed; the group disappears when the consumer disconnects. Paging therefore walks retained
+messages from the earliest one, which keeps windows deterministic on quiet topics but means a very
+large topic shows its oldest retained page first.
+
+Rows are `partition`, `offset`, `timestamp`, `key`, `value` and `headers`. Keys and values decode as
+UTF-8 when the bytes are valid (long text truncated) and render as `0x…` hex otherwise; headers are
+a JSON object. The dialog takes one or more bootstrap brokers (`host1:9092,host2:9092`, or bare
+hosts completed with the port field), optional SASL/PLAIN credentials, and the SSL switch. The SSH
+tunnel can bridge a single broker only — a multi-broker list connects directly.
+
+### RabbitMQ (read-only)
+
+RabbitMQ rides the Management HTTP API, not AMQP (`src/main/db/transports/rabbitmq.ts`, `fetch` only).
+The dialog takes the management host and port (15672 by default), optional basic-auth credentials and
+the SSL switch; the AMQP port 5672 is not used. The Explorer reads `/api/queues` and shows one schema
+per vhost with its queues as tables. Opening a queue runs the internal reader
+`PEEK "<vhost>" "<queue>" <offset> <limit>`, a `POST …/get` with `ackmode: ack_requeue_true`,
+`encoding: base64` and a 20 kB truncation: messages are delivered to the client and requeued
+untouched — nothing is acknowledged, rejected, published, purged or deleted. The endpoint has no
+offset, so each page requests `offset + limit` messages from the head (capped at 2 000) and slices
+the window locally.
+
+Rows are `exchange`, `routingKey`, `redelivered`, `payload`, `properties` and `headers`. Payloads
+decode as UTF-8 when the bytes are valid (truncated at 2 000 characters, with `…` when the server cut
+the body) and render as `0x…` hex otherwise; properties and headers show as JSON. RabbitMQ has no
+console in this MVP: every other statement is refused locally. An SSH tunnel works like it does for
+any other network source — point it at the management port.
+
+### Docker helper (connection helper)
+
+The **Docker** tile in the dialog is a read-only helper, not a data source
+(`src/main/services/docker.ts`, `dockerode`). It reaches the daemon over the local unix socket
+(`/var/run/docker.sock`, the default) or TCP (host/port, optional TLS), calls only
+`GET /containers/json`, and lists running containers with image, status and published ports. Picking
+a published TCP port fills **Host** and **Port** — `127.0.0.1` for the local socket, the TCP host for
+a remote daemon — and selects the matching server type when the image gives it away: PostgreSQL,
+MySQL/MariaDB, MongoDB, Redis, Elasticsearch/OpenSearch, Cassandra/Scylla, MinIO (S3), RabbitMQ
+(management port 15672), Kafka and FTP. Companion UIs such as mongo-express or kafka-ui are ignored.
+The helper never starts, stops or removes containers. Disable an active SSH tunnel first: published
+ports are local, not reachable from the jump host.
+
+### SSH tunnels (connection helper)
+
+Any network data source can go through an SSH tunnel from the dialog's **SSH Tunnel** tab: host,
+port, username, auth mode — `Auto` (offers password, a key and agent together, like DataGrip),
+`Password`, `Key`, `Agent` — private key path (with `~` expansion and passphrase) and connect
+timeout. `Auto` also looks for `~/.ssh/id_ed25519`, `id_rsa` and `id_ecdsa` and for `SSH_AUTH_SOCK`.
+
+The main process (`src/main/services/sshTunnel.ts`) keeps one SSH connection per data source,
+refcounted and promise-deduplicated: a `net` server on `127.0.0.1:0` accepts the database's sockets
+and forwards each one with `forwardOut` to the real target, while the session runs against a
+rewritten copy of the config — host/port, a `mongodb://`-style URI or a JDBC URL all point at the
+local port, so transports never know SSH exists. `Test Connection` uses its own tunnel; closing the
+session releases it; the last release tears the SSH connection down, and a dropped SSH connection
+drops the entry so the next connect starts fresh. `mongodb+srv://` and comma-separated replica-set
+hosts are rejected with an explanatory message (they need DNS/SRV resolution or several forwards),
+as are unix sockets and SQLite. Host keys are accepted as presented in this build — a `known_hosts`
+verifier is on the roadmap.
 
 ### JDBC sidecar details
 
@@ -414,9 +632,14 @@ A `DbSession` (`src/main/db/session.ts`) composes one of each and adds policy: r
 
 Add a database = one Transport (if it needs a new wire protocol) and/or one Dialect, registered in
 `db/factory.ts` — the only place that knows which transport/dialect pairs exist. Anything with a
-JDBC driver already works through the generic JDBC transport.
+JDBC driver already works through the generic JDBC transport; providers that are not SQL (MongoDB,
+Redis, Elasticsearch, Cassandra, S3, FTP, Kafka and RabbitMQ today) also register in
+`src/shared/kinds.ts` so the UI hides the SQL affordances they cannot back. The Docker helper is not
+a transport at all: it is a dialog pane that calls one read-only daemon endpoint through IPC.
 
-**Services.** `ConnectionManager` owns live sessions per data source (open / close / test).
+**Services.** `ConnectionManager` owns live sessions per data source (open / close / test) and runs
+each open through the SSH connection helper first — `sshTunnel.ts` keeps one refcounted tunnel per
+data source and hands the session a rewritten config.
 `JdbcSidecar` owns the single shared Java process behind the JDBC transport. `ThemeService` lists,
 reads and imports themes and constrains the `stratum-asset://` protocol to theme roots.
 `JsonStore` is the atomic JSON persistence used for both connections and settings,
@@ -465,6 +688,62 @@ switches themes — surfacing everything found through the smoke hook (`?smoke=1
 | `settings.test.ts` / `store.test.ts` | Settings coercion and dialog preview semantics. |
 | `theme.test.ts` | Color resolution and CSS vars, catalog dedupe, appearance modes and siblings, Monaco conversion, file/product icon themes. |
 | `fonts.test.ts` / `xlsx.test.ts` | Font stacks; the XLSX writer (CRC-32, refs, sheet names, OOXML package, escaping, base64 round-trip). |
+| `mongo.test.ts` | mongosh statement parser (JS-ish documents, BSON constructors, chain methods, rejects with messages), paging rewrite and read classification, BSON printing and document→row mapping; the shared MQL splitter and the capability registry. |
+| `redis.test.ts` | redis-cli tokenizer (quotes and `sdssplitargs` escapes), statement splitter and caret, the read-only allowlist (accepts reads/subcommand families, rejects writes/admin/blocking), `INSPECT` paging rewrite, reply→grid mappings and the capability registry. |
+| `elastic.test.ts` | Dev Tools splitter and caret, request parser (relative paths only), read-only allowlist (GET/HEAD, POST on read endpoints; rejects writes/bulk/reindex), `SEARCH` and `_search` paging rewrite, hit/`_cat`/object reply→grid mappings, and a full transport pass against an in-process fake cluster (connect, introspect, paging, blocked writes, server errors, read-only sources). |
+| `cassandra.test.ts` | CQL classification past comments, read-only allowlist (SELECT/USE/DESCRIBE; rejects mutations/batches), `PAGE` header paging (CQL has no OFFSET), `USE` folding rules, `DESCRIBE` forms, and a full transport pass against an injected fake driver (connect, version, keyspaces/tables/PK-first columns, offset paging, session keyspace, blocked writes, read-only sources, driver errors). |
+| `s3.test.ts` | Internal `LIST` reader and its paging rewrite, `ListBuckets`/`ListObjectsV2` command wiring (delimiter, token, page size), bucket→schema introspection, object and folder rows, continuation-token walking for offsets, console refusal, read-only sources and SDK errors, all against a fake command sink. |
+| `ftp.test.ts` | Internal `LIST` path reader and its paging rewrite, anonymous/credentialed login wiring, root→folder introspection, row shaping for folders/files/links, dates and symbolic permissions, local window slicing, console refusal, read-only sources and client errors, against a fake client built on the real `FileInfo`. |
+| `kafka.test.ts` | Broker-list parsing, internal `CONSUME` reader and paging rewrite, topic introspection with internal topics hidden, message decoding (UTF-8, binary hex, nulls, headers), offset windows, drained/empty topics, console refusal, read-only sources and admin/consumer errors, against a fake run-until-stopped consumer. |
+| `rabbitmq.test.ts` | Internal `PEEK` reader and paging rewrite, Management API calls (basic auth, `ack_requeue_true`, base64, truncation), vhost→schema introspection, local window slicing, payload decoding, console refusal, read-only sources and 401/404 handling, against a real HTTP server. |
+| `docker.test.ts` | Read-only `GET /containers/json` through dockerode (container/port mapping, sorting), unix-socket/TCP targets and actionable daemon errors, plus the image→server-type inference and companion exclusions used by the dialog helper, against a fake Engine HTTP server. |
+| `tunnel.test.ts` | Tunnel target resolution (host/port, `mongodb://` URIs, JDBC URL shapes for MySQL/Postgres/SQL Server/Oracle) and rewrites that keep credentials, database and options; ssh2 client options per auth mode; a real handshake against an in-process sshd that proves bytes flow through `forwardOut`, that concurrent opens share one tunnel, and that the last release closes the listener. |
+
+Live MongoDB checks are opt-in: point `STRATUM_TEST_MONGODB_URI` at any running server (or set
+`STRATUM_TEST_MONGODB_MEMORY=1` to spawn an ephemeral one — needs `npm i --no-save mongodb-memory-server`)
+and run `npx vitest run tests/mongoLive.test.ts`. The suite covers connect → introspect → paging →
+aggregate/count/distinct → read-only guards end to end.
+
+Live Redis checks follow the same switch: `STRATUM_TEST_REDIS_URI=redis://localhost:6379`, or
+`STRATUM_TEST_REDIS_MEMORY=1` to spawn an ephemeral server (needs
+`npm i --no-save redis-memory-server`), with `npx vitest run tests/redisLive.test.ts` — connect →
+introspect (databases as schemas, types per key) → every console reply shape → write blocking →
+`INSPECT` paging. And `STRATUM_TEST_MONGODB_MEMORY=1 npx vitest run tests/tunnelMongoLive.test.ts`
+proves the Mongo driver reaches a real `mongod` *only* through an in-process SSH server, including
+the tunnel release on `close()`.
+
+Live Elasticsearch checks follow it too: point `STRATUM_TEST_ELASTIC_URL` at any cluster
+(`STRATUM_TEST_ELASTIC_USER` / `STRATUM_TEST_ELASTIC_PASSWORD` are optional) and run
+`npx vitest run tests/elasticLive.test.ts` — connect → introspect → `_cat` and search reads →
+paging → blocked writes. The suite is read-only: it never creates or changes anything.
+
+Live Cassandra checks only need a node: `STRATUM_TEST_CASSANDRA_CONTACT=127.0.0.1[:9042]`
+(`STRATUM_TEST_CASSANDRA_DC`, `_USER`, `_PASSWORD` and `_KEYSPACE` are optional) plus
+`npx vitest run tests/cassandraLive.test.ts` — connect → version → `SELECT`/`DESCRIBE` →
+`system_schema` introspection → paging → `USE` → blocked writes. It reads `system` only, so it is
+safe on a shared cluster.
+
+Live S3 checks need one listable bucket: `STRATUM_TEST_S3_BUCKET=my-bucket` (optionally
+`STRATUM_TEST_S3_ENDPOINT`, `_REGION`, `_ACCESS_KEY`, `_SECRET_KEY`, `_SSL=1`) and
+`npx vitest run tests/s3Live.test.ts` — connect → buckets → a paged root listing → console refusal.
+It only lists, never writes.
+
+Live FTP checks need a server that allows listing: `STRATUM_TEST_FTP_HOST=127.0.0.1` (optionally
+`_PORT`, `_USER`, `_PASSWORD`, `_SECURE=1`, `_PATH=/pub`) and `npx vitest run tests/ftpLive.test.ts`
+— login → root folders → a paged directory listing → console refusal. It only logs in and lists.
+
+Live Kafka checks need bootstrap brokers: `STRATUM_TEST_KAFKA_BROKERS=127.0.0.1:9092` (optionally
+`_TOPIC`, `_SSL=1`, `_USER`, `_PASSWORD`) and `npx vitest run tests/kafkaLive.test.ts` — topic
+listing → a bounded peek → console refusal. The peek uses auto-commit off and produces nothing.
+
+Live RabbitMQ checks need the management plugin: `STRATUM_TEST_RABBITMQ_URL=http://127.0.0.1:15672`
+(optionally `_USER`, `_PASSWORD`, `_VHOST`, `_QUEUE`) and `npx vitest run tests/rabbitmqLive.test.ts`
+— version, queue listing and a bounded peek. It requeues; it never acknowledges, publishes or
+deletes.
+
+Live Docker checks need a daemon: `STRATUM_TEST_DOCKER=unix:///var/run/docker.sock` (or
+`tcp://127.0.0.1:2375`) and `npx vitest run tests/dockerLive.test.ts` — two read-only container
+listings and the published-port shape.
 
 The smoke run complements them with an end-to-end pass through the real Electron renderer.
 
@@ -483,6 +762,13 @@ The smoke run complements them with an end-to-end pass through the real Electron
   `libXss.so.1`, so requiring it only made `dpkg -i` fail on distributions that no longer ship the
   library (Ubuntu 26.04) — and keeps `libxss1` and `libappindicator3-1` (tray indicator) as
   `Recommends`.
+- **deb/rpm post-install:** `scripts/linux/after-install.tpl` replaces electron-builder's stock
+  post-install script (wired through `afterInstall` for both targets). The stock script probes user
+  namespaces as root (`unshare --user true`), which succeeds on every modern kernel, and then leaves
+  `chrome-sandbox` at `0755`. On Ubuntu 24.04+ the AppArmor userns restriction
+  (`kernel.apparmor_restrict_unprivileged_userns=1`) makes the namespace sandbox unusable for the
+  real user, so Electron falls back to the SUID helper, finds it not setuid and aborts before the
+  window opens. The custom script keeps the helper setuid root, like Chromium's own packaging.
 
 The deb/rpm metadata (maintainer, homepage) comes from `author` and `homepage` in `package.json`.
 Running a single target is fine too:
@@ -501,6 +787,12 @@ src/
     types.ts         domain types (drivers, dialects, catalog, results, themes)
     ipc.ts           StratumApi — the typed renderer<->main contract
     sql.ts           statement splitter, caret semantics, line-comment stripping
+    mongo.ts         mongosh statement splitter and caret semantics
+    redis.ts         redis-cli statement splitter and caret semantics
+    elastic.ts       Elasticsearch Dev Tools splitter, request parser and read-only allowlist
+    cassandra.ts     CQL classification, USE parsing and the PAGE paging header
+    docker.ts        Docker helper shapes and image→provider inference
+    kinds.ts         provider capabilities: SQL or not, default ports
     sqlComplete.ts   DataGrip-style completion engine
     sqlRank.ts       completion ranking signals
     sqlDialectData.ts  generated keyword/function catalogs for 23 dialects
@@ -521,10 +813,20 @@ src/
       session.ts     DbSession: paging, read-only, submit transactions
       factory.ts     the only transport/dialect registry
       dialects.ts    introspection SQL per dialect family
+      mongoDialect.ts  MongoDB model: databases, collections, sampled fields, indexes
+      redisDialect.ts  Redis model: databases, sampled keys, key types
+      elasticDialect.ts  Elasticsearch model: indices as tables, mappings as columns
+      cassandraDialect.ts  Cassandra model: keyspaces, tables, PK-first columns
+      s3Dialect.ts   S3 model: buckets as schemas, one objects table each
+      ftpDialect.ts  FTP model: one files schema, root folders as tables
+      kafkaDialect.ts Kafka model: one topics schema, messages as rows
+      rabbitmqDialect.ts  RabbitMQ model: vhosts as schemas, queues as tables
       normalize.ts   driver values -> JSON-safe values
-      transports/    sqlite.ts · postgres.ts · mysql.ts · jdbc.ts
+      transports/    sqlite.ts · postgres.ts · mysql.ts · jdbc.ts · mongodb.ts · redis.ts · elastic.ts · cassandra.ts · s3.ts · ftp.ts · kafka.ts · rabbitmq.ts
     services/
       connectionManager.ts  live sessions per data source
+      docker.ts             Docker helper: read-only container list over socket/TCP
+      sshTunnel.ts          SSH connection helper: one tunnel per data source
       store.ts              atomic JsonStore + safeStorage password sealing
       themeService.ts       theme discovery, import and asset protocol roots
       jdbcSidecar.ts        shared jdbc-adapter-server process
@@ -573,6 +875,7 @@ stratum-brand/       logos, app icons, tray icons, README preview image
 - Runtime building blocks: [Electron](https://www.electronjs.org/), [Monaco Editor](https://microsoft.github.io/monaco-editor/),
   [React](https://react.dev/), [zustand](https://zustand-demo.pmnd.rs/), [elkjs](https://github.com/kieler/elkjs),
   [sql.js](https://sql.js.org/), [pg](https://node-postgres.com/), [mysql2](https://github.com/sidorares/node-mysql2),
+  [ssh2](https://github.com/mscdex/ssh2), [ioredis](https://github.com/redis/ioredis),
   [@vscode/codicons](https://github.com/microsoft/vscode-codicons),
   [Carbon product icons](https://github.com/carbon-design-system/carbon/tree/main/packages/icons)
   and [Lucide](https://lucide.dev/) (ISC).
@@ -594,4 +897,5 @@ stratum-brand/       logos, app icons, tray icons, README preview image
 
 ## License
 
-MIT (see `package.json`).
+MIT — see [LICENSE](LICENSE). Direct dependencies keep their own licenses; the ones bundled with the
+app are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
