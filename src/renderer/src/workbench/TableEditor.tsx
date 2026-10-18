@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { isSqlKind } from '../../../shared/kinds'
 import { qualify, quote } from '../../../shared/quoting'
 import { buildDelete, buildInsert, buildUpdate } from '../../../shared/sqlgen'
 import type { QueryResult } from '../../../shared/types'
@@ -12,11 +13,36 @@ const PAGE = 500
 /** DataGrip's table editor: filter/order bar, paging, inline edits, add/delete row, Submit/Revert. */
 export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean }) {
   const model = useWorkbench((s) => s.live[tab.connectionId]?.model)
+  const conn = useWorkbench((s) => s.connections.find((c) => c.id === tab.connectionId))
   const dialect = model?.dialect ?? 'generic'
+  const sqlKind = isSqlKind(conn?.kind)
   const info = model?.schemas.find((s) => (tab.schema ? s.name === tab.schema : true))?.tables.find((t) => t.name === tab.table)
   const pkCols = info?.columns.filter((c) => c.isPrimaryKey).map((c) => c.name) ?? []
-  const editable = info?.kind === 'table' && pkCols.length > 0
+  const editable = sqlKind && info?.kind === 'table' && pkCols.length > 0
   const target = qualify(dialect, tab.schema, tab.table)
+  /** Non-SQL sources browse through their own statement language; the session pages it like SQL. */
+  const redis = conn?.kind === 'redis'
+  const elastic = conn?.kind === 'elastic'
+  const cassandra = conn?.kind === 'cassandra'
+  const s3 = conn?.kind === 's3'
+  const ftp = conn?.kind === 'ftp'
+  const kafka = conn?.kind === 'kafka'
+  const rabbitmq = conn?.kind === 'rabbitmq'
+  const source = redis
+    ? `INSPECT ${JSON.stringify(tab.table)}`
+    : elastic
+      ? `SEARCH ${JSON.stringify(tab.table)}`
+      : cassandra
+        ? `SELECT * FROM ${target}`
+        : s3
+          ? `LIST ${JSON.stringify(tab.schema ?? tab.table)}`
+          : ftp
+            ? `LIST ${JSON.stringify(tab.table === '(root)' ? '/' : `/${tab.table}`)}`
+            : kafka
+              ? `CONSUME ${JSON.stringify(tab.table)}`
+              : rabbitmq
+                ? `PEEK ${JSON.stringify(tab.schema ?? '/')} ${JSON.stringify(tab.table)}`
+                : `db${tab.schema ? `.getSiblingDB(${JSON.stringify(tab.schema)})` : ''}.getCollection(${JSON.stringify(tab.table)}).find({})`
 
   const [where, setWhere] = useState(''), [order, setOrder] = useState(''), [offset, setOffset] = useState(0)
   const [res, setRes] = useState<QueryResult>(), [busy, setBusy] = useState(false), [msg, setMsg] = useState<string>()
@@ -25,12 +51,14 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
 
   const load = useCallback(async (off = offset) => {
     setBusy(true); setMsg(undefined)
-    const sql = `select * from ${target}${where.trim() ? ` where ${where}` : ''}${order.trim() ? ` order by ${order}` : ''}`
-    const r = await window.stratum.db.execute(tab.connectionId, sql, { limit: PAGE, offset: off })
+    const q = sqlKind
+      ? `select * from ${target}${where.trim() ? ` where ${where}` : ''}${order.trim() ? ` order by ${order}` : ''}`
+      : source
+    const r = await window.stratum.db.execute(tab.connectionId, q, { limit: PAGE, offset: off })
     setRes(r); setOffset(off); setBusy(false)
     if (r.error) setMsg(r.error)
     setEdits(new Map()); setDeleted(new Set()); setInserted([])
-  }, [tab.connectionId, target, where, order, offset])
+  }, [tab.connectionId, sqlKind, target, source, where, order, offset])
   useEffect(() => { if (model && !res) void load(0) }, [model])
   useEffect(() => window.stratum.onCommand((c) => { if (visible && c === 'grid.submit') void submit() }), [visible, edits, deleted, inserted, res])
 
@@ -80,12 +108,16 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
           <button className={pending ? 'primary' : ''} title="Submit (Ctrl/⌘+Alt+Enter)" disabled={!pending || busy} onClick={() => void submit()}><Icon id="check" /> Submit{pending ? ` (${pending})` : ''}</button>
           <span className="grow" />
           <ExportMenu columns={res?.columns ?? []} rows={rows} table={tab.table} dialect={dialect} disabled={!res || !!res.error || !rows.length} />
-          {!editable && info && <span className="hint"><Icon id="lock" /> {info.kind === 'view' ? 'View' : 'No primary key'} — read-only</span>}
+          {!editable && (sqlKind
+            ? info && <span className="hint"><Icon id="lock" /> {info.kind === 'view' ? 'View' : 'No primary key'} — read-only</span>
+            : <span className="hint"><Icon id="lock" /> {redis ? 'Keys load read-only' : elastic ? 'Indices load read-only' : cassandra ? 'Tables load read-only' : s3 ? 'Objects load read-only' : ftp ? 'Files load read-only' : kafka ? 'Messages load read-only' : rabbitmq ? 'Messages load read-only' : 'Documents load read-only'}</span>)}
         </div>
-        <div className="filters">
-          <label><span>WHERE</span><input value={where} placeholder="e.g. id > 10" onChange={(e) => setWhere(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load(0)} /></label>
-          <label><span>ORDER BY</span><input value={order} placeholder="e.g. created_at desc" onChange={(e) => setOrder(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load(0)} /></label>
-        </div>
+        {sqlKind && (
+          <div className="filters">
+            <label><span>WHERE</span><input value={where} placeholder="e.g. id > 10" onChange={(e) => setWhere(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load(0)} /></label>
+            <label><span>ORDER BY</span><input value={order} placeholder="e.g. created_at desc" onChange={(e) => setOrder(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void load(0)} /></label>
+          </div>
+        )}
         {msg && <div className={`banner ${res?.error || /fail|error|constraint/i.test(msg) ? 'error' : ''}`}>{msg}</div>}
         {res && !res.error ? <DataGrid columns={res.columns} rows={rows} edits={edits} deleted={deleted} insertedFrom={len} readOnlyColumns={editable ? undefined : new Set(res.columns.map((_, i) => i))} onEdit={editable ? onEdit : undefined} onSelectRow={setSelRow} /> : <div className="empty-state">{busy ? 'Loading…' : ''}</div>}
         <div className="grid-foot">{res && !res.error ? `${len} rows${res.hasMore ? '+' : ''} · ${res.durationMs} ms` : ''}</div>

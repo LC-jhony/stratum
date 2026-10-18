@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { DEFAULT_SETTINGS, mergeSettings, type StratumSettings } from '../../../shared/settings'
 import { connectionDialect } from '../../../shared/dialects'
+import { isSqlKind } from '../../../shared/kinds'
 import { findParams, substituteParams } from '../../../shared/sqlParams'
 import type { ConnectionConfig, DatabaseModel, QueryResult } from '../../../shared/types'
 import type { ErdOptions } from '../erd/erd'
@@ -142,11 +143,12 @@ export const useWorkbench = create<State>((set, get) => ({
     const prefs = get().prefs
     const conn = get().connections.find((c) => c.id === tab.connectionId)
     const dialect = connectionDialect(conn, get().live[tab.connectionId]?.model)
+    const sqlKind = isSqlKind(conn?.kind)
     const results: ResultEntry[] = []
     let aborted = false
     for (const statement of statements) {
       let sql = statement
-      if (prefs['query.parameters.enabled']) {
+      if (sqlKind && prefs['query.parameters.enabled']) {
         const params = findParams(sql, dialect)
         if (params.length) {
           const unique = [...new Map(params.map((p) => [p.name, p])).values()].map((p) => ({ name: p.name, raw: p.raw }))
@@ -161,7 +163,7 @@ export const useWorkbench = create<State>((set, get) => ({
           void get().savePrefs({ 'query.parameters.values': { ...remembered, ...values } })
         }
       }
-      if (prefs['query.confirmDestructive'] && /^\s*(update|delete)\b/i.test(sql) && !/\bwhere\b/i.test(sql)) {
+      if (sqlKind && prefs['query.confirmDestructive'] && /^\s*(update|delete)\b/i.test(sql) && !/\bwhere\b/i.test(sql)) {
         if (!window.confirm(`Run this statement without WHERE?\n\n${sql.replace(/\s+/g, ' ').slice(0, 200)}`)) continue
       }
       const result = await window.stratum.db.execute(tab.connectionId, sql, { limit: prefs['query.pageSize'] })

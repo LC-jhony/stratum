@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ConnectionConfig, TableInfo } from '../../../shared/types'
 import { connectionDialect } from '../../../shared/dialects'
+import { isSqlKind } from '../../../shared/kinds'
 import { qualify, quote } from '../../../shared/quoting'
 import { useWorkbench } from '../store/workbench'
 import { Icon } from './Icon'
@@ -128,7 +129,7 @@ export function Explorer() {
           {menu.row.kind === 'connection' && <>
             <li onClick={() => void connect(menu.row.conn.id)}><Icon id="plug" />Connect</li>
             <li onClick={() => openConsole(menu.row.conn.id)}><Icon id="terminal" />New Query Console</li>
-            <li onClick={() => openDiagram(menu.row.conn.id)}><Icon id="type-hierarchy" />Show Diagram</li>
+            {isSqlKind(menu.row.conn.kind) && <li onClick={() => openDiagram(menu.row.conn.id)}><Icon id="type-hierarchy" />Show Diagram</li>}
             <li onClick={() => void refresh(menu.row.conn.id)}><Icon id="refresh" />Refresh</li>
             <hr />
             <li onClick={() => set({ dialog: { editing: menu.row.conn } })}><Icon id="settings-gear" />Properties…</li>
@@ -137,13 +138,15 @@ export function Explorer() {
           </>}
           {(menu.row.kind === 'table' || menu.row.kind === 'view') && <>
             <li onClick={() => openTable(menu.row.conn.id, menu.row.table!, menu.row.schema)}><Icon id="table" />Open Data Editor</li>
-            <li onClick={() => openDiagram(menu.row.conn.id, { schemas: menu.row.schema ? [menu.row.schema] : undefined, focus: { table: menu.row.table!, depth: 1 } })}><Icon id="type-hierarchy" />Show Diagram (neighbours)</li>
-            <li onClick={() => openConsole(menu.row.conn.id, `select * from ${menu.row.table};\n`)}><Icon id="terminal" />Select * in Console</li>
+            {isSqlKind(menu.row.conn.kind) && <>
+              <li onClick={() => openDiagram(menu.row.conn.id, { schemas: menu.row.schema ? [menu.row.schema] : undefined, focus: { table: menu.row.table!, depth: 1 } })}><Icon id="type-hierarchy" />Show Diagram (neighbours)</li>
+              <li onClick={() => openConsole(menu.row.conn.id, `select * from ${menu.row.table};\n`)}><Icon id="terminal" />Select * in Console</li>
+            </>}
             <li onClick={() => void navigator.clipboard.writeText(menu.row.table!)}><Icon id="copy" />Copy Name</li>
-            {canRename(menu.row) && <li onClick={() => { setRename({ row: menu.row, value: menu.row.table! }); setMenu(null) }}><Icon id="edit" />Rename…</li>}
-            <li onClick={() => { setMenu(null); collectUsages(menu.row) }}><Icon id="search" />Find Usages</li>
+            {isSqlKind(menu.row.conn.kind) && canRename(menu.row) && <li onClick={() => { setRename({ row: menu.row, value: menu.row.table! }); setMenu(null) }}><Icon id="edit" />Rename…</li>}
+            {isSqlKind(menu.row.conn.kind) && <li onClick={() => { setMenu(null); collectUsages(menu.row) }}><Icon id="search" />Find Usages</li>}
           </>}
-          {menu.row.kind === 'schema' && <li onClick={() => openDiagram(menu.row.conn.id, { schemas: [menu.row.schema!] })}><Icon id="type-hierarchy" />Show Diagram</li>}
+          {menu.row.kind === 'schema' && isSqlKind(menu.row.conn.kind) && <li onClick={() => openDiagram(menu.row.conn.id, { schemas: [menu.row.schema!] })}><Icon id="type-hierarchy" />Show Diagram</li>}
         </ul>
       )}
       {rename && (

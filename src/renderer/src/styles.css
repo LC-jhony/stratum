@@ -221,3 +221,177 @@ svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
 .exporting .spinner { width: 11px; height: 11px; flex: none; border: 2px solid var(--b); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(1turn); } }
 @media (prefers-reduced-motion: reduce) { .exporting .spinner { animation-duration: 1.8s; } }
+
+/* ---------------------------------------------------------------- "Connect to server" (new data source)
+
+   Redesign of the New Data Source dialog opened from Data Sources and Drivers. Geometry comes from
+   the reference sheet (inputs 38px, columns 176|268|51|175|268, 46x24 switches, 22px checkboxes) and
+   every colour is a --vscode-* token resolved per theme, with the same fallback chain the workbench
+   uses elsewhere, so Carbon, Min and third-party themes repaint the whole dialog. All classes are
+   .ds-* so they cannot collide with the generic .field/.check/.with-btn names Monaco shares. */
+.ds-modal {
+  --ds-panel: var(--vscode-editorWidget-background, var(--bg));
+  --ds-border: var(--vscode-editorWidget-border, var(--b));
+  --ds-rule: var(--b);
+  --ds-disabled: var(--vscode-disabledForeground, var(--muted));
+  --ds-field-bg: var(--vscode-input-background, var(--bg));
+  --ds-field-fg: var(--vscode-input-foreground, var(--fg));
+  --ds-field-border: var(--vscode-input-border, var(--b));
+  --ds-placeholder: var(--vscode-input-placeholderForeground, var(--muted));
+  --ds-checkbox-border: var(--vscode-checkbox-border, var(--vscode-input-border, var(--b)));
+  --ds-accent: var(--vscode-button-background, var(--accent));
+  --ds-accent-fg: var(--vscode-button-foreground, #fff);
+  --ds-accent-hover: color-mix(in srgb, var(--ds-accent) 86%, var(--fg));
+  --ds-neutral: color-mix(in srgb, var(--fg) 10%, var(--ds-panel));
+  --ds-neutral-hover: color-mix(in srgb, var(--fg) 18%, var(--ds-panel));
+  --ds-step: color-mix(in srgb, var(--fg) 10%, var(--ds-field-bg));
+  --ds-badge-bg: var(--vscode-badge-background, var(--ds-accent));
+  --ds-badge-fg: var(--vscode-badge-foreground, #fff);
+  --ds-link: var(--vscode-textLink-foreground, var(--vscode-button-background));
+  --ds-req: var(--vscode-errorForeground);
+  --ds-hover: var(--vscode-list-hoverBackground, var(--hover));
+  --ds-focus: var(--focus);
+  --ds-tab-bg: var(--vscode-tab-activeBackground, var(--ds-panel));
+
+  width: 1130px; max-width: 96vw; max-height: 92vh; overflow: auto; padding: 8px 24px 22px;
+  background: var(--ds-panel); border: 1px solid var(--ds-border); border-radius: 10px;
+  box-shadow: 0 18px 60px #0008; color: var(--fg); font-size: 15.5px;
+}
+.ds-head { display: flex; align-items: center; gap: 22px; padding: 8px 0 6px; }
+.ds-logo { width: 60px; height: 60px; flex: none; }
+.ds-head h1 { margin: 0; font-size: 26px; font-weight: 400; letter-spacing: .1px; }
+
+/* top row: name / group / advanced / scope */
+.ds-toprow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 4px; }
+.ds-pair { display: flex; align-items: center; gap: 20px; }
+.ds-modal .ds-w-name { width: 170px; } .ds-modal .ds-w-group { width: 150px; }
+.ds-lbl { font-size: 15.5px; white-space: nowrap; }
+.ds-lbl.req::before { content: "*"; color: var(--ds-req); margin-right: 6px; }
+.ds-lbl.dim { color: var(--ds-disabled); }
+
+.ds-note { margin: 29px 0 0; font-size: 14px; }
+.ds-link { height: auto; padding: 0; background: none; border: 0; border-radius: 0; color: var(--ds-link); font-size: inherit; cursor: pointer; }
+.ds-modal .ds-link:hover:not(:disabled) { background: none; text-decoration: underline; }
+.ds-rule { border: 0; border-top: 1px solid var(--ds-rule); margin: 16px 0 0; }
+
+/* server type: two rows of brand buttons, selected = underline */
+.ds-sec { font-size: 15.5px; margin: 16px 0 4px; }
+.ds-st-rows { display: flex; flex-direction: column; }
+.ds-st-row { display: flex; align-items: center; flex-wrap: wrap; }
+.ds-st {
+  display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px; cursor: pointer;
+  background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 3px 3px 0 0;
+  color: var(--fg); font-size: 15px;
+}
+.ds-modal .ds-st:hover:not(:disabled) { background: var(--ds-hover); }
+.ds-st.on { border-bottom-color: var(--fg); }
+.ds-st:disabled { color: var(--ds-disabled); opacity: .55; cursor: default; }
+.ds-pipe { width: 1px; height: 16px; margin: 0 10px; background: var(--muted); opacity: .5; flex: none; }
+
+/* config tabs: the active tab is a box that breaks the strip underneath; the strip hugs the tabs */
+.ds-cfg { display: flex; align-items: center; gap: 16px; margin: 22px 0 0; }
+.ds-cfg .ds-sec { margin: 0; }
+.ds-tabs { display: flex; align-items: flex-end; gap: 4px; width: max-content; border-bottom: 1px solid var(--ds-rule); }
+.ds-tab {
+  display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 11px; margin-bottom: -1px;
+  background: none; border: 1px solid transparent; border-radius: 3px 3px 0 0; color: var(--fg); font-size: 15.5px; cursor: pointer;
+}
+.ds-tab .ds-ico, .ds-tab .stratum-icon { width: 17px; height: 17px; font-size: 17px; }
+.ds-modal .ds-tab:hover:not(:disabled) { background: var(--ds-hover); }
+.ds-tab.on { background: var(--ds-tab-bg); border-color: var(--ds-rule); border-bottom-color: var(--ds-tab-bg); }
+
+/* pane grid: label | field | gap | label | field */
+.ds-pane { display: grid; grid-template-columns: 176px 268px 51px 175px 268px; row-gap: 14px; align-items: center; padding-top: 22px; }
+.ds-c1 { grid-column: 1; } .ds-c2 { grid-column: 2; } .ds-c4 { grid-column: 4; } .ds-c5 { grid-column: 5; }
+.ds-wide { grid-column: 2 / -1; }
+.ds-start { justify-self: start; }
+.ds-row-full { grid-column: 1 / -1; display: flex; align-items: center; height: 30px; }
+.ds-row-full .ds-cb { margin-right: 12px; }
+.ds-row-full .ds-cb + .ds-lbl { margin-right: 38px; }
+
+/* Docker helper: read-only container list with published ports as fill buttons */
+.ds-docker-actions { display: flex; align-items: center; gap: 12px; }
+.ds-docker-box { grid-column: 1 / -1; margin-top: 8px; border: 1px solid var(--ds-field-border); border-radius: 4px; overflow: hidden; }
+.ds-docker-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; padding: 0 10px; background: var(--ds-field-bg); border-bottom: 1px solid var(--ds-field-border); font-size: 14px; }
+.ds-docker-scroll { max-height: 196px; overflow: auto; }
+.ds-docker-row { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(150px, 1.2fr) auto; gap: 12px; align-items: center; padding: 8px 10px; border-top: 1px solid var(--ds-rule); font-size: 13.5px; }
+.ds-docker-row:first-child { border-top: 0; }
+.ds-docker-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-docker-image { display: block; font-weight: 400; opacity: .75; overflow: hidden; text-overflow: ellipsis; }
+.ds-docker-state { opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-docker-ports { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: center; }
+.ds-docker-guess { padding: 2px 7px; border-radius: 10px; background: var(--ds-neutral); font-size: 12.5px; }
+.ds-docker-port.rec { border-color: var(--ds-link); color: var(--ds-link); }
+.ds-docker-empty { padding: 12px 10px; font-size: 13.5px; opacity: .8; }
+.ds-docker-empty.ds-docker-error { color: var(--vscode-errorForeground); opacity: 1; }
+.ds-docker-warn { gap: 8px; color: var(--vscode-errorForeground); font-size: 13.5px; }
+
+/* fields */
+.ds-field {
+  width: 100%; height: 38px; padding: 0 10px; background: var(--ds-field-bg); color: var(--ds-field-fg);
+  border: 1px solid var(--ds-field-border); border-radius: 4px; outline: none; font-size: 15.5px;
+}
+.ds-field::placeholder { color: var(--ds-placeholder); }
+.ds-modal .ds-field:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ds-field-border) 55%, var(--fg)); }
+.ds-modal .ds-field:focus { border-color: var(--ds-focus); }
+.ds-field:disabled { color: var(--ds-disabled); opacity: .62; cursor: not-allowed; }
+.ds-field:disabled::placeholder { color: var(--ds-disabled); }
+.ds-with-btn { display: flex; gap: 8px; align-items: center; }
+.ds-with-btn .ds-field { flex: 1; min-width: 0; }
+
+/* port stepper */
+.ds-stepper { display: flex; width: 180px; height: 38px; background: var(--ds-field-bg); border: 1px solid var(--ds-field-border); border-radius: 4px; overflow: hidden; }
+.ds-stepper button { width: 44px; flex: none; padding: 0; border: 0; border-radius: 0; background: var(--ds-step); color: var(--fg); font-size: 19px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.ds-modal .ds-stepper button:hover:not(:disabled) { background: color-mix(in srgb, var(--fg) 16%, var(--ds-field-bg)); }
+.ds-stepper input { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--ds-field-fg); font-size: 15.5px; text-align: center; outline: none; -moz-appearance: textfield; appearance: textfield; }
+.ds-stepper input::-webkit-outer-spin-button, .ds-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.ds-stepper.off { opacity: .6; }
+
+/* checkbox + switch toggles */
+.ds-cb { width: 22px; height: 22px; flex: none; position: relative; padding: 0; background: var(--ds-field-bg); border: 1px solid var(--ds-checkbox-border); border-radius: 4px; cursor: pointer; }
+.ds-modal .ds-cb:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ds-checkbox-border) 55%, var(--fg)); }
+.ds-cb[aria-checked="true"] { background: var(--ds-accent); border-color: var(--ds-accent); }
+.ds-cb[aria-checked="true"]::after { content: ""; position: absolute; left: 6px; top: 6px; width: 9px; height: 5px; border-left: 2px solid var(--ds-accent-fg); border-bottom: 2px solid var(--ds-accent-fg); transform: rotate(-45deg); }
+.ds-sw { position: relative; width: 46px; height: 24px; flex: none; padding: 0; background: var(--ds-field-bg); border: 1px solid var(--ds-field-border); border-radius: 12px; cursor: pointer; transition: background .12s ease, border-color .12s ease; }
+.ds-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: color-mix(in srgb, var(--fg) 55%, var(--ds-field-bg)); transition: left .14s ease, background .12s ease; }
+.ds-sw[aria-checked="true"] { background: var(--ds-accent); border-color: var(--ds-accent); }
+.ds-sw[aria-checked="true"]::after { left: 24px; background: var(--ds-accent-fg); }
+.ds-sw:disabled { opacity: .6; cursor: not-allowed; }
+
+/* premium badge floating over the top-right corner of its control */
+.ds-badge-host { position: relative; display: inline-flex; }
+.ds-premium { position: absolute; top: -6px; left: calc(100% - 28px); height: 23px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 12px; background: var(--ds-badge-bg); color: var(--ds-badge-fg); font-size: 13px; font-style: normal; white-space: nowrap; pointer-events: none; }
+.ds-toprow .ds-premium { left: calc(100% - 59px); }
+
+/* buttons: accent = primary action, neutral = Close/Test */
+.ds-btn { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; background: var(--ds-accent); color: var(--ds-accent-fg); border: 1px solid transparent; border-radius: 4px; font-size: 15px; cursor: pointer; }
+.ds-modal .ds-btn:hover:not(:disabled) { background: var(--ds-accent-hover); }
+.ds-btn-sm { height: 32px; gap: 7px; padding: 0 12px; font-size: 14.5px; }
+.ds-icon-btn { width: 38px; height: 38px; padding: 0; justify-content: center; flex: none; }
+.ds-btn-neutral { background: var(--ds-neutral); color: var(--fg); }
+.ds-modal .ds-btn-neutral:hover:not(:disabled) { background: var(--ds-neutral-hover); }
+.ds-ico { width: 18px; height: 18px; flex: none; display: block; }
+.ds-st .ds-ico { width: 16px; height: 16px; }
+.ds-btn .ds-ico { width: 15px; height: 15px; }
+.ds-modal .ds-btn .stratum-icon { font-size: 15px; }
+
+/* segmented controls (Scope, Auth) */
+.ds-seg-group { display: inline-flex; border: 1px solid var(--ds-field-border); border-radius: 4px; }
+.ds-seg { height: 36px; padding: 0 17px; background: var(--ds-field-bg); color: var(--fg); border: 0; border-radius: 0; font-size: 15.5px; cursor: pointer; }
+.ds-seg-group > .ds-seg:first-of-type { border-radius: 3px 0 0 3px; }
+.ds-seg-group > .ds-seg:last-of-type, .ds-seg-group > .ds-badge-host:last-child .ds-seg:last-of-type { border-radius: 0 3px 3px 0; }
+.ds-modal .ds-seg:hover:not(:disabled):not(.on) { background: var(--ds-hover); }
+.ds-seg.on { background: var(--ds-accent); color: var(--ds-accent-fg); }
+.ds-modal .ds-seg:disabled { color: var(--ds-disabled); opacity: 1; cursor: not-allowed; }
+.ds-seg-group.tight .ds-seg { height: 34px; padding: 0 14px; font-size: 15px; }
+
+/* footer: actions centred, test on the left, status line underneath */
+.ds-foot { margin-top: 28px; }
+.ds-foot-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.ds-foot-row > .ds-btn { justify-self: start; }
+.ds-foot-actions { display: flex; gap: 10px; justify-content: center; }
+.ds-status { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; min-height: 18px; font-size: 12.5px; color: var(--muted); }
+.ds-status .stratum-icon { font-size: 14px; }
+.ds-status.ok { color: var(--vscode-charts-green, #3FB950); }
+.ds-status.bad { color: var(--ds-req); }
+.ds-modal button:focus-visible, .ds-modal .ds-field:focus-visible { outline: 1px solid var(--ds-focus); outline-offset: 1px; }

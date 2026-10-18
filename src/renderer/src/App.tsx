@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import logoDark from './assets/brand/stratum-logo-vertical-on-dark.svg'
 import logoLight from './assets/brand/stratum-logo-vertical-on-light.svg'
 import { setCompletionPrefs } from './monaco'
+import { isSqlKind } from '../../shared/kinds'
 import { useWorkbench } from './store/workbench'
 import { themes } from './theme/themeManager'
 import { applyFontPrefs } from './theme/fonts'
@@ -25,7 +26,6 @@ export function App() {
   const activeThemes = useSyncExternalStore(themes.subscribe.bind(themes), () => themes.active)
   const light = document.documentElement.dataset.theme === 'light'
   const sideRight = prefs['workbench.sideBar.position'] === 'right'
-  const first = useRef(true)
   useEffect(() => { void wb.load() }, [])
   useEffect(() => { setCompletionPrefs({ enabled: prefs['completion.enabled'], suggestOnSpace: prefs['completion.suggestOnSpace'], autoAlias: prefs['completion.autoAlias'], snippets: prefs['completion.snippets'], joinByForeignKey: prefs['completion.joinByForeignKey'], keywordCase: prefs['completion.keywordCase'] }) }, [prefs])
   useEffect(() => { applyFontPrefs(prefs) }, [prefs['editor.fontFamily']]) // Settings may change after mount; reapply the mono family live.
@@ -38,7 +38,7 @@ export function App() {
       case 'datasource.new': return s.set({ dialog: {} })
       case 'datasource.openSqlite': { const f = await window.stratum.dialogs.pickFile([{ name: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3', 'db3'] }]); if (!f) return; const c = { id: crypto.randomUUID(), name: f.split(/[\\/]/).pop()!, kind: 'sqlite' as const, filePath: f }; await s.saveConnection(c); void s.connect(c.id); return s.openConsole(c.id) }
       case 'console.new': return void s.openConsole(cur?.connectionId)
-      case 'erd.open': return cur ? s.openDiagram(cur.connectionId) : undefined
+      case 'erd.open': return cur && isSqlKind(s.connections.find((c) => c.id === cur.connectionId)?.kind) ? s.openDiagram(cur.connectionId) : undefined
       case 'explorer.refresh': return void (cur && s.refresh(cur.connectionId))
       case 'view.results': return s.set({ showResults: !s.showResults })
       case 'palette': return s.set({ palette: 'actions' })
@@ -68,7 +68,6 @@ export function App() {
   ], [command, activeThemes])
 
   const startResize = (e: React.MouseEvent) => { const x0 = e.clientX, w0 = width, right = sideRight; const mm = (m: MouseEvent) => { const dx = m.clientX - x0; setWidth(Math.min(560, Math.max(200, w0 + (right ? -dx : dx)))) }; const up = () => { removeEventListener('mousemove', mm); removeEventListener('mouseup', up) }; addEventListener('mousemove', mm); addEventListener('mouseup', up) }
-  void first
 
   return (
     <div className={`workbench${sideRight ? ' right' : ''}`}>
