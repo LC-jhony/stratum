@@ -17,4 +17,6 @@ export interface Dialect {
   /** Returns paged SQL, or undefined if the statement cannot/should not be paged. */
   paginate(sql: string, limit: number, offset: number): string | undefined
   introspect(run: Run): Promise<Omit<DatabaseModel, 'dialect' | 'version'>>
+  /** Overrides "does this statement return rows" for providers whose language is not SQL. */
+  isRead?(stmt: string): boolean
 }

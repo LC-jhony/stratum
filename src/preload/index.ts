@@ -10,6 +10,7 @@ const api: StratumApi = {
   themes: group('themes', ['list', 'read', 'importVsCodeExtensions']) as StratumApi['themes'],
   settings: group('settings', ['get', 'set']) as StratumApi['settings'],
   dialogs: group('dialogs', ['pickFile']) as StratumApi['dialogs'],
+  docker: group('docker', ['list']) as StratumApi['docker'],
   export: group('export', ['save', 'saveBinary', 'pdf']) as StratumApi['export'],
   onCommand(cb) {
     const l = (_: unknown, cmd: string, arg?: unknown) => cb(cmd, arg)

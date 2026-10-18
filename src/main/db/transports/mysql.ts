@@ -7,7 +7,8 @@ export class MysqlTransport implements Transport {
   constructor(private cfg: ConnectionConfig) {}
   private options(): ConnectionOptions {
     const c = this.cfg
-    return { host: c.host ?? 'localhost', port: c.port ?? 3306, user: c.user, password: c.password, database: c.database, ssl: c.ssl ? { rejectUnauthorized: false } : undefined, rowsAsArray: true, dateStrings: false, supportBigNumbers: true, bigNumberStrings: true, connectTimeout: 10_000 }
+    const socket = c.socketPath?.trim()
+    return { ...(socket ? { socketPath: socket } : { host: c.host ?? 'localhost', port: c.port ?? 3306 }), user: c.user, password: c.password, database: c.database, ssl: c.ssl ? { rejectUnauthorized: false } : undefined, rowsAsArray: true, dateStrings: false, supportBigNumbers: true, bigNumberStrings: true, connectTimeout: 10_000 }
   }
   async open() {
     this.conn = await createConnection(this.options())

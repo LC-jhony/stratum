@@ -16,7 +16,7 @@ export class DbSession {
 
   async introspect(): Promise<DatabaseModel> {
     const m = await this.dialect.introspect((sql) => this.transport.query(sql))
-    return { dialect: this.dialect.id, version: this.version, ...m }
+    return { dialect: this.dialect.id, version: this.version, kind: this.config.kind, ...m }
   }
 
   /** Errors become part of the result (shown in the output pane), never thrown to the UI. */
@@ -25,7 +25,7 @@ export class DbSession {
     const base = { sql, offset, hasMore: false, columns: [], rows: [] as unknown[][] }
     const t0 = performance.now()
     try {
-      const reads = returnsRows(sql)
+      const reads = this.dialect.isRead ? this.dialect.isRead(sql) : returnsRows(sql)
       if (this.config.readonly && !reads) throw new Error('Data source is read-only.')
       const paged = reads ? this.dialect.paginate(sql, limit + 1, offset) : undefined
       const raw = await this.transport.query(paged ?? sql)
@@ -41,6 +41,7 @@ export class DbSession {
   /** Apply grid edits atomically; drivers that reject BEGIN (some JDBC autocommit setups) run statement-by-statement. */
   async submit(statements: string[]): Promise<{ ok: boolean; error?: string }> {
     if (this.config.readonly) return { ok: false, error: 'Data source is read-only.' }
+    if (this.dialect.isRead) return { ok: false, error: `Grid editing is not supported for ${this.config.kind} sources.` }
     let tx = true
     try { await this.transport.query('BEGIN') } catch { tx = false }
     try {

@@ -1,3 +1,4 @@
+import type { DockerContainer, DockerEndpoint } from './docker'
 import type { ConnectionConfig, DatabaseModel, QueryResult, ThemeFile, ThemeManifestEntry } from './types'
 
 /** Native save-dialog filter (matches Electron's FileFilter). */
@@ -28,6 +29,10 @@ export interface StratumApi {
   }
   settings: { get(): Promise<Record<string, unknown>>; set(patch: Record<string, unknown>): Promise<void> }
   dialogs: { pickFile(filters?: { name: string; extensions: string[] }[]): Promise<string | undefined> }
+  docker: {
+    /** Read-only container listing for the Docker helper (unix socket or TCP daemon). */
+    list(endpoint: DockerEndpoint): Promise<DockerContainer[]>
+  }
   export: {
     /** Save text through a native save dialog; returns the chosen path or null when cancelled. */
     save(defaultName: string, content: string, filters?: SaveFilter[]): Promise<string | null>

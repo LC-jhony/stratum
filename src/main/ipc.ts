@@ -3,6 +3,7 @@ import { rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { StratumApi } from '../shared/ipc'
 import type { ConnectionManager } from './services/connectionManager'
+import { listDockerContainers } from './services/docker'
 import type { ConnectionStore, JsonStore } from './services/store'
 import type { ThemeService } from './services/themeService'
 
@@ -11,7 +12,7 @@ type Handlers = { [G in keyof StratumApi]: StratumApi[G] extends Record<string, 
 /** Wires every renderer call to a service. Channel names are derived from the API shape, so the two cannot drift. */
 export function registerIpc(d: { connections: ConnectionStore; manager: ConnectionManager; themes: ThemeService; settings: JsonStore<Record<string, unknown>>; window: () => BrowserWindow | null; onSettingsChanged?: (patch: Record<string, unknown>) => void }) {
   const h = (ch: string, fn: (...a: any[]) => unknown) => ipcMain.handle(ch, (_e, ...a) => fn(...a))
-  const api: Pick<Handlers, 'connections' | 'db' | 'themes' | 'settings' | 'dialogs' | 'export'> = {
+  const api: Pick<Handlers, 'connections' | 'db' | 'themes' | 'settings' | 'dialogs' | 'export' | 'docker'> = {
     connections: {
       list: () => d.connections.list(),
       save: async (c) => { await d.manager.reset(c.id); await d.connections.save(c) },
@@ -28,7 +29,8 @@ export function registerIpc(d: { connections: ConnectionStore; manager: Connecti
     },
     themes: { list: () => d.themes.list(), read: (p) => d.themes.read(p), importVsCodeExtensions: () => d.themes.importVsCodeExtensions() },
     settings: { get: () => d.settings.read(), set: async (patch) => { await d.settings.write({ ...(await d.settings.read()), ...patch }); d.onSettingsChanged?.(patch) } },
-    dialogs: { pickFile: async (filters) => (await dialog.showOpenDialog(d.window()!, { properties: ['openFile'], filters })).filePaths[0] },
+    dialogs: { pickFile: async (filters) => { const win = d.window(); if (!win) return undefined; return (await dialog.showOpenDialog(win, { properties: ['openFile'], filters })).filePaths[0] } },
+    docker: { list: (endpoint) => listDockerContainers(endpoint) },
     export: {
       save: async (defaultName, content, filters) => {
         const win = d.window()

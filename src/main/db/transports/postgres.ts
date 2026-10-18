@@ -9,7 +9,7 @@ export class PostgresTransport implements Transport {
   constructor(private cfg: ConnectionConfig) {}
   private options() {
     const c = this.cfg
-    return { host: c.host ?? 'localhost', port: c.port ?? 5432, user: c.user, password: c.password, database: c.database, ssl: c.ssl ? { rejectUnauthorized: false } : undefined, connectionTimeoutMillis: 10_000 }
+    return { host: c.socketPath?.trim() || c.host || 'localhost', port: c.port ?? 5432, user: c.user, password: c.password, database: c.database, ssl: c.ssl ? { rejectUnauthorized: false } : undefined, connectionTimeoutMillis: 10_000 }
   }
   async open() {
     this.client = new Client(this.options())
