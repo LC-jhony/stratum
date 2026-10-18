@@ -602,10 +602,12 @@ changes data, outside open transactions).
 ## Architecture
 
 ```
-src/shared     contracts: types, IPC API, SQL splitter, DML generator, quoting   (no deps)
+src/shared     contracts + pure logic: types, IPC API, SQL/provider parsers,
+               allowlists, DML/quoting, exports, settings   (no runtime deps)
 src/main       Electron main
-  db/            Transport (how SQL travels)  ×  Dialect (what SQL says)  = DbSession
-  services/      ConnectionManager, encrypted JsonStore, ThemeService, JdbcSidecar
+  db/            providers: Transport (wire) × Dialect (SQL/model) = DbSession
+  services/      ConnectionManager, SSH tunnels, Docker helper, JsonStore,
+                 ThemeService, JdbcSidecar
 src/preload    contextBridge: one typed `window.stratum` object
 src/renderer   React workbench
   theme/         color → CSS vars + Monaco theme · file icon themes · product icon themes
@@ -646,11 +648,13 @@ reads and imports themes and constrains the `stratum-asset://` protocol to theme
 with `safeStorage` password sealing.
 
 **Shared contracts.** `src/shared` has no runtime dependencies and is imported by all three
-processes: the SQL splitter (`sql.ts`, with DataGrip's statement-at-caret semantics), the DML
-generator (`sqlgen.ts`), quoting rules (`quoting.ts`), SQL parameters (`sqlParams.ts`), the
-completion engine and ranker (`sqlComplete.ts`, `sqlRank.ts`), the result-view helpers
-(`gridView.ts`), the export writers (`export.ts`, `xlsx.ts`) and the settings schema (`settings.ts`).
-That is what makes the non-UI half of the app unit-testable in plain Node.
+processes: the SQL splitter (`sql.ts`, with DataGrip's statement-at-caret semantics), the provider
+parsers and allowlists (`mongo.ts`, `redis.ts`, `elastic.ts`, `cassandra.ts`), provider capabilities
+(`kinds.ts`), the Docker helper contract (`docker.ts`), the DML generator (`sqlgen.ts`), quoting
+rules (`quoting.ts`), SQL parameters (`sqlParams.ts`), the completion engine and ranker
+(`sqlComplete.ts`, `sqlRank.ts`), the result-view helpers (`gridView.ts`), the export writers
+(`export.ts`, `xlsx.ts`) and the settings schema (`settings.ts`). That is what makes the non-UI half
+of the app unit-testable in plain Node.
 
 ## Development
 
@@ -673,9 +677,15 @@ with related tables, runs console queries, opens the table editor, drives the ER
 switches themes — surfacing everything found through the smoke hook (`?smoke=1` exposes
 `window.__wb` and `window.__themes`).
 
+`connect-to-server.html` is a standalone, single-file preview of the connection dialog: it mirrors
+the four bundled color themes and can be opened directly in a browser. It is a design aid, not part
+of the packaged application.
+
 ## Testing
 
-`npm test` runs Vitest in a Node environment over `tests/**/*.test.ts`:
+`npm test` runs Vitest in a Node environment over `tests/**/*.test.ts`. The `*Live.test.ts` suites
+are opt-in: each one skips unless its `STRATUM_TEST_*` variable is set, so the default run stays
+offline and repeatable.
 
 | Suite | Covers |
 |---|---|
@@ -698,6 +708,8 @@ switches themes — surfacing everything found through the smoke hook (`?smoke=1
 | `rabbitmq.test.ts` | Internal `PEEK` reader and paging rewrite, Management API calls (basic auth, `ack_requeue_true`, base64, truncation), vhost→schema introspection, local window slicing, payload decoding, console refusal, read-only sources and 401/404 handling, against a real HTTP server. |
 | `docker.test.ts` | Read-only `GET /containers/json` through dockerode (container/port mapping, sorting), unix-socket/TCP targets and actionable daemon errors, plus the image→server-type inference and companion exclusions used by the dialog helper, against a fake Engine HTTP server. |
 | `tunnel.test.ts` | Tunnel target resolution (host/port, `mongodb://` URIs, JDBC URL shapes for MySQL/Postgres/SQL Server/Oracle) and rewrites that keep credentials, database and options; ssh2 client options per auth mode; a real handshake against an in-process sshd that proves bytes flow through `forwardOut`, that concurrent opens share one tunnel, and that the last release closes the listener. |
+
+### Live checks
 
 Live MongoDB checks are opt-in: point `STRATUM_TEST_MONGODB_URI` at any running server (or set
 `STRATUM_TEST_MONGODB_MEMORY=1` to spawn an ephemeral one — needs `npm i --no-save mongodb-memory-server`)
@@ -782,9 +794,15 @@ npx electron-builder --mac dmg      # must run on macOS
 ## Project layout
 
 ```
+connect-to-server.html  standalone connection-dialog preview (not bundled)
+electron-builder.yml    installer targets, resources and deb/rpm hooks
+electron.vite.config.ts electron-vite build for main, preload and renderer
+tsconfig.json           TypeScript compiler options
+vitest.config.ts        Vitest: Node environment, tests/**/*.test.ts
 src/
   shared/          contracts + pure logic, no runtime deps
     types.ts         domain types (drivers, dialects, catalog, results, themes)
+    dialects.ts      SQL dialect labels and connection-dialect resolution
     ipc.ts           StratumApi — the typed renderer<->main contract
     sql.ts           statement splitter, caret semantics, line-comment stripping
     mongo.ts         mongosh statement splitter and caret semantics
@@ -840,10 +858,10 @@ src/
     erd/erd.ts        graph build, ELK layout, orthogonal routing, SVG render
     workbench/        Explorer · ConsoleEditor · ResultsPane · DataGrid · ValueDialog ·
                       TableEditor · ErdView · ExportMenu · DatasourceDialog · SettingsDialog ·
-                      ParamDialog · CommandPalette · Tabs · Icon/iconMap/lucide
+                      ParamDialog · CommandPalette · Tabs · dbIcons · Icon/iconMap/lucide
     styles.css        workbench CSS built on the --vscode-* variables
-tests/               vitest suites (see Testing)
-scripts/             maintenance tools (see below)
+tests/               Vitest suites (see Testing); helpers/sshd.ts runs the in-process sshd
+scripts/             maintenance tools; linux/after-install.tpl is the deb/rpm post-install
 themes/              built-in color and product icon themes
 fonts/               Carbon product icon fonts (woff2)
 resources/jdbc-adapter/  jdbc-adapter-server.jar (fetched, gitignored)
@@ -862,6 +880,7 @@ stratum-brand/       logos, app icons, tray icons, README preview image
 | `scripts/vendor-icons.mjs` | Vendor the Lucide glyphs referenced by `iconMap.ts` into `lucide.tsx` (re-run after editing the map). |
 | `scripts/improve-themes.py` | Regenerate the improved Carbon color themes (borders, grid keys, chart palette). |
 | `scripts/smoke.js` | The UI script executed by `npm run smoke`. |
+| `scripts/linux/after-install.tpl` | deb/rpm post-install: keeps `chrome-sandbox` setuid root so Electron starts on Ubuntu 24.04+ (see [Packaging installers](#packaging-installers)). |
 
 ## Upstream projects
 
@@ -876,6 +895,11 @@ stratum-brand/       logos, app icons, tray icons, README preview image
   [React](https://react.dev/), [zustand](https://zustand-demo.pmnd.rs/), [elkjs](https://github.com/kieler/elkjs),
   [sql.js](https://sql.js.org/), [pg](https://node-postgres.com/), [mysql2](https://github.com/sidorares/node-mysql2),
   [ssh2](https://github.com/mscdex/ssh2), [ioredis](https://github.com/redis/ioredis),
+  [mongodb](https://github.com/mongodb/node-mongodb-native),
+  [cassandra-driver](https://github.com/datastax/nodejs-driver),
+  [@aws-sdk/client-s3](https://github.com/aws/aws-sdk-js-v3),
+  [basic-ftp](https://github.com/patrickjuchli/basic-ftp), [kafkajs](https://github.com/tulios/kafkajs),
+  [dockerode](https://github.com/apocas/dockerode), [jsonc-parser](https://github.com/microsoft/node-jsonc-parser),
   [@vscode/codicons](https://github.com/microsoft/vscode-codicons),
   [Carbon product icons](https://github.com/carbon-design-system/carbon/tree/main/packages/icons)
   and [Lucide](https://lucide.dev/) (ISC).
