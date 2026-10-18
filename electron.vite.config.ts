@@ -9,6 +9,8 @@ export default defineConfig({
     root: 'src/renderer',
     plugins: [react()],
     resolve: { alias: { '@shared': resolve('src/shared') } },
-    build: { rollupOptions: { input: resolve('src/renderer/index.html') } },
+    // electron-vite disables minification by default for every target; the renderer is the one that
+    // ships to users (10.4 MB unminified with Monaco + ELK), while main/preload stay readable.
+    build: { minify: 'esbuild', rollupOptions: { input: resolve('src/renderer/index.html') } },
   },
 })

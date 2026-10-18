@@ -76,7 +76,15 @@ async function main() {
     win.on('show', () => syncTray?.())
     win.on('hide', () => syncTray?.())
     win.on('closed', () => syncTray?.())
-    win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' } })
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      // Only real web/mail links are handed to the OS: a theme file or future content must not be able
+      // to launch arbitrary schemes (file://, custom protocol handlers) through window.open.
+      if (/^(https?|mailto):/i.test(url)) void shell.openExternal(url)
+      return { action: 'deny' }
+    })
+    // The workbench never navigates away from its own page; block any attempt so a crafted link cannot
+    // replace the app view. Same-URL events (Vite's full reload in `npm run dev`) are left alone.
+    win.webContents.on('will-navigate', (e, url) => { if (url !== win?.webContents.getURL()) e.preventDefault() })
     if (process.env.ELECTRON_RENDERER_URL) await win.loadURL(process.env.ELECTRON_RENDERER_URL)
     else await win.loadFile(path.join(__dirname, '../renderer/index.html'), { query: process.env.STRATUM_SMOKE ? { smoke: '1' } : undefined })
   }
@@ -119,4 +127,13 @@ async function main() {
   app.on('before-quit', () => void manager.closeAll())
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
 }
-void main()
+app.on('second-instance', () => {
+  // A second launch (desktop icon, tray, CLI) focuses the running window instead of starting a rival
+  // process: two instances would race the JSON stores (last write wins) and duplicate the tray icon.
+  if (!win || win.isDestroyed()) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+})
+
+void (process.env.STRATUM_SMOKE || app.requestSingleInstanceLock() ? main() : app.quit())

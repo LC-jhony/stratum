@@ -30,7 +30,6 @@ export const unseal = (s?: string) => (s?.startsWith(PREFIX) ? safeStorage.decry
 export class ConnectionStore {
   constructor(private store: JsonStore<{ connections: ConnectionConfig[] }>) {}
   async list(): Promise<ConnectionConfig[]> { return (await this.store.read()).connections.map((c) => ({ ...c, password: unseal(c.password) })) }
-  async listSafe(): Promise<ConnectionConfig[]> { return this.list() }
   async save(c: ConnectionConfig) {
     const s = await this.store.read()
     const sealed = { ...c, password: seal(c.password) }
