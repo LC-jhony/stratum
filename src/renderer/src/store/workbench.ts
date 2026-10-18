@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS, mergeSettings, type StratumSettings } from '../../../
 import { connectionDialect } from '../../../shared/dialects'
 import { isSqlKind } from '../../../shared/kinds'
 import { findParams, substituteParams } from '../../../shared/sqlParams'
-import type { ConnectionConfig, DatabaseModel, QueryResult } from '../../../shared/types'
+import type { ConnectionConfig, ConnectionView, DatabaseModel, QueryResult } from '../../../shared/types'
 import type { ErdOptions } from '../erd/erd'
 
 export interface ResultEntry { id: string; title: string; result: QueryResult; /** Failure of an incremental page fetch; loaded rows are kept. */ fetchError?: string }
@@ -22,11 +22,11 @@ let paramResolver: ((values: Record<string, string> | null) => void) | null = nu
 const fetchStop = new Set<string>()
 
 interface State {
-  connections: ConnectionConfig[]
+  connections: ConnectionView[]
   live: Record<string, Live>
   tabs: Tab[]
   activeTab?: string
-  dialog?: { editing?: ConnectionConfig } | null
+  dialog?: { editing?: ConnectionView } | null
   palette?: null | 'actions' | 'colorTheme' | 'fileIconTheme' | 'productIconTheme'
   showResults: boolean
   prefs: StratumSettings

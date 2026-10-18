@@ -5,7 +5,6 @@ import { createSession } from '../src/main/db/factory'
 import { DbSession } from '../src/main/db/session'
 import { FtpTransport, isFtpRead, paginateFtpStatement, parseFtpList, type FtpClientLike } from '../src/main/db/transports/ftp'
 import { KINDS, isSqlKind } from '../src/shared/kinds'
-import type { JdbcSidecar } from '../src/main/services/jdbcSidecar'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**
@@ -157,7 +156,7 @@ describe('ftp transport', () => {
   })
 
   it('is registered in the factory with a generic dialect', () => {
-    const s = createSession(cfg(), {} as JdbcSidecar)
+    const s = createSession(cfg())
     expect(s.dialect.id).toBe('generic')
     expect(s.config.kind).toBe('ftp')
   })

@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { ConnectionConfig, DialectId, DriverKind, SshConfig } from '../../../shared/types'
+import type { ConnectionConfig, ConnectionView, DialectId, DriverKind, SshConfig } from '../../../shared/types'
 import { DIALECTS } from '../../../shared/dialects'
 import { inferDockerKind, publishedPorts, type DockerContainer, type DockerPort } from '../../../shared/docker'
 import { useWorkbench } from '../store/workbench'
@@ -138,7 +138,22 @@ const cleanIpcError = (e: unknown): string =>
 
 export function DatasourceDialog() {
   const { dialog, set, saveConnection, connect } = useWorkbench()
-  const [c, setC] = useState<ConnectionConfig>(() => dialog?.editing ?? blank())
+  const [c, setC] = useState<ConnectionConfig>(() => {
+    const view = dialog?.editing
+    if (!view) return blank()
+    const { hasPassword: _hasPassword, ssh, ...rest } = view
+    const sshRest = ssh
+      ? (() => {
+          const { hasPassword: _sshHasPassword, hasPassphrase: _sshHasPassphrase, ...rest } = ssh
+          return rest
+        })()
+      : undefined
+    return {
+      ...rest,
+      password: undefined,
+      ssh: sshRest ? { ...sshRest, password: undefined, passphrase: undefined } : undefined,
+    }
+  })
   const [type, setType] = useState(() => typeOf(c))
   const [tab, setTab] = useState<'main' | 'ssh' | 'socks' | 'http'>('main')
   const [draft, setDraft] = useState<Draft>(DRAFT)
@@ -146,6 +161,12 @@ export function DatasourceDialog() {
   const [busy, setBusy] = useState(false)
   const [dockerHelper, setDockerHelper] = useState<DockerHelper | null>(null)
   if (!dialog) return null
+  const storedPassword = !!dialog.editing?.hasPassword
+  const storedSshPassword = !!dialog.editing?.ssh?.hasPassword
+  const storedSshPassphrase = !!dialog.editing?.ssh?.hasPassphrase
+  const passwordPlaceholder = storedPassword ? 'Stored password — leave blank to keep' : 'Password'
+  const sshPasswordPlaceholder = storedSshPassword ? 'Stored password — leave blank to keep' : 'Password'
+  const passphrasePlaceholder = storedSshPassphrase ? 'Stored passphrase — leave blank to keep' : 'Key passphrase'
 
   const up = (p: Partial<ConnectionConfig>) => { setC((x) => ({ ...x, ...p })); setNote(null) }
   const d = (p: Partial<Draft>) => setDraft((x) => ({ ...x, ...p }))
@@ -176,7 +197,7 @@ export function DatasourceDialog() {
   const sshAuth = sshCfg.authType ?? 'auto'
   /** Required SSH fields for the chosen auth mode; the tunnel itself is validated again in main. */
   const sshOk = !sshOn || (!!sshCfg.host?.trim() && !!sshCfg.user?.trim()
-    && (sshAuth !== 'password' || !!sshCfg.password) && (sshAuth !== 'privateKey' || !!sshCfg.privateKeyPath?.trim()))
+    && (sshAuth !== 'password' || !!sshCfg.password || storedSshPassword) && (sshAuth !== 'privateKey' || !!sshCfg.privateKeyPath?.trim()))
   const ok = (sql ? !!c.filePath : c.kind === 'mongodb' ? uriSet || !!c.host : c.kind === 'jdbc' ? !!c.jdbc?.url && !!c.jdbc.driverPath : c.kind === 's3' ? true : !!c.host) && sshOk
   const hint = dockerHelper
     ? 'Scan the Docker daemon and pick a published port to fill Host/Port; the server type follows the image when it is recognized.'
@@ -297,7 +318,7 @@ export function DatasourceDialog() {
       <Lbl className="ds-c1" req>Username</Lbl>
       <input className="ds-field ds-c2" value={c.user ?? ''} onChange={(e) => up({ user: e.target.value })} />
       <Lbl className="ds-c4" req>Password</Lbl>
-      <input className="ds-field ds-c5" type="password" placeholder="Password" value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
+      <input className="ds-field ds-c5" type="password" placeholder={passwordPlaceholder} value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
 
       <Lbl className="ds-c1">Database</Lbl>
       <input className="ds-field ds-c2" placeholder="Database" value={c.database ?? ''} onChange={(e) => up({ database: e.target.value })} />
@@ -343,7 +364,7 @@ export function DatasourceDialog() {
       <Lbl className="ds-c1" dim={uriSet}>Username</Lbl>
       <input className="ds-field ds-c2" value={c.user ?? ''} disabled={uriSet} onChange={(e) => up({ user: e.target.value })} />
       <Lbl className="ds-c4" dim={uriSet}>Password</Lbl>
-      <input className="ds-field ds-c5" type="password" placeholder="Password" value={c.password ?? ''} disabled={uriSet} onChange={(e) => up({ password: e.target.value })} />
+      <input className="ds-field ds-c5" type="password" placeholder={passwordPlaceholder} value={c.password ?? ''} disabled={uriSet} onChange={(e) => up({ password: e.target.value })} />
 
       {features('Options', (
         <Fragment>
@@ -364,7 +385,7 @@ export function DatasourceDialog() {
       <Lbl className="ds-c1">Username</Lbl>
       <input className="ds-field ds-c2" value={c.user ?? ''} placeholder="default" onChange={(e) => up({ user: e.target.value })} />
       <Lbl className="ds-c4">Password</Lbl>
-      <input className="ds-field ds-c5" type="password" placeholder="Password" value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
+      <input className="ds-field ds-c5" type="password" placeholder={passwordPlaceholder} value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
 
       <Lbl className="ds-c1">Database</Lbl>
       <input className="ds-field ds-c2" type="number" min={0} placeholder="0" value={c.database ?? ''} onChange={(e) => up({ database: e.target.value })} />
@@ -392,7 +413,7 @@ export function DatasourceDialog() {
       <Lbl className="ds-c1">Username</Lbl>
       <input className="ds-field ds-c2" value={c.user ?? ''} placeholder="elastic" onChange={(e) => up({ user: e.target.value })} />
       <Lbl className="ds-c4">Password</Lbl>
-      <input className="ds-field ds-c5" type="password" placeholder="Password" value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
+      <input className="ds-field ds-c5" type="password" placeholder={passwordPlaceholder} value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
 
       <div className="ds-row-full">
         <Lbl style={{ width: 190 }}>SSL</Lbl>
@@ -422,7 +443,7 @@ export function DatasourceDialog() {
       <Lbl className="ds-c1">Username</Lbl>
       <input className="ds-field ds-c2" value={c.user ?? ''} placeholder="cassandra" onChange={(e) => up({ user: e.target.value })} />
       <Lbl className="ds-c4">Password</Lbl>
-      <input className="ds-field ds-c5" type="password" placeholder="Password" value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
+      <input className="ds-field ds-c5" type="password" placeholder={passwordPlaceholder} value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
 
       <div className="ds-row-full">
         <Lbl style={{ width: 190 }}>SSL</Lbl>
@@ -475,7 +496,7 @@ export function DatasourceDialog() {
       <Lbl className="ds-c1">Username</Lbl>
       <input className="ds-field ds-c2" value={c.user ?? ''} placeholder="anonymous" onChange={(e) => up({ user: e.target.value })} />
       <Lbl className="ds-c4">Password</Lbl>
-      <input className="ds-field ds-c5" type="password" placeholder="Password" value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
+      <input className="ds-field ds-c5" type="password" placeholder={passwordPlaceholder} value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
 
       <div className="ds-row-full">
         <Lbl style={{ width: 190 }}>FTPS (AUTH TLS)</Lbl>
@@ -525,7 +546,7 @@ export function DatasourceDialog() {
       <Lbl className="ds-c1">Username</Lbl>
       <input className="ds-field ds-c2" value={c.user ?? ''} placeholder="guest" onChange={(e) => up({ user: e.target.value })} />
       <Lbl className="ds-c4">Password</Lbl>
-      <input className="ds-field ds-c5" type="password" placeholder="Password" value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
+      <input className="ds-field ds-c5" type="password" placeholder={passwordPlaceholder} value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
 
       <div className="ds-row-full">
         <Lbl style={{ width: 190 }}>SSL</Lbl>
@@ -577,7 +598,7 @@ export function DatasourceDialog() {
       <input className="ds-field ds-c5" value={c.user ?? ''} onChange={(e) => up({ user: e.target.value })} />
 
       <Lbl className="ds-c1">Password</Lbl>
-      <input className="ds-field ds-c2" type="password" placeholder="Password" value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
+      <input className="ds-field ds-c2" type="password" placeholder={passwordPlaceholder} value={c.password ?? ''} onChange={(e) => up({ password: e.target.value })} />
 
       {features('Options', (
         <Fragment>
@@ -616,7 +637,7 @@ export function DatasourceDialog() {
         ]} />
       </div>
       <Lbl className="ds-c4" req={sshAuth === 'password'} dim={!sshOn}>Password</Lbl>
-      <input className="ds-field ds-c5" type="password" placeholder="Password" value={sshCfg.password ?? ''} disabled={!sshOn} onChange={(e) => setSsh({ password: e.target.value })} />
+      <input className="ds-field ds-c5" type="password" placeholder={sshPasswordPlaceholder} value={sshCfg.password ?? ''} disabled={!sshOn} onChange={(e) => setSsh({ password: e.target.value })} />
 
       <Lbl className="ds-c1" req={sshAuth === 'privateKey'} dim={!sshOn}>Private Key Path</Lbl>
       <div className="ds-with-btn ds-c2">
@@ -624,7 +645,7 @@ export function DatasourceDialog() {
         <button className="ds-btn ds-icon-btn" type="button" disabled={!sshOn} aria-label="Browse private key" title="Choose private key" onClick={() => void pick((f) => setSsh({ privateKeyPath: f }))}>…</button>
       </div>
       <Lbl className="ds-c4" dim={!sshOn}>Passphrase</Lbl>
-      <input className="ds-field ds-c5" type="password" placeholder="Key passphrase" value={sshCfg.passphrase ?? ''} disabled={!sshOn} onChange={(e) => setSsh({ passphrase: e.target.value })} />
+      <input className="ds-field ds-c5" type="password" placeholder={passphrasePlaceholder} value={sshCfg.passphrase ?? ''} disabled={!sshOn} onChange={(e) => setSsh({ passphrase: e.target.value })} />
 
       <div className="ds-row-full">
         <p className="ds-note">The tunnel binds a random local port and forwards it to {c.kind === 'jdbc' ? 'the JDBC URL host' : c.kind === 'mongodb' && uriSet ? 'the connection string host' : `${c.host || 'the server'}${c.port ? `:${c.port}` : ''}`}.<br />

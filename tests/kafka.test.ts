@@ -14,7 +14,6 @@ import {
   type KafkaMessageLike,
 } from '../src/main/db/transports/kafka'
 import { KINDS, isSqlKind } from '../src/shared/kinds'
-import type { JdbcSidecar } from '../src/main/services/jdbcSidecar'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**

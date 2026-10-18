@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createSession } from '../src/main/db/factory'
 import type { DbSession } from '../src/main/db/session'
-import type { JdbcSidecar } from '../src/main/services/jdbcSidecar'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**
@@ -35,7 +34,7 @@ suite('FTP live', () => {
   let s: DbSession
 
   beforeAll(async () => {
-    s = createSession(cfg, {} as JdbcSidecar)
+    s = createSession(cfg)
     await s.open()
   })
 

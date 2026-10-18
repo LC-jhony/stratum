@@ -1,15 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import net from 'node:net'
-import { createSessionWithTunnel } from '../src/main/db/factory'
 import type { DbSession } from '../src/main/db/session'
 import { closeAllTunnels } from '../src/main/services/sshTunnel'
 import type { JdbcSidecar } from '../src/main/services/jdbcSidecar'
+import { SessionFactory } from '../src/main/services/sessionFactory'
 import type { ConnectionConfig } from '../src/shared/types'
 import { listen, startSshd } from './helpers/sshd'
 
 /**
  * End-to-end check of the SSH connection helper: the MongoDB driver must reach a real mongod that
- * is only addressable through an in-process sshd, exactly as the app does it (createSessionWithTunnel
+ * is only addressable through an in-process sshd, exactly as the app does it (SessionFactory
  * rewrites the URI, forwards bytes, and releases the tunnel when the session closes).
  *
  * Skipped unless a server is provided, same switches as mongoLive:
@@ -46,7 +46,7 @@ suite('ssh tunnel + mongodb live', () => {
       id: 'tunnel-live', name: 'tunnel-live', kind: 'mongodb', uri, database: db,
       ssh: { enabled: true, host: '127.0.0.1', port: sshPort, user: 'tester', authType: 'password', password: 's3cret' },
     }
-    session = await createSessionWithTunnel(cfg, {} as JdbcSidecar)
+    session = await new SessionFactory({} as JdbcSidecar).createWithTunnel(cfg)
     await session.open()
   }, 120_000)
 

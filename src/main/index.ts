@@ -6,7 +6,11 @@ import { brandPath } from './brand'
 import { registerIpc } from './ipc'
 import { buildMenu } from './menu'
 import { ConnectionManager } from './services/connectionManager'
+import { ConnectionService } from './services/connectionService'
+import { DesktopService } from './services/desktopService'
 import { JdbcSidecar, type JdbcRuntime } from './services/jdbcSidecar'
+import { SessionFactory } from './services/sessionFactory'
+import { SettingsService } from './services/settingsService'
 import { ConnectionStore, JsonStore } from './services/store'
 import { ThemeService } from './services/themeService'
 
@@ -26,7 +30,7 @@ async function main() {
   if (process.platform !== 'win32') app.setAboutPanelOptions({ applicationName: 'Stratum', applicationVersion: app.getVersion(), iconPath: brandPath('png/stratum-512.png') })
   const data = app.getPath('userData')
   const connections = new ConnectionStore(new JsonStore(path.join(data, 'connections.json'), { connections: [] }))
-  const settings = new JsonStore<Record<string, unknown>>(path.join(data, 'settings.json'), {})
+  const settings = new SettingsService(new JsonStore<Record<string, unknown>>(path.join(data, 'settings.json'), {}))
   const jdbc: JdbcRuntime = { javaHome: process.env.JAVA_HOME }
   /** Applies jdbc.* settings into the runtime mirror; returns true when something changed. */
   const applyJdbcSettings = (s: Record<string, unknown>): boolean => {
@@ -36,12 +40,15 @@ async function main() {
     const home = s['jdbc.javaHome']; if (typeof home === 'string') { const v = home || process.env.JAVA_HOME; if (v !== jdbc.javaHome) { jdbc.javaHome = v; changed = true } }
     return changed
   }
-  const initial = await settings.read()
+  const initial = await settings.get()
   applyJdbcSettings(initial)
   // Native chrome (the in-window menu bar, popup menus, dialogs) follows the selected color theme, like VS Code.
   nativeTheme.themeSource = initial.colorScheme === 'light' || initial.colorScheme === 'dark' ? initial.colorScheme : 'system'
   const sidecar = new JdbcSidecar(() => ({ ...jdbc, jar: jdbc.jar ?? process.env.STRATUM_JDBC_JAR ?? resourcePath('jdbc-adapter', 'jdbc-adapter-server.jar') }))
-  const manager = new ConnectionManager(connections, sidecar)
+  const sessionFactory = new SessionFactory(sidecar)
+  const manager = new ConnectionManager(connections, sessionFactory)
+  const connectionService = new ConnectionService(connections, manager)
+  const desktop = new DesktopService(() => win)
   const themes = new ThemeService(resourcePath('themes'), path.join(data, 'themes'))
 
   protocol.handle('stratum-asset', async (req) => {
@@ -50,18 +57,23 @@ async function main() {
     return net.fetch(pathToFileURL(file).toString())
   })
 
+  settings.onChange((patch) => {
+    if (applyJdbcSettings(patch)) sidecar.stop()
+    if (patch.colorScheme === 'light' || patch.colorScheme === 'dark' || patch.colorScheme === 'system') nativeTheme.themeSource = patch.colorScheme
+    if (typeof patch.windowBackground === 'string' && patch.windowBackground && win && !win.isDestroyed()) win.setBackgroundColor(patch.windowBackground)
+  })
   registerIpc({
-    connections, manager, themes, settings, window: () => win,
-    onSettingsChanged: (patch) => {
-      if (applyJdbcSettings(patch)) sidecar.stop()
-      if (patch.colorScheme === 'light' || patch.colorScheme === 'dark' || patch.colorScheme === 'system') nativeTheme.themeSource = patch.colorScheme
-      if (typeof patch.windowBackground === 'string' && patch.windowBackground && win && !win.isDestroyed()) win.setBackgroundColor(patch.windowBackground)
-    },
+    connections: connectionService,
+    sessions: manager,
+    themes,
+    settings,
+    desktop,
+    window: () => win,
   })
   buildMenu()
 
   const create = async () => {
-    const prefs = await settings.read()
+    const prefs = await settings.get()
     win = new BrowserWindow({
       width: 1440, height: 900, minWidth: 820, minHeight: 560, show: false,
       icon: brandPath('png/stratum-512.png'),
@@ -124,7 +136,7 @@ async function main() {
     app.exit(0)
   }
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) void create() })
-  app.on('before-quit', () => void manager.closeAll())
+  app.on('before-quit', () => { void manager.closeAll().finally(() => sidecar.stop()) })
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
 }
 app.on('second-instance', () => {

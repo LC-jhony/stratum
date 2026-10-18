@@ -4,7 +4,6 @@ import { createS3Dialect } from '../src/main/db/s3Dialect'
 import { DbSession } from '../src/main/db/session'
 import { S3Transport, isS3Read, paginateS3Statement, parseS3List, type S3ClientLike } from '../src/main/db/transports/s3'
 import { KINDS, isSqlKind } from '../src/shared/kinds'
-import type { JdbcSidecar } from '../src/main/services/jdbcSidecar'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**
@@ -159,7 +158,7 @@ describe('s3 transport', () => {
   })
 
   it('is registered in the factory with a generic dialect', () => {
-    const s = createSession(cfg(), {} as JdbcSidecar)
+    const s = createSession(cfg())
     expect(s.dialect.id).toBe('generic')
     expect(s.config.kind).toBe('s3')
   })

@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Redis as RedisClient } from 'ioredis'
 import { createSession } from '../src/main/db/factory'
 import type { DbSession } from '../src/main/db/session'
-import type { JdbcSidecar } from '../src/main/services/jdbcSidecar'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**
@@ -50,7 +49,7 @@ suite('redis live', () => {
     const cfg: ConnectionConfig = provided
       ? { id: 'redis-live', name: 'redis-live', kind: 'redis', uri: provided }
       : { id: 'redis-live', name: 'redis-live', kind: 'redis', host: seed.options.host, port: seed.options.port }
-    s = createSession(cfg, {} as JdbcSidecar)
+    s = createSession(cfg)
     await s.open()
   }, 120_000)
 
@@ -122,7 +121,7 @@ suite('redis live', () => {
 
   it('keeps reads working on read-only sources and blocks them nothing extra', async () => {
     const cfg: ConnectionConfig = { ...s.config, id: 'redis-ro', readonly: true }
-    const ro = createSession(cfg, {} as JdbcSidecar)
+    const ro = createSession(cfg)
     await ro.open()
     expect((await ro.execute(`GET ${key('greeting')}`)).rows).toEqual([['hola']])
     expect((await ro.execute(`SET ${key('x')} 1`)).error).toMatch(/read-only/)

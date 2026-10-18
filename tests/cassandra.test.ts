@@ -5,7 +5,6 @@ import { DbSession } from '../src/main/db/session'
 import { CassandraTransport, type CassandraClient, type CassandraExecuteOptions, type CassandraResultSet } from '../src/main/db/transports/cassandra'
 import { cqlHead, isCassandraRead, paginateCassandraStatement, parseCassandraPage, parseCassandraUse } from '../src/shared/cassandra'
 import { KINDS, isSqlKind } from '../src/shared/kinds'
-import type { JdbcSidecar } from '../src/main/services/jdbcSidecar'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**
@@ -213,7 +212,7 @@ describe('cassandra transport', () => {
   })
 
   it('is registered in the factory with the cassandra dialect', () => {
-    const s = createSession(cfg(), {} as JdbcSidecar)
+    const s = createSession(cfg())
     expect(s.dialect.id).toBe('cassandra')
     expect(s.config.kind).toBe('cassandra')
   })

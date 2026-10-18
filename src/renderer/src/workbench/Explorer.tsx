@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { ConnectionConfig, TableInfo } from '../../../shared/types'
+import type { ConnectionView, TableInfo } from '../../../shared/types'
 import { connectionDialect } from '../../../shared/dialects'
 import { isSqlKind } from '../../../shared/kinds'
 import { qualify, quote } from '../../../shared/quoting'
@@ -7,7 +7,7 @@ import { useWorkbench } from '../store/workbench'
 import { Icon } from './Icon'
 
 type Kind = 'connection' | 'schema' | 'group' | 'table' | 'view' | 'column' | 'index'
-interface Row { key: string; depth: number; kind: Kind; label: string; detail?: string; expandable: boolean; icon: string; color?: string; conn: ConnectionConfig; schema?: string; table?: string; pk?: boolean; fk?: boolean; extra?: string }
+interface Row { key: string; depth: number; kind: Kind; label: string; detail?: string; expandable: boolean; icon: string; color?: string; conn: ConnectionView; schema?: string; table?: string; pk?: boolean; fk?: boolean; extra?: string }
 
 export function Explorer() {
   const { connections, live, connect, refresh, openConsole, openTable, openDiagram, set, disconnect, removeConnection, setActive } = useWorkbench()
@@ -183,7 +183,7 @@ export function Explorer() {
   )
 }
 
-function pushChildren(out: Row[], t: TableInfo, tk: string, conn: ConnectionConfig, schema: string) {
+function pushChildren(out: Row[], t: TableInfo, tk: string, conn: ConnectionView, schema: string) {
   for (const c of t.columns) out.push({ key: `${tk}/c/${c.name}`, depth: 3, kind: 'column', label: c.name, detail: c.dataType + (c.nullable ? '' : ' • not null'), expandable: false, icon: c.isPrimaryKey ? 'key' : t.foreignKeys.some((f) => f.columns.includes(c.name)) ? 'references' : 'symbol-field', color: c.isPrimaryKey ? 'var(--vscode-charts-yellow)' : t.foreignKeys.some((f) => f.columns.includes(c.name)) ? 'var(--vscode-charts-blue)' : 'var(--vscode-descriptionForeground)', conn, schema, table: t.name })
   for (const i of t.indexes) out.push({ key: `${tk}/i/${i.name}`, depth: 3, kind: 'index', label: i.name, detail: `(${i.columns.join(', ')})`, extra: i.unique ? 'unique' : undefined, expandable: false, icon: 'list-ordered', conn, schema, table: t.name })
 }

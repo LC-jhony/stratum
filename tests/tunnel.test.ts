@@ -5,6 +5,7 @@ import { ConnectionManager } from '../src/main/services/connectionManager'
 import { acquireTunnel, closeAllTunnels, rewriteForTunnel, sshConnectConfig, targetFromJdbc, tunnelTarget } from '../src/main/services/sshTunnel'
 import type { ConnectionStore } from '../src/main/services/store'
 import type { JdbcSidecar } from '../src/main/services/jdbcSidecar'
+import { SessionFactory } from '../src/main/services/sessionFactory'
 import { listen, startSshd } from './helpers/sshd'
 
 /**
@@ -131,7 +132,7 @@ describe('ssh tunnel over a real handshake', () => {
     const sshPort = await listen(sshd)
     const bad = cfg({ id: 'c2', host: '127.0.0.1', port: 1, ssh: ssh({ host: '127.0.0.1', port: sshPort, password: 'wrong' }) })
     await expect(acquireTunnel(bad)).rejects.toThrow(/SSH tunnel to .* failed/)
-    const manager = new ConnectionManager({ get: async () => bad } as unknown as ConnectionStore, {} as JdbcSidecar)
+    const manager = new ConnectionManager({ get: async () => bad } as unknown as ConnectionStore, new SessionFactory({} as JdbcSidecar))
     const r = await manager.test({ ...bad, id: 'c3' })
     expect(r.ok).toBe(false)
     expect(r.error).toMatch(/SSH tunnel/)

@@ -61,6 +61,21 @@ export interface ConnectionConfig {
   group?: string
 }
 
+/**
+ * Connection metadata safe to send to the renderer. Secrets never cross the process boundary:
+ * the UI only learns whether one is stored, and saving without a password preserves the old one.
+ */
+export interface ConnectionView extends Omit<ConnectionConfig, 'password' | 'ssh'> {
+  password?: undefined
+  ssh?: Omit<SshConfig, 'password' | 'passphrase'> & {
+    password?: undefined
+    passphrase?: undefined
+    hasPassword: boolean
+    hasPassphrase: boolean
+  }
+  hasPassword: boolean
+}
+
 export interface ColumnMeta { name: string; type?: string; table?: string }
 
 export interface RawResult {

@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { hitsToResult, replyToResult } from '../src/main/db/transports/elastic'
 import { createSession, } from '../src/main/db/factory'
 import type { DbSession } from '../src/main/db/session'
-import type { JdbcSidecar } from '../src/main/services/jdbcSidecar'
 import { elasticStatementAt, isElasticRead, paginateElasticStatement, parseElasticRequest, splitElasticStatements } from '../src/shared/elastic'
 import { KINDS, isSqlKind } from '../src/shared/kinds'
 import type { ConnectionConfig } from '../src/shared/types'
@@ -130,7 +129,7 @@ describe('elasticsearch transport against a fake cluster', () => {
 
   beforeAll(async () => {
     fake = await startFakeElastic()
-    s = createSession(cfg(), {} as JdbcSidecar)
+    s = createSession(cfg())
     await s.open()
   })
 
@@ -201,7 +200,7 @@ describe('elasticsearch transport against a fake cluster', () => {
   })
 
   it('keeps reads working on read-only sources and gates the rest', async () => {
-    const ro = createSession(cfg({ id: 'es-ro', readonly: true }), {} as JdbcSidecar)
+    const ro = createSession(cfg({ id: 'es-ro', readonly: true }))
     await ro.open()
     expect((await ro.execute('GET /users/_search')).error).toBeUndefined()
     expect((await ro.execute('DELETE /users')).error).toMatch(/Data source is read-only/)

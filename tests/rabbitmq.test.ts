@@ -11,7 +11,6 @@ import {
   parseRabbitPeek,
 } from '../src/main/db/transports/rabbitmq'
 import { KINDS, isSqlKind } from '../src/shared/kinds'
-import type { JdbcSidecar } from '../src/main/services/jdbcSidecar'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**
@@ -227,7 +226,7 @@ describe('rabbitmq transport against a fake management API', () => {
   })
 
   it('is registered in the factory with a generic dialect', () => {
-    const s = createSession(cfg(15672), {} as JdbcSidecar)
+    const s = createSession(cfg(15672))
     expect(s.dialect.id).toBe('generic')
     expect(s.config.kind).toBe('rabbitmq')
   })

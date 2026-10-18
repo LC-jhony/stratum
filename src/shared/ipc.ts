@@ -1,5 +1,5 @@
 import type { DockerContainer, DockerEndpoint } from './docker'
-import type { ConnectionConfig, DatabaseModel, QueryResult, ThemeFile, ThemeManifestEntry } from './types'
+import type { ConnectionConfig, ConnectionView, DatabaseModel, QueryResult, ThemeFile, ThemeManifestEntry } from './types'
 
 /** Native save-dialog filter (matches Electron's FileFilter). */
 export interface SaveFilter { name: string; extensions: string[] }
@@ -7,7 +7,9 @@ export interface SaveFilter { name: string; extensions: string[] }
 /** Single typed contract between renderer and main. Every channel is request/response. */
 export interface StratumApi {
   connections: {
-    list(): Promise<ConnectionConfig[]>
+    /** Metadata only: secrets stay in the main process. */
+    list(): Promise<ConnectionView[]>
+    /** Omit password / ssh password to keep the stored secret. */
     save(c: ConnectionConfig): Promise<void>
     remove(id: string): Promise<void>
     test(c: ConnectionConfig): Promise<{ ok: boolean; version?: string; error?: string }>
