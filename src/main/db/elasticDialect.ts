@@ -1,4 +1,4 @@
-import { isElasticRead, paginateElasticStatement } from '../../shared/elastic'
+import { isElasticRead, paginateElasticStatement } from '../../core/elastic'
 import type { ElasticTransport } from './transports/elastic'
 import type { Dialect } from './types'
 

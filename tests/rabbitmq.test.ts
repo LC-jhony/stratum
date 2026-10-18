@@ -10,7 +10,7 @@ import {
   paginateRabbitStatement,
   parseRabbitPeek,
 } from '../src/main/db/transports/rabbitmq'
-import { KINDS, isSqlKind } from '../src/shared/kinds'
+import { KINDS, isSqlKind } from '../src/core/kinds'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**

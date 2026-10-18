@@ -1,4 +1,4 @@
-import type { ConnectionConfig, DatabaseModel, DialectId } from './types'
+import type { ConnectionConfig, DatabaseModel, DialectId } from '../shared/types'
 
 /** SQL dialects Stratum offers for completion, quoting and JDBC presets, in menu order. */
 export const DIALECTS: readonly { id: DialectId; label: string }[] = [

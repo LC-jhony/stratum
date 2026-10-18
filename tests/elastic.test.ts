@@ -4,8 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { hitsToResult, replyToResult } from '../src/main/db/transports/elastic'
 import { createSession, } from '../src/main/db/factory'
 import type { DbSession } from '../src/main/db/session'
-import { elasticStatementAt, isElasticRead, paginateElasticStatement, parseElasticRequest, splitElasticStatements } from '../src/shared/elastic'
-import { KINDS, isSqlKind } from '../src/shared/kinds'
+import { elasticStatementAt, isElasticRead, paginateElasticStatement, parseElasticRequest, splitElasticStatements } from '../src/core/elastic'
+import { KINDS, isSqlKind } from '../src/core/kinds'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**

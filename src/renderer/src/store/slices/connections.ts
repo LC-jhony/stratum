@@ -1,5 +1,5 @@
 import { ipc } from '../../ipc/client'
-import { mergeSettings } from '../../../../shared/settings'
+import { mergeSettings } from '../../../../core/settings'
 import type { ConnectionConfig } from '../../../../shared/types'
 import type { ConnectionsSlice, WorkbenchSlice } from '../types'
 

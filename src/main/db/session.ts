@@ -1,5 +1,5 @@
 import type { ConnectionConfig, DatabaseModel, QueryResult } from '../../shared/types'
-import { returnsRows } from '../../shared/sql'
+import { returnsRows } from '../../core/sql'
 import { normalizeRows } from './normalize'
 import type { Dialect, Transport } from './types'
 

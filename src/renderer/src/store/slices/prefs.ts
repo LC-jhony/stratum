@@ -1,5 +1,5 @@
 import { ipc } from '../../ipc/client'
-import { DEFAULT_SETTINGS, mergeSettings } from '../../../../shared/settings'
+import { DEFAULT_SETTINGS, mergeSettings } from '../../../../core/settings'
 import type { PrefsSlice, WorkbenchSlice } from '../types'
 
 export const createPrefsSlice: WorkbenchSlice<PrefsSlice> = (set, get) => ({

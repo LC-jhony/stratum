@@ -5,7 +5,7 @@
  * through the binary save channel.
  */
 import { quote } from './quoting'
-import type { ColumnMeta, DialectId } from './types'
+import type { ColumnMeta, DialectId } from '../shared/types'
 
 export type ExportFormat = 'csv' | 'tsv' | 'pipe' | 'semicolon' | 'json' | 'insert'
 

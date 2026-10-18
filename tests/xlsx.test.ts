@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bytesToBase64, colRef, crc32, exportXlsx, sheetName, sheetXml } from '../src/shared/xlsx'
+import { bytesToBase64, colRef, crc32, exportXlsx, sheetName, sheetXml } from '../src/core/xlsx'
 import type { ColumnMeta } from '../src/shared/types'
 
 const enc = new TextEncoder(), dec = new TextDecoder()

@@ -1,5 +1,5 @@
-import { isCassandraRead, paginateCassandraStatement } from '../../shared/cassandra'
-import { qualify as qualifyId, quote as quoteId } from '../../shared/quoting'
+import { isCassandraRead, paginateCassandraStatement } from '../../core/cassandra'
+import { qualify as qualifyId, quote as quoteId } from '../../core/quoting'
 import type { CassandraTransport } from './transports/cassandra'
 import type { Dialect } from './types'
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generate `src/shared/sqlDialectData.ts` — per-dialect keyword and function catalogs
+ * Generate `src/core/sqlDialectData.ts` — per-dialect keyword and function catalogs
  * for the SQL completion engine, extracted from the installed DataGrip.
  *
  * Provenance (facts only: keyword/function names and prototypes — no DataGrip code):
@@ -138,7 +138,7 @@ lines.push('/**')
 lines.push(' * GENERATED FILE — do not edit by hand. Regenerate with:')
 lines.push(' *   node scripts/datagrip-keywords.mjs <classes-dir> > keywords.json')
 lines.push(' *   node scripts/datagrip-tokens.mjs <modules-dir> > tokens.json')
-lines.push(' *   node scripts/datagrip-catalog.mjs keywords.json tokens.json <functions-dir> src/shared/sqlDialectData.ts')
+lines.push(' *   node scripts/datagrip-catalog.mjs keywords.json tokens.json <functions-dir> src/core/sqlDialectData.ts')
 lines.push(' *')
 lines.push(` * Source: DataGrip 2026.2.6 (DB-262.10968.148), modules under plugins/DatabaseTools/lib/modules.`)
 lines.push(` * Generated: ${stamp}. Keywords are single words (uppercase); functions carry the first`)

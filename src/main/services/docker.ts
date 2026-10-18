@@ -1,5 +1,5 @@
 import Docker from 'dockerode'
-import type { DockerContainer, DockerEndpoint, DockerPort } from '../../shared/docker'
+import type { DockerContainer, DockerEndpoint, DockerPort } from '../../core/docker'
 
 /**
  * Read-only Docker daemon access for the connection dialog's helper. The daemon is reached over

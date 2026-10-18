@@ -15,6 +15,7 @@
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
+    "lint:arch": "depcruise src --config .dependency-cruiser.cjs",
     "fetch:jdbc": "node scripts/fetch-jdbc-adapter.mjs",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",

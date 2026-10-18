@@ -174,7 +174,7 @@ of these paths are covered by tests (`tests/db.test.ts`).
 ### MongoDB
 
 MongoDB is the first provider that is not SQL, so the workbench reaches it through a capability
-registry instead of the SQL-only paths: `src/shared/kinds.ts` marks each `DriverKind` as `sql` or not,
+registry instead of the SQL-only paths: `src/core/kinds.ts` marks each `DriverKind` as `sql` or not,
 and the connection dialog, data editor, console and Explorer hide (or adapt) the SQL affordances for
 non-SQL sources.
 
@@ -220,7 +220,7 @@ and a connection string works for tests/tunnels (`redis://…`).
 
 Elasticsearch is the third non-SQL provider and the first one that is pure HTTP: the transport
 (`src/main/db/transports/elastic.ts`) speaks the Dev Tools dialect directly with `fetch` — no extra
-dependency — and the console (`src/shared/elastic.ts`) splits requests at lines that start with an
+dependency — and the console (`src/core/elastic.ts`) splits requests at lines that start with an
 HTTP method (`GET /_cat/indices?format=json`, `POST /my-index/_search` followed by a JSON body), so
 a multi-line body never splits a statement. Only relative paths are accepted: the console can never
 be pointed at an arbitrary host.
@@ -391,7 +391,7 @@ closed cleanly on quit.
 
 ## SQL completion
 
-The completion engine (`src/shared/sqlComplete.ts`) is DataGrip-style and dialect-aware: scoped
+The completion engine (`src/core/sqlComplete.ts`) is DataGrip-style and dialect-aware: scoped
 aliases (reserved words never become implicit aliases), `schema.table.` qualifiers, INSERT column
 auto-fill, JOIN generation from foreign keys, live templates (`sel`, `selw`, `selc`,
 `lim`/`top`/`first`/`toprow`, `ins`, `upd`, `del`, `tab`, `view`, `col`) with DataGrip's
@@ -399,7 +399,7 @@ per-dialect availability, and per-dialect keyword and function catalogs for 23 d
 (PostgreSQL, MySQL, MariaDB, SQLite, SQL Server, Oracle, Db2, Derby, H2, HSQLDB, SAP ASE,
 Vertica, Exasol, Greenplum, Redshift, CockroachDB, Snowflake, ClickHouse, BigQuery, Hive,
 Spark, Cassandra CQL, generic). Suggestions come back best-first with DataGrip-like ranking
-signals (`src/shared/sqlRank.ts`): match quality (exact / prefix / middle / greedy), shorter
+signals (`src/core/sqlRank.ts`): match quality (exact / prefix / middle / greedy), shorter
 labels first, and word usage frequency in the console.
 
 The Settings dialog can disable completion, turn off "suggest on space", enable automatic table
@@ -414,12 +414,12 @@ model, code or ranking weights are copied.
 
 The catalogs are *facts* extracted from the installed DataGrip 2026.2.6 modules (keyword
 constant pools, the full `token("WORD")` lexer vocabulary and `functions.xml` per dialect)
-into the generated `src/shared/sqlDialectData.ts`:
+into the generated `src/core/sqlDialectData.ts`:
 
 ```
 node scripts/datagrip-keywords.mjs <classes-dir> > keywords.json   # decodes *Keywords.class
 node scripts/datagrip-tokens.mjs <modules-dir> > tokens.json       # decodes *Types.class (javap)
-node scripts/datagrip-catalog.mjs keywords.json tokens.json <functions-dir> src/shared/sqlDialectData.ts
+node scripts/datagrip-catalog.mjs keywords.json tokens.json <functions-dir> src/core/sqlDialectData.ts
 ```
 
 ## Query console
@@ -602,15 +602,21 @@ changes data, outside open transactions).
 ## Architecture
 
 ```
-src/shared     contracts + pure logic: types, IPC API, SQL/provider parsers,
-               allowlists, DML/quoting, exports, settings   (no runtime deps)
+src/shared     contracts: domain types, IPC API, Docker shapes   (no runtime deps)
+src/core       pure logic: SQL/provider parsers, allowlists, DML/quoting,
+               exports, sanitizers, settings schema, SQL completion
 src/main       Electron main
+  ipc/           zod schemas; thin routers that delegate to services
   db/            providers: Transport (wire) × Dialect (SQL/model) = DbSession
-  services/      ConnectionManager, SSH tunnels, Docker helper, JsonStore,
+  services/      ConnectionService, ConnectionManager, SessionFactory, SSH tunnels,
+                 Docker helper, JsonStore, SettingsService, DesktopService,
                  ThemeService, JdbcSidecar
 src/preload    contextBridge: one typed `window.stratum` object
 src/renderer   React workbench
+  ipc/           the single typed renderer-side bridge
+  store/         Zustand facade composed from feature slices
   theme/         color → CSS vars + Monaco theme · file icon themes · product icon themes
+  ui/            theme-aware icons and shared UI primitives
   erd/           graph build → ELK placement → own orthogonal routing → pure SVG renderer
   workbench/     Explorer, Console, Table editor, Data grid, ERD view, dialogs, palette
 ```
@@ -700,11 +706,11 @@ click node_app "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/A
 click node_explorer "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/Explorer.tsx"
 click node_datasource "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/DatasourceDialog.tsx"
 click node_console "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/ConsoleEditor.tsx"
-click node_completion "https://github.com/lc-jhony/stratum/blob/main/src/shared/sqlComplete.ts"
-click node_params "https://github.com/lc-jhony/stratum/blob/main/src/shared/sqlParams.ts"
+click node_completion "https://github.com/lc-jhony/stratum/blob/main/src/core/sqlComplete.ts"
+click node_params "https://github.com/lc-jhony/stratum/blob/main/src/core/sqlParams.ts"
 click node_results "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/DataGrid.tsx"
 click node_tableeditor "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/TableEditor.tsx"
-click node_export "https://github.com/lc-jhony/stratum/blob/main/src/shared/export.ts"
+click node_export "https://github.com/lc-jhony/stratum/blob/main/src/core/export.ts"
 click node_diagramview "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/ErdView.tsx"
 click node_diagramlayout "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/erd/erd.ts"
 click node_state "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/store/workbench.ts"
@@ -717,11 +723,11 @@ click node_factory "https://github.com/lc-jhony/stratum/blob/main/src/main/db/fa
 click node_transports "https://github.com/lc-jhony/stratum/tree/main/src/main/db/transports"
 click node_connections "https://github.com/lc-jhony/stratum/blob/main/src/main/services/store.ts"
 click node_jdbc "https://github.com/lc-jhony/stratum/blob/main/src/main/services/jdbcSidecar.ts"
-click node_settings "https://github.com/lc-jhony/stratum/blob/main/src/shared/settings.ts"
+click node_settings "https://github.com/lc-jhony/stratum/blob/main/src/core/settings.ts"
 click node_themeservice "https://github.com/lc-jhony/stratum/blob/main/src/main/services/themeService.ts"
 click node_thememanager "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/theme/themeManager.ts"
 click node_themeassets "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/theme/colorTheme.ts"
-click node_icon "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/Icon.tsx"
+click node_icon "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/ui/Icon.tsx"
 
 classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
 classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
@@ -758,7 +764,7 @@ Add a database = one Transport (if it needs a new wire protocol) and/or one Dial
 `db/factory.ts` — the only place that knows which transport/dialect pairs exist. Anything with a
 JDBC driver already works through the generic JDBC transport; providers that are not SQL (MongoDB,
 Redis, Elasticsearch, Cassandra, S3, FTP, Kafka and RabbitMQ today) also register in
-`src/shared/kinds.ts` so the UI hides the SQL affordances they cannot back. The Docker helper is not
+`src/core/kinds.ts` so the UI hides the SQL affordances they cannot back. The Docker helper is not
 a transport at all: it is a dialog pane that calls one read-only daemon endpoint through IPC.
 
 **Services.** `ConnectionManager` owns live sessions per data source (open / close / test) and runs
@@ -769,14 +775,17 @@ reads and imports themes and constrains the `stratum-asset://` protocol to theme
 `JsonStore` is the atomic JSON persistence used for both connections and settings,
 with `safeStorage` password sealing.
 
-**Shared contracts.** `src/shared` has no runtime dependencies and is imported by all three
-processes: the SQL splitter (`sql.ts`, with DataGrip's statement-at-caret semantics), the provider
-parsers and allowlists (`mongo.ts`, `redis.ts`, `elastic.ts`, `cassandra.ts`), provider capabilities
-(`kinds.ts`), the Docker helper contract (`docker.ts`), the DML generator (`sqlgen.ts`), quoting
-rules (`quoting.ts`), SQL parameters (`sqlParams.ts`), the completion engine and ranker
-(`sqlComplete.ts`, `sqlRank.ts`), the result-view helpers (`gridView.ts`), the export writers
-(`export.ts`, `xlsx.ts`) and the settings schema (`settings.ts`). That is what makes the non-UI half
-of the app unit-testable in plain Node.
+**Contracts.** `src/shared` contains only data shapes and the typed IPC API: `types.ts`, `ipc.ts`
+and `docker.ts`. It has no Electron, React or Node runtime imports, so both processes can depend on
+it safely.
+
+**Pure core.** `src/core` holds the non-UI domain logic that both processes share: the SQL splitter
+(`sql.ts`, with DataGrip's statement-at-caret semantics), the provider parsers and allowlists
+(`mongo.ts`, `redis.ts`, `elastic.ts`, `cassandra.ts`), provider capabilities (`kinds.ts`), the
+Docker helper inference (`docker.ts`), the DML generator (`sqlgen.ts`), quoting rules (`quoting.ts`),
+SQL parameters (`sqlParams.ts`), the completion engine and ranker (`sqlComplete.ts`, `sqlRank.ts`),
+the result-view helpers (`gridView.ts`), the export writers (`export.ts`, `xlsx.ts`) and the settings
+schema (`settings.ts`). That is what makes the non-UI half of the app unit-testable in plain Node.
 
 ## Development
 
@@ -786,6 +795,7 @@ npm run dev            # electron-vite dev with HMR
 npm run build          # bundle out/ (used by packaging and smoke)
 npm run typecheck      # tsc --noEmit
 npm test               # vitest: unit + SQLite end-to-end tests
+npm run lint:arch      # dependency-cruiser: process/feature boundaries
 npm run smoke          # builds, then drives the real app headless (needs xvfb)
 npm run fetch:jdbc     # optional: download jdbc-adapter-server.jar
 npm run pack           # unpacked app directory (electron-builder --dir)
@@ -997,7 +1007,7 @@ stratum-brand/       logos, app icons, tray icons, README preview image
 | `scripts/fetch-jdbc-adapter.mjs` | `npm run fetch:jdbc` — download the latest jdbc-adapter-server release JAR. |
 | `scripts/datagrip-keywords.mjs` | Decode DataGrip `*Keywords.class` constant pools into JSON. |
 | `scripts/datagrip-tokens.mjs` | Decode DataGrip `*Types.class` lexer vocabularies (via `javap`). |
-| `scripts/datagrip-catalog.mjs` | Merge keywords, tokens and `functions.xml` into `src/shared/sqlDialectData.ts`. |
+| `scripts/datagrip-catalog.mjs` | Merge keywords, tokens and `functions.xml` into `src/core/sqlDialectData.ts`. |
 | `scripts/lib-classfile.mjs` | Class-file parser shared by the DataGrip extractors. |
 | `scripts/vendor-icons.mjs` | Vendor the Lucide glyphs referenced by `iconMap.ts` into `lucide.tsx` (re-run after editing the map). |
 | `scripts/improve-themes.py` | Regenerate the improved Carbon color themes (borders, grid keys, chart palette). |

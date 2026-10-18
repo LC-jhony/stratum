@@ -1,4 +1,4 @@
-import type { DialectId } from './types'
+import type { DialectId } from '../shared/types'
 
 /** Dialects that quote identifiers with backticks (MySQL family, ClickHouse, Hive/Spark, BigQuery). */
 const BACKTICK = new Set<DialectId>(['mysql', 'mariadb', 'clickhouse', 'bigquery', 'hive', 'spark'])

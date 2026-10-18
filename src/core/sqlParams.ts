@@ -6,7 +6,7 @@
  * `:name` / `:'name'` / `:"name"`. A quoted form inserts an escaped SQL literal; the
  * plain form substitutes the typed text as-is, like DataGrip does.
  */
-import type { DialectId } from './types'
+import type { DialectId } from '../shared/types'
 
 export interface SqlParam {
   /** Parameter name as typed (without delimiters). */

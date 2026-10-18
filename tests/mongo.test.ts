@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { Long, ObjectId } from 'mongodb'
 import { bsonPrint, docsToResult, isMongoRead, paginateMongoStatement, parseMongoStatement } from '../src/main/db/transports/mongodb'
-import { KINDS, isSqlKind } from '../src/shared/kinds'
-import { mongoStatementAt, splitMongoStatements } from '../src/shared/mongo'
+import { KINDS, isSqlKind } from '../src/core/kinds'
+import { mongoStatementAt, splitMongoStatements } from '../src/core/mongo'
 
 const oid = (n: number) => new ObjectId(`${n}`.padStart(24, '0'))
 

@@ -4,7 +4,7 @@
  * so the same code runs in the renderer and in tests. The export flow hands the bytes to the
  * binary save dialog (see ExportMenu).
  */
-import type { ColumnMeta } from './types'
+import type { ColumnMeta } from '../shared/types'
 
 const enc = new TextEncoder()
 

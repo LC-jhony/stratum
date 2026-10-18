@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { isRedisRead, paginateRedisStatement, parseRedisCommand, replyToResult } from '../src/main/db/transports/redis'
-import { KINDS, isSqlKind } from '../src/shared/kinds'
-import { redisStatementAt, splitRedisStatements } from '../src/shared/redis'
+import { KINDS, isSqlKind } from '../src/core/kinds'
+import { redisStatementAt, splitRedisStatements } from '../src/core/redis'
 
 /**
  * The Redis console is only as safe as this allowlist and only as useful as these mappings, so both

@@ -1,4 +1,4 @@
-import type { AppearanceMode } from '../../../shared/settings'
+import type { AppearanceMode } from '../../../core/settings'
 import { ipc } from '../ipc/client'
 import type { ThemeFile, ThemeManifestEntry } from '../../../shared/types'
 import { applyColorTheme, themeKind, type ColorThemeJson } from './colorTheme'

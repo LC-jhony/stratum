@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchScore, rankCompletions } from '../src/shared/sqlRank'
+import { matchScore, rankCompletions } from '../src/core/sqlRank'
 
 const item = (label: string, bucket = 0) => ({ label, bucket })
 

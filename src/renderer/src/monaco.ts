@@ -4,8 +4,8 @@ import 'monaco-editor/esm/vs/editor/editor.all'
 import 'monaco-editor/esm/vs/basic-languages/sql/sql.contribution'
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 import type { DatabaseModel } from '../../shared/types'
-import type { KeywordCase } from '../../shared/settings'
-import { completeAt, type CompletionKind, type CompletionTable } from '../../shared/sqlComplete'
+import type { KeywordCase } from '../../core/settings'
+import { completeAt, type CompletionKind, type CompletionTable } from '../../core/sqlComplete'
 import { themes } from './theme/themeManager'
 
 ;(self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = { getWorker: () => new editorWorker() }

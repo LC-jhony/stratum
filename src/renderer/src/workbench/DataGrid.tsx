@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ColumnMeta } from '../../../shared/types'
-import type { GridSort } from '../../../shared/gridView'
+import type { GridSort } from '../../../core/gridView'
 import { Icon } from '../ui/Icon'
 
 const ROW_H = 24, OVERSCAN = 8, GUTTER = 48

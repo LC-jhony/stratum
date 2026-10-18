@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, mergeSettings } from '../src/shared/settings'
+import { DEFAULT_SETTINGS, mergeSettings } from '../src/core/settings'
 
 describe('appearance.mode coercion', () => {
   it('defaults to system', () => expect(mergeSettings(undefined)['appearance.mode']).toBe(DEFAULT_SETTINGS['appearance.mode']))

@@ -20,7 +20,7 @@ import { statementAt } from './sql'
 import type { KeywordCase } from './settings'
 import { rankCompletions } from './sqlRank'
 import { DIALECT_FUNCTIONS, DIALECT_KEYWORDS, DIALECT_RESERVED, type DialectFunction } from './sqlDialectData'
-import type { DialectId } from './types'
+import type { DialectId } from '../shared/types'
 
 export interface CompletionTable {
   schema: string

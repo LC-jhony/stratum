@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { returnsRows, splitStatements, statementAt } from '../src/shared/sql'
-import { buildDelete, buildInsert, buildUpdate, sqlLiteral } from '../src/shared/sqlgen'
+import { returnsRows, splitStatements, statementAt } from '../src/core/sql'
+import { buildDelete, buildInsert, buildUpdate, sqlLiteral } from '../src/core/sqlgen'
 
 describe('splitStatements', () => {
   it('splits on top-level semicolons only', () => {

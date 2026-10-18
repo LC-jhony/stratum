@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { aliasFor, completeAt, type CompletionPrefs, type CompletionTable } from '../src/shared/sqlComplete'
-import { DIALECT_KEYWORDS, DIALECT_RESERVED } from '../src/shared/sqlDialectData'
+import { aliasFor, completeAt, type CompletionPrefs, type CompletionTable } from '../src/core/sqlComplete'
+import { DIALECT_KEYWORDS, DIALECT_RESERVED } from '../src/core/sqlDialectData'
 
 const col = (name: string, dataType = 'text', isPrimaryKey = false) => ({ name, dataType, isPrimaryKey })
 const orders: CompletionTable = {

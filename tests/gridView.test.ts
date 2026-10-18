@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterRows, sortRows } from '../src/shared/gridView'
+import { filterRows, sortRows } from '../src/core/gridView'
 
 describe('result view: quick filter', () => {
   const rows = [[1, 'Ada, countess', null], [2, 'bob', true], [3, null, false]]

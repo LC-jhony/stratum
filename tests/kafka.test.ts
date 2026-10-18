@@ -13,7 +13,7 @@ import {
   type KafkaConsumerLike,
   type KafkaMessageLike,
 } from '../src/main/db/transports/kafka'
-import { KINDS, isSqlKind } from '../src/shared/kinds'
+import { KINDS, isSqlKind } from '../src/core/kinds'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**

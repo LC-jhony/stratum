@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { findParams, substituteParams } from '../src/shared/sqlParams'
-import { exportText } from '../src/shared/export'
+import { findParams, substituteParams } from '../src/core/sqlParams'
+import { exportText } from '../src/core/export'
 import type { ColumnMeta } from '../src/shared/types'
 
 describe('SQL parameters (DataGrip parameter-patterns)', () => {

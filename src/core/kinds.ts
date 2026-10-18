@@ -1,4 +1,4 @@
-import type { DriverKind } from './types'
+import type { DriverKind } from '../shared/types'
 
 /**
  * Provider capabilities, consulted by the renderer to decide which SQL affordances to show

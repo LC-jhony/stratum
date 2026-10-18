@@ -1,5 +1,5 @@
 import type { ColumnInfo, ColumnMeta, ConnectionConfig, RawResult, SchemaInfo, TableInfo } from '../../../shared/types'
-import { isElasticRead, isElasticReadPost, parseElasticRequest } from '../../../shared/elastic'
+import { isElasticRead, isElasticReadPost, parseElasticRequest } from '../../../core/elastic'
 import type { Transport } from '../types'
 
 /**

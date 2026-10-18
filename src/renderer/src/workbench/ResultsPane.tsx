@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { DialectId } from '../../../shared/types'
-import { filterRows, sortRows, type GridSort } from '../../../shared/gridView'
+import { filterRows, sortRows, type GridSort } from '../../../core/gridView'
 import { useWorkbench, type ResultEntry } from '../store/workbench'
 import { DataGrid } from './DataGrid'
 import { ExportMenu } from './ExportMenu'

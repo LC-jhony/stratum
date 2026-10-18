@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { ipc } from '../ipc/client'
 import { createPortal } from 'react-dom'
-import { EXPORT_FORMATS, exportText, type ExportId } from '../../../shared/export'
-import { bytesToBase64, exportXlsx } from '../../../shared/xlsx'
+import { EXPORT_FORMATS, exportText, type ExportId } from '../../../core/export'
+import { bytesToBase64, exportXlsx } from '../../../core/xlsx'
 import type { ColumnMeta, DialectId } from '../../../shared/types'
 import { Icon } from '../ui/Icon'
 

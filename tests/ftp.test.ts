@@ -4,7 +4,7 @@ import { createFtpDialect } from '../src/main/db/ftpDialect'
 import { createSession } from '../src/main/db/factory'
 import { DbSession } from '../src/main/db/session'
 import { FtpTransport, isFtpRead, paginateFtpStatement, parseFtpList, type FtpClientLike } from '../src/main/db/transports/ftp'
-import { KINDS, isSqlKind } from '../src/shared/kinds'
+import { KINDS, isSqlKind } from '../src/core/kinds'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**

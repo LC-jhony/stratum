@@ -1,4 +1,4 @@
-import { mergeSettings, type StratumSettings } from '../../shared/settings'
+import { mergeSettings, type StratumSettings } from '../../core/settings'
 import type { JsonStore } from './store'
 
 type Patch = Record<string, unknown>

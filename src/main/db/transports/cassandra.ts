@@ -1,6 +1,6 @@
 import { Client } from 'cassandra-driver'
 import type { ColumnInfo, ColumnMeta, ConnectionConfig, RawResult, SchemaInfo, TableInfo } from '../../../shared/types'
-import { cassandraIdent, cqlHead, isCassandraRead, parseCassandraPage, parseCassandraUse } from '../../../shared/cassandra'
+import { cassandraIdent, cqlHead, isCassandraRead, parseCassandraPage, parseCassandraUse } from '../../../core/cassandra'
 import type { Transport } from '../types'
 
 /**

@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand'
-import type { StratumSettings } from '../../../shared/settings'
+import type { StratumSettings } from '../../../core/settings'
 import type { ConnectionConfig, ConnectionView, DatabaseModel, QueryResult } from '../../../shared/types'
 import type { ErdOptions } from '../erd/erd'
 

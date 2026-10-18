@@ -1,4 +1,4 @@
-import type { StratumSettings } from '../../../shared/settings'
+import type { StratumSettings } from '../../../core/settings'
 
 /** Default monospace chain — keep in sync with `--stratum-mono` in styles.css. */
 export const MONO_FALLBACK = '"JetBrains Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace'

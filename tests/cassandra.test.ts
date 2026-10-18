@@ -3,8 +3,8 @@ import { createCassandraDialect } from '../src/main/db/cassandraDialect'
 import { createSession } from '../src/main/db/factory'
 import { DbSession } from '../src/main/db/session'
 import { CassandraTransport, type CassandraClient, type CassandraExecuteOptions, type CassandraResultSet } from '../src/main/db/transports/cassandra'
-import { cqlHead, isCassandraRead, paginateCassandraStatement, parseCassandraPage, parseCassandraUse } from '../src/shared/cassandra'
-import { KINDS, isSqlKind } from '../src/shared/kinds'
+import { cqlHead, isCassandraRead, paginateCassandraStatement, parseCassandraPage, parseCassandraUse } from '../src/core/cassandra'
+import { KINDS, isSqlKind } from '../src/core/kinds'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { dockerTarget, listDockerContainers } from '../src/main/services/docker'
-import { publishedPorts, type DockerEndpoint } from '../src/shared/docker'
+import { publishedPorts, type DockerEndpoint } from '../src/core/docker'
 
 /**
  * Live Docker checks — skipped unless a daemon endpoint is provided:

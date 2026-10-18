@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { ipc } from '../ipc/client'
-import { DEFAULT_SETTINGS, mergeSettings, type AppearanceMode, type KeywordCase, type SideBarPosition, type StratumSettings } from '../../../shared/settings'
+import { DEFAULT_SETTINGS, mergeSettings, type AppearanceMode, type KeywordCase, type SideBarPosition, type StratumSettings } from '../../../core/settings'
 import type { ThemeManifestEntry } from '../../../shared/types'
 import { useWorkbench } from '../store/workbench'
 import { themes } from '../theme/themeManager'

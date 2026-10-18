@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import net from 'node:net'
 import path from 'node:path'
 import { Client, type ConnectConfig } from 'ssh2'
-import { KINDS } from '../../shared/kinds'
+import { KINDS } from '../../core/kinds'
 import type { ConnectionConfig, DriverKind, SshConfig } from '../../shared/types'
 
 /**

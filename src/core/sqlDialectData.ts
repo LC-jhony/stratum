@@ -2,7 +2,7 @@
  * GENERATED FILE — do not edit by hand. Regenerate with:
  *   node scripts/datagrip-keywords.mjs <classes-dir> > keywords.json
  *   node scripts/datagrip-tokens.mjs <modules-dir> > tokens.json
- *   node scripts/datagrip-catalog.mjs keywords.json tokens.json <functions-dir> src/shared/sqlDialectData.ts
+ *   node scripts/datagrip-catalog.mjs keywords.json tokens.json <functions-dir> src/core/sqlDialectData.ts
  *
  * Source: DataGrip 2026.2.6 (DB-262.10968.148), modules under plugins/DatabaseTools/lib/modules.
  * Generated: 2026-10-16. Keywords are single words (uppercase); functions carry the first

@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import initSqlJs, { type Database } from 'sql.js'
 import type { ConnectionConfig, RawResult } from '../../../shared/types'
-import { returnsRows } from '../../../shared/sql'
+import { returnsRows } from '../../../core/sql'
 import type { Transport } from '../types'
 
 /** SQLite through sql.js (WASM): no native modules, identical on Windows/macOS/Linux. */

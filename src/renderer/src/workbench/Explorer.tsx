@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import type { ConnectionView, TableInfo } from '../../../shared/types'
-import { connectionDialect } from '../../../shared/dialects'
-import { isSqlKind } from '../../../shared/kinds'
-import { qualify, quote } from '../../../shared/quoting'
+import { connectionDialect } from '../../../core/dialects'
+import { isSqlKind } from '../../../core/kinds'
+import { qualify, quote } from '../../../core/quoting'
 import { useWorkbench } from '../store/workbench'
 import { Icon } from '../ui/Icon'
 

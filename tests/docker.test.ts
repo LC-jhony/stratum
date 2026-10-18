@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterAll, describe, expect, it } from 'vitest'
 import { dockerTarget, listDockerContainers } from '../src/main/services/docker'
-import { inferDockerKind, publishedPorts, type DockerContainer } from '../src/shared/docker'
+import { inferDockerKind, publishedPorts, type DockerContainer } from '../src/core/docker'
 
 /**
  * The Docker helper only reads `GET /containers/json`. These pins keep the daemon mapping (names,

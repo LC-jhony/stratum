@@ -1,7 +1,7 @@
 import { ipc } from '../../ipc/client'
-import { connectionDialect } from '../../../../shared/dialects'
-import { isSqlKind } from '../../../../shared/kinds'
-import { findParams, substituteParams } from '../../../../shared/sqlParams'
+import { connectionDialect } from '../../../../core/dialects'
+import { isSqlKind } from '../../../../core/kinds'
+import { findParams, substituteParams } from '../../../../core/sqlParams'
 import { fetchStop, holdParams, releaseParams, resolveParams, uid } from '../internal'
 import type { ConsoleSlice, ResultEntry, WorkbenchSlice } from '../types'
 

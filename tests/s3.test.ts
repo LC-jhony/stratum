@@ -3,7 +3,7 @@ import { createSession } from '../src/main/db/factory'
 import { createS3Dialect } from '../src/main/db/s3Dialect'
 import { DbSession } from '../src/main/db/session'
 import { S3Transport, isS3Read, paginateS3Statement, parseS3List, type S3ClientLike } from '../src/main/db/transports/s3'
-import { KINDS, isSqlKind } from '../src/shared/kinds'
+import { KINDS, isSqlKind } from '../src/core/kinds'
 import type { ConnectionConfig } from '../src/shared/types'
 
 /**

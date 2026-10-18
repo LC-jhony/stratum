@@ -1,6 +1,6 @@
 import type { ColumnInfo, DatabaseModel, DialectId, ForeignKey, IndexInfo, SchemaInfo, TableInfo } from '../../shared/types'
-import { returnsRows, stripLeadingComments } from '../../shared/sql'
-import { qualify as q, quote } from '../../shared/quoting'
+import { returnsRows, stripLeadingComments } from '../../core/sql'
+import { qualify as q, quote } from '../../core/quoting'
 import type { Dialect, Run } from './types'
 
 type Row = Record<string, unknown>
