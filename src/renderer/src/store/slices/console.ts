@@ -6,6 +6,7 @@ import { fetchStop, holdParams, releaseParams, resolveParams, uid } from '../int
 import type { ConsoleSlice, ResultEntry, WorkbenchSlice } from '../types'
 
 export const createConsoleSlice: WorkbenchSlice<ConsoleSlice> = (set, get) => ({
+  history: {},
   async run(tabId, statements) {
     const tab = get().tabs.find((t) => t.id === tabId)
     if (tab?.type !== 'console' || !statements.length) return
@@ -46,9 +47,8 @@ export const createConsoleSlice: WorkbenchSlice<ConsoleSlice> = (set, get) => ({
     get().patchTab(tabId, { running: false, results, activeResult: results.length - 1 })
     set({ showResults: true })
     if (!aborted && results.length) { // DataGrip-style console history, newest first, per connection.
-      const history = { ...get().prefs['query.history'] }
-      history[tab.connectionId] = [...new Set([...statements, ...(history[tab.connectionId] ?? [])])].slice(0, 100)
-      void get().savePrefs({ 'query.history': history })
+      set((s) => ({ history: { ...s.history, [tab.connectionId]: [...new Set([...statements, ...(s.history[tab.connectionId] ?? [])])].slice(0, 100) } }))
+      void ipc.history.add(tab.connectionId, statements)
     }
     if (results.some((r) => /^\s*(create|alter|drop|rename)\b/i.test(r.result.sql) && !r.result.error)) void get().refresh(tab.connectionId)
   },

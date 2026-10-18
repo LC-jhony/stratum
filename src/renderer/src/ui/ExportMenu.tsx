@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { EXPORT_FORMATS, exportText, type ExportId } from '../../../core/export'
 import { bytesToBase64, exportXlsx } from '../../../core/xlsx'
 import type { ColumnMeta, DialectId } from '../../../shared/types'
-import { Icon } from '../ui/Icon'
+import { Icon } from './Icon'
 
 /** Export the visible grid (DataGrip CSV formats + JSON/SQL INSERTs + an Excel workbook) through a native save dialog. */
 export function ExportMenu({ columns, rows, table, dialect, disabled }: { columns: ColumnMeta[]; rows: unknown[][]; table?: string; dialect: DialectId; disabled?: boolean }) {

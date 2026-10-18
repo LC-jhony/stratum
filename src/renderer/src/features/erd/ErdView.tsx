@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ipc } from '../ipc/client'
-import { buildErdGraph, cssPalette, exportPalette, layoutErd, renderErdSvg, resolvePalette, type ErdLayout, type ErdNode } from '../erd/erd'
-import { useWorkbench, type DiagramTab } from '../store/workbench'
-import { Icon } from '../ui/Icon'
+import { ipc } from '../../ipc/client'
+import { buildErdGraph, cssPalette, exportPalette, layoutErd, renderErdSvg, resolvePalette, type ErdLayout, type ErdNode } from '../../erd/erd'
+import { useWorkbench, type DiagramTab } from '../../store/workbench'
+import { Icon } from '../../ui/Icon'
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v))
 /** Raster exports above this many pixels per side trip canvas limits; the PNG scale is lowered to fit. */

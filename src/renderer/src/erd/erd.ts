@@ -1,5 +1,5 @@
 import ELK from 'elkjs/lib/elk.bundled.js'
-import type { DatabaseModel, TableInfo } from '../../../shared/types'
+import type { DatabaseModel, ErdOptions, TableInfo } from '../../../shared/types'
 
 export interface ErdColumn { name: string; type: string; pk: boolean; fk: boolean; nullable: boolean }
 export interface ErdNode { id: string; schema: string; name: string; kind: 'table' | 'view'; columns: ErdColumn[]; x: number; y: number; width: number; height: number }
@@ -7,8 +7,6 @@ export interface ErdEdge { id: string; from: string; to: string; fromColumn: str
 export interface Pt { x: number; y: number }
 export interface ErdGraph { nodes: ErdNode[]; edges: Omit<ErdEdge, 'd' | 'start' | 'end' | 'startSide' | 'endSide'>[] }
 export interface ErdLayout { nodes: ErdNode[]; edges: ErdEdge[]; width: number; height: number }
-export interface ErdOptions { schemas?: string[]; tables?: string[]; includeViews?: boolean; /** only these tables plus FK neighbours up to `depth` */ focus?: { table: string; depth: number } }
-
 export const HEADER_H = 34, ROW_H = 24, PAD = 12, CHAR_W = 7.2, MIN_W = 190
 const nodeId = (schema: string, table: string) => `${schema}.${table}`
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useWorkbench } from '../store/workbench'
-import { Icon } from '../ui/Icon'
+import { useWorkbench } from '../../store/workbench'
+import { Icon } from '../../ui/Icon'
 
 /** DataGrip-style parameter prompt: one input per distinct `:name` / `${name}` / `#name#`. */
 export function ParamDialog() {

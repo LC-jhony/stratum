@@ -8,6 +8,7 @@ import { buildMenu } from './menu'
 import { ConnectionManager } from './services/connectionManager'
 import { ConnectionService } from './services/connectionService'
 import { DesktopService } from './services/desktopService'
+import { HistoryService } from './services/historyService'
 import { JdbcSidecar, type JdbcRuntime } from './services/jdbcSidecar'
 import { SessionFactory } from './services/sessionFactory'
 import { SettingsService } from './services/settingsService'
@@ -49,7 +50,10 @@ async function main() {
   const manager = new ConnectionManager(connections, sessionFactory)
   const connectionService = new ConnectionService(connections, manager)
   const desktop = new DesktopService(() => win)
+  const history = new HistoryService(new JsonStore(path.join(data, 'history.json'), { queries: {} }))
   const themes = new ThemeService(resourcePath('themes'), path.join(data, 'themes'))
+  // Settings used to hold console history; move it once, then drop the old key.
+  if (await history.importLegacy((await settings.get())['query.history'])) await settings.update({ 'query.history': undefined })
 
   protocol.handle('stratum-asset', async (req) => {
     const file = path.normalize(decodeURIComponent(new URL(req.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'))
@@ -67,6 +71,7 @@ async function main() {
     sessions: manager,
     themes,
     settings,
+    history,
     desktop,
     window: () => win,
   })

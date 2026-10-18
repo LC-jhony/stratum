@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { ipc } from '../ipc/client'
-import { isSqlKind } from '../../../core/kinds'
-import { elasticStatementAt, splitElasticStatements } from '../../../core/elastic'
-import { mongoStatementAt, splitMongoStatements } from '../../../core/mongo'
-import { redisStatementAt, splitRedisStatements } from '../../../core/redis'
-import { statementAt, splitStatements } from '../../../core/sql'
-import { connectionDialect } from '../../../core/dialects'
-import { ensureMonaco, setCompletionModel, syncMonacoTheme } from '../monaco'
-import { themes } from '../theme/themeManager'
-import { monoFontStack } from '../theme/fonts'
-import { useWorkbench, type ConsoleTab } from '../store/workbench'
-import { Icon } from '../ui/Icon'
+import { ipc } from '../../ipc/client'
+import { isSqlKind } from '../../../../core/kinds'
+import { elasticStatementAt, splitElasticStatements } from '../../../../core/elastic'
+import { mongoStatementAt, splitMongoStatements } from '../../../../core/mongo'
+import { redisStatementAt, splitRedisStatements } from '../../../../core/redis'
+import { statementAt, splitStatements } from '../../../../core/sql'
+import { connectionDialect } from '../../../../core/dialects'
+import { ensureMonaco, setCompletionModel, syncMonacoTheme } from '../../monaco'
+import { themes } from '../../theme/themeManager'
+import { monoFontStack } from '../../theme/fonts'
+import { useWorkbench, type ConsoleTab } from '../../store/workbench'
+import { Icon } from '../../ui/Icon'
 import { ResultsPane } from './ResultsPane'
 import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api'
 
@@ -26,7 +26,7 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
   const redis = conn?.kind === 'redis'
   const elastic = conn?.kind === 'elastic'
   const cassandra = conn?.kind === 'cassandra'
-  const history = prefs['query.history'][tab.connectionId] ?? []
+  const history = useWorkbench((s) => s.history[tab.connectionId] ?? [])
   const [histOpen, setHistOpen] = useState(false)
 
   /** Console language: SQL/CQL for those providers, redis-cli / Dev Tools / mongosh text otherwise. */

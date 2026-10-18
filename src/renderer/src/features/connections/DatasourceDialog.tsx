@@ -1,11 +1,11 @@
 import { Fragment, useState } from 'react'
-import { ipc } from '../ipc/client'
+import { ipc } from '../../ipc/client'
 import type { CSSProperties, ReactNode } from 'react'
-import type { ConnectionConfig, ConnectionView, DialectId, DriverKind, SshConfig } from '../../../shared/types'
-import { DIALECTS } from '../../../core/dialects'
-import { inferDockerKind, publishedPorts, type DockerContainer, type DockerPort } from '../../../core/docker'
-import { useWorkbench } from '../store/workbench'
-import { Icon } from '../ui/Icon'
+import type { ConnectionConfig, ConnectionView, DialectId, DriverKind, SshConfig } from '../../../../shared/types'
+import { DIALECTS } from '../../../../core/dialects'
+import { inferDockerKind, publishedPorts, type DockerContainer, type DockerPort } from '../../../../core/docker'
+import { useWorkbench } from '../../store/workbench'
+import { Icon } from '../../ui/Icon'
 import { DbIcon, DbLogo } from './dbIcons'
 
 /**

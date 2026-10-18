@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
-import type { ConnectionView, TableInfo } from '../../../shared/types'
-import { connectionDialect } from '../../../core/dialects'
-import { isSqlKind } from '../../../core/kinds'
-import { qualify, quote } from '../../../core/quoting'
-import { useWorkbench } from '../store/workbench'
-import { Icon } from '../ui/Icon'
+import type { ConnectionView, TableInfo } from '../../../../shared/types'
+import { connectionDialect } from '../../../../core/dialects'
+import { isSqlKind } from '../../../../core/kinds'
+import { qualify, quote } from '../../../../core/quoting'
+import { useWorkbench } from '../../store/workbench'
+import { Icon } from '../../ui/Icon'
 
 type Kind = 'connection' | 'schema' | 'group' | 'table' | 'view' | 'column' | 'index'
 interface Row { key: string; depth: number; kind: Kind; label: string; detail?: string; expandable: boolean; icon: string; color?: string; conn: ConnectionView; schema?: string; table?: string; pk?: boolean; fk?: boolean; extra?: string }

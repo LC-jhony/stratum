@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Icon } from '../ui/Icon'
+import { Icon } from './Icon'
 
 /** Pretty-print JSON payloads (drivers hand JSON over as text); everything else shows verbatim. */
 function format(v: unknown): string {

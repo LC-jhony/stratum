@@ -1,4 +1,4 @@
-import type { ErdOptions } from '../../erd/erd'
+import type { ErdOptions } from '../../../../shared/types'
 import { uid } from '../internal'
 import type { ConsoleTab, DiagramTab, TableTab, TabsSlice, WorkbenchSlice } from '../types'
 

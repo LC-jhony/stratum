@@ -5,6 +5,7 @@ import { listDockerContainers } from './services/docker'
 import type { ConnectionManager } from './services/connectionManager'
 import type { ConnectionService } from './services/connectionService'
 import type { DesktopService } from './services/desktopService'
+import type { HistoryService } from './services/historyService'
 import type { SettingsService } from './services/settingsService'
 import type { ThemeService } from './services/themeService'
 import {
@@ -27,6 +28,7 @@ export interface IpcDependencies {
   connections: ConnectionService
   sessions: ConnectionManager
   settings: SettingsService
+  history: HistoryService
   themes: ThemeService
   desktop: DesktopService
   window: () => BrowserWindow | null
@@ -49,7 +51,7 @@ export function registerIpc(d: IpcDependencies) {
     })
   }
 
-  const api: Pick<Handlers, 'connections' | 'db' | 'themes' | 'settings' | 'dialogs' | 'export' | 'docker'> = {
+  const api: Pick<Handlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'dialogs' | 'export' | 'docker'> = {
     connections: {
       list: () => d.connections.list(),
       save: (c) => d.connections.save(c),
@@ -72,6 +74,10 @@ export function registerIpc(d: IpcDependencies) {
     settings: {
       get: () => d.settings.get(),
       set: (patch) => d.settings.update(patch).then(() => undefined),
+    },
+    history: {
+      get: () => d.history.get(),
+      add: (connectionId, statements) => d.history.add(connectionId, statements),
     },
     dialogs: { pickFile: (filters) => d.desktop.pickFile(filters) },
     docker: { list: (endpoint) => listDockerContainers(endpoint) },
@@ -97,6 +103,9 @@ export function registerIpc(d: IpcDependencies) {
   })
   route('settings', api.settings as unknown as Record<string, Handler>, {
     get: [], set: [settingsPatchSchema],
+  })
+  route('history', api.history as unknown as Record<string, Handler>, {
+    get: [], add: [idSchema, statementsSchema],
   })
   route('dialogs', api.dialogs as unknown as Record<string, Handler>, {
     pickFile: [filtersSchema],

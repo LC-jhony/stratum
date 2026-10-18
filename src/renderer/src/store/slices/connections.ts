@@ -12,8 +12,8 @@ export const createConnectionsSlice: WorkbenchSlice<ConnectionsSlice> = (set, ge
   live: {},
 
   async load() {
-    const [connections, raw] = await Promise.all([ipc.connections.list(), ipc.settings.get()])
-    set({ connections, prefs: mergeSettings(raw), prefsLoaded: true })
+    const [connections, raw, history] = await Promise.all([ipc.connections.list(), ipc.settings.get(), ipc.history.get()])
+    set({ connections, prefs: mergeSettings(raw), history, prefsLoaded: true })
   },
 
   async saveConnection(c: ConnectionConfig) {

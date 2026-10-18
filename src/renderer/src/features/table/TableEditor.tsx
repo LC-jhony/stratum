@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ipc } from '../ipc/client'
-import { isSqlKind } from '../../../core/kinds'
-import { qualify, quote } from '../../../core/quoting'
-import { buildDelete, buildInsert, buildUpdate } from '../../../core/sqlgen'
-import type { QueryResult } from '../../../shared/types'
-import { useWorkbench, type TableTab } from '../store/workbench'
-import { DataGrid } from './DataGrid'
-import { ExportMenu } from './ExportMenu'
-import { Icon } from '../ui/Icon'
+import { ipc } from '../../ipc/client'
+import { isSqlKind } from '../../../../core/kinds'
+import { qualify, quote } from '../../../../core/quoting'
+import { buildDelete, buildInsert, buildUpdate } from '../../../../core/sqlgen'
+import type { QueryResult } from '../../../../shared/types'
+import { useWorkbench, type TableTab } from '../../store/workbench'
+import { DataGrid } from '../../ui/DataGrid'
+import { ExportMenu } from '../../ui/ExportMenu'
+import { Icon } from '../../ui/Icon'
 
 const PAGE = 500
 

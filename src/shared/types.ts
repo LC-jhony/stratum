@@ -119,6 +119,15 @@ export interface TableInfo {
 export interface SchemaInfo { name: string; tables: TableInfo[] }
 export interface DatabaseModel { dialect: DialectId; version?: string; /** Provider the model came from; absent on older models (SQL assumed). */ kind?: DriverKind; schemas: SchemaInfo[] }
 
+/** Selection passed to the ERD builder; part of the renderer-to-store contract. */
+export interface ErdOptions {
+  schemas?: string[]
+  tables?: string[]
+  includeViews?: boolean
+  /** Only these tables plus FK neighbours up to `depth`. */
+  focus?: { table: string; depth: number }
+}
+
 /** Theme payloads delivered to the renderer, already parsed from JSONC. */
 export interface ThemeManifestEntry {
   id: string

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { DialectId } from '../../../shared/types'
-import { filterRows, sortRows, type GridSort } from '../../../core/gridView'
-import { useWorkbench, type ResultEntry } from '../store/workbench'
-import { DataGrid } from './DataGrid'
-import { ExportMenu } from './ExportMenu'
-import { Icon } from '../ui/Icon'
-import { ValueDialog } from './ValueDialog'
+import type { DialectId } from '../../../../shared/types'
+import { filterRows, sortRows, type GridSort } from '../../../../core/gridView'
+import { useWorkbench, type ResultEntry } from '../../store/workbench'
+import { DataGrid } from '../../ui/DataGrid'
+import { ExportMenu } from '../../ui/ExportMenu'
+import { Icon } from '../../ui/Icon'
+import { ValueDialog } from '../../ui/ValueDialog'
 
 export function ResultsPane({ tabId, results, active, onActive, running, dialect }: { tabId: string; results: ResultEntry[]; active: number; onActive(i: number): void; running: boolean; dialect: DialectId }) {
   const fetchMore = useWorkbench((s) => s.fetchMore), fetchAll = useWorkbench((s) => s.fetchAll)

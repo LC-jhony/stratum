@@ -558,7 +558,6 @@ safe values, and *Restore defaults* resets everything.
 | `query.confirmDestructive` | `true` | Ask before `UPDATE` / `DELETE` without `WHERE`. |
 | `query.parameters.enabled` | `true` | Prompt for SQL parameters before running. |
 | `query.parameters.values` | `{}` | Remembered parameter values, keyed by name. |
-| `query.history` | `{}` | Per-connection console history (newest first). |
 | `jdbc.port` | `7823` | Sidecar port (restarts the sidecar on change). |
 | `jdbc.jarPath` | `""` | `jdbc-adapter-server.jar` location; empty uses the bundled copy or `STRATUM_JDBC_JAR`. |
 | `jdbc.javaHome` | `""` | Java home for the sidecar; empty uses `java` from `PATH`. |
@@ -594,6 +593,7 @@ All application state lives under Electron's per-user data directory (`~/.config
 |---|---|
 | `connections.json` | Data source configs, written atomically (temp file + rename). Passwords are sealed with the OS keychain (`safeStorage`) when available. |
 | `settings.json` | Everything in the [Settings](#settings) table. |
+| `history.json` | Per-connection console history (newest first, max 100 statements each). |
 | `themes/` | Drop-in VS Code themes (color, file icon, product icon). |
 
 SQLite files are modified in place by the SQLite transport (written after each statement that
@@ -616,9 +616,10 @@ src/renderer   React workbench
   ipc/           the single typed renderer-side bridge
   store/         Zustand facade composed from feature slices
   theme/         color → CSS vars + Monaco theme · file icon themes · product icon themes
-  ui/            theme-aware icons and shared UI primitives
+  ui/            theme-aware icons, data grid, export menu, value dialog
   erd/           graph build → ELK placement → own orthogonal routing → pure SVG renderer
-  workbench/     Explorer, Console, Table editor, Data grid, ERD view, dialogs, palette
+  features/      connections · console · table · ERD · explorer · settings
+  workbench/     app shell: command palette and tab strip
 ```
 
 The same structure as a generated dependency graph:
@@ -703,15 +704,15 @@ node_ipc -.->|"serves theme API"| node_themeservice
 node_state -->|"merges preferences"| node_settings
 
 click node_app "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/App.tsx"
-click node_explorer "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/Explorer.tsx"
-click node_datasource "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/DatasourceDialog.tsx"
-click node_console "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/ConsoleEditor.tsx"
+click node_explorer "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/features/explorer/Explorer.tsx"
+click node_datasource "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/features/connections/DatasourceDialog.tsx"
+click node_console "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/features/console/ConsoleEditor.tsx"
 click node_completion "https://github.com/lc-jhony/stratum/blob/main/src/core/sqlComplete.ts"
 click node_params "https://github.com/lc-jhony/stratum/blob/main/src/core/sqlParams.ts"
-click node_results "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/DataGrid.tsx"
-click node_tableeditor "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/TableEditor.tsx"
+click node_results "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/ui/DataGrid.tsx"
+click node_tableeditor "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/features/table/TableEditor.tsx"
 click node_export "https://github.com/lc-jhony/stratum/blob/main/src/core/export.ts"
-click node_diagramview "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/workbench/ErdView.tsx"
+click node_diagramview "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/features/erd/ErdView.tsx"
 click node_diagramlayout "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/erd/erd.ts"
 click node_state "https://github.com/lc-jhony/stratum/blob/main/src/renderer/src/store/workbench.ts"
 click node_preload "https://github.com/lc-jhony/stratum/blob/main/src/preload/index.ts"
@@ -958,10 +959,12 @@ src/
     ipc.ts           IPC channel registration
     menu.ts          native menu template (all accelerators)
     brand.ts         brand asset paths
+    ipc.ts           thin validated router; delegates to application services
+    ipc/schemas.ts   zod schemas for every IPC payload
     db/
       types.ts       Transport and Dialect interfaces
       session.ts     DbSession: paging, read-only, submit transactions
-      factory.ts     the only transport/dialect registry
+      factory.ts     pure transport/dialect registry (no lifecycle)
       dialects.ts    introspection SQL per dialect family
       mongoDialect.ts  MongoDB model: databases, collections, sampled fields, indexes
       redisDialect.ts  Redis model: databases, sampled keys, key types
@@ -974,23 +977,30 @@ src/
       normalize.ts   driver values -> JSON-safe values
       transports/    sqlite.ts · postgres.ts · mysql.ts · jdbc.ts · mongodb.ts · redis.ts · elastic.ts · cassandra.ts · s3.ts · ftp.ts · kafka.ts · rabbitmq.ts
     services/
+      connectionService.ts  data-source metadata + lifecycle facade for IPC
       connectionManager.ts  live sessions per data source
+      sessionFactory.ts     SSH tunnel + JDBC transport composition
+      desktopService.ts     native dialogs, file saves and PDF rendering
+      settingsService.ts    settings.json owner and change notifications
       docker.ts             Docker helper: read-only container list over socket/TCP
       sshTunnel.ts          SSH connection helper: one tunnel per data source
       store.ts              atomic JsonStore + safeStorage password sealing
       themeService.ts       theme discovery, import and asset protocol roots
       jdbcSidecar.ts        shared jdbc-adapter-server process
+  core/              pure domain logic shared by main and tests (no Electron/React)
+  shared/            contracts: types, IPC API, Docker shapes
   preload/index.ts  contextBridge: window.stratum
   renderer/src/
     App.tsx           workbench layout, menu commands, command palette actions
     main.tsx          bootstrap; smoke hook under ?smoke=1
     monaco.ts         Monaco setup, completion provider, theme sync
-    store/workbench.ts  zustand store: connections, tabs, runs, params, paging
+    ipc/client.ts     single typed renderer bridge
+    store/workbench.ts  zustand facade composed from feature slices
     theme/            colorTheme · fileIconTheme · productIconTheme · monacoTheme · fonts · themeManager
     erd/erd.ts        graph build, ELK layout, orthogonal routing, SVG render
-    workbench/        Explorer · ConsoleEditor · ResultsPane · DataGrid · ValueDialog ·
-                      TableEditor · ErdView · ExportMenu · DatasourceDialog · SettingsDialog ·
-                      ParamDialog · CommandPalette · Tabs · dbIcons · Icon/iconMap/lucide
+    ui/               Icon/iconMap/lucide · DataGrid · ExportMenu · ValueDialog
+    features/         connections · console · table · ERD · explorer · settings
+    workbench/        CommandPalette · Tabs (app shell)
     styles.css        workbench CSS built on the --vscode-* variables
 tests/               Vitest suites (see Testing); helpers/sshd.ts runs the in-process sshd
 scripts/             maintenance tools; linux/after-install.tpl is the deb/rpm post-install

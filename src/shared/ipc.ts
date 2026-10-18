@@ -30,6 +30,11 @@ export interface StratumApi {
     importVsCodeExtensions(): Promise<ThemeManifestEntry[]>
   }
   settings: { get(): Promise<Record<string, unknown>>; set(patch: Record<string, unknown>): Promise<void> }
+  history: {
+    /** Executed statements per connection, newest first. */
+    get(): Promise<Record<string, string[]>>
+    add(connectionId: string, statements: string[]): Promise<void>
+  }
   dialogs: { pickFile(filters?: { name: string; extensions: string[] }[]): Promise<string | undefined> }
   docker: {
     /** Read-only container listing for the Docker helper (unix socket or TCP daemon). */

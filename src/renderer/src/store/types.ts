@@ -1,7 +1,6 @@
 import type { StateCreator } from 'zustand'
 import type { StratumSettings } from '../../../core/settings'
-import type { ConnectionConfig, ConnectionView, DatabaseModel, QueryResult } from '../../../shared/types'
-import type { ErdOptions } from '../erd/erd'
+import type { ConnectionConfig, ConnectionView, DatabaseModel, ErdOptions, QueryResult } from '../../../shared/types'
 
 export interface ResultEntry {
   id: string
@@ -54,6 +53,8 @@ export interface TabsSlice {
 }
 
 export interface ConsoleSlice {
+  /** Executed statements per connection, newest first. */
+  history: Record<string, string[]>
   paramRequest?: ParamRequest
   run(tabId: string, statements: string[]): Promise<void>
   cancel(tabId: string): Promise<void>
