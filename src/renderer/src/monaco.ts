@@ -1,8 +1,8 @@
 // Only the editor core + SQL: importing 'monaco-editor' wholesale would bundle ~80 languages (≈10 MB).
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
-import 'monaco-editor/esm/vs/editor/editor.all'
-import 'monaco-editor/esm/vs/basic-languages/sql/sql.contribution'
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
+import * as monaco from 'monaco-editor/editor/editor.api'
+import 'monaco-editor/features/register.all.js'
+import 'monaco-editor/languages/definitions/sql/register.js'
+import editorWorker from 'monaco-editor/editor/editor.worker.js?worker'
 import type { DatabaseModel } from '../../shared/types'
 import type { KeywordCase } from '../../core/settings'
 import { completeAt, type CompletionKind, type CompletionTable } from '../../core/sqlComplete'

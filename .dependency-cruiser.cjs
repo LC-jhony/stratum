@@ -94,6 +94,8 @@ module.exports = {
     },
   ],
   options: {
+    // Monaco 0.57 only exposes its ESM paths through package.json "exports".
+    enhancedResolveOptions: { exportsFields: ['exports'], conditionNames: ['import', 'module', 'default'] },
     doNotFollow: { path: 'node_modules' },
     exclude: { path: '^(out|dist|node_modules|resources)' },
     tsConfig: { fileName: 'tsconfig.json' },

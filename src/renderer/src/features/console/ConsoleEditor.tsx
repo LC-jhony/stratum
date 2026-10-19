@@ -12,11 +12,11 @@ import { monoFontStack } from '../../theme/fonts'
 import { useWorkbench, type ConsoleTab } from '../../store/workbench'
 import { Icon } from '../../ui/Icon'
 import { ResultsPane } from './ResultsPane'
-import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api'
+import type * as Monaco from 'monaco-editor/editor/editor.api'
 
 export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: boolean }) {
   const host = useRef<HTMLDivElement>(null)
-  const ed = useRef<Monaco.editor.IStandaloneCodeEditor>()
+  const ed = useRef<Monaco.editor.IStandaloneCodeEditor | undefined>(undefined)
   const { run, cancel, patchTab, live, connections, showResults, set } = useWorkbench()
   const prefs = useWorkbench((s) => s.prefs)
   const model = live[tab.connectionId]?.model

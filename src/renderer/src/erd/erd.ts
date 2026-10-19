@@ -1,4 +1,5 @@
 import ELK from 'elkjs/lib/elk.bundled.js'
+import type { ElkNode } from 'elkjs/lib/elk-api'
 import type { DatabaseModel, ErdOptions, TableInfo } from '../../../shared/types'
 
 export interface ErdColumn { name: string; type: string; pk: boolean; fk: boolean; nullable: boolean }
@@ -73,7 +74,7 @@ function route(a: ErdNode, b: ErdNode, e: ErdGraph['edges'][number]): Pick<ErdEd
 export async function layoutErd(g: ErdGraph): Promise<ErdLayout> {
   if (!g.nodes.length) return { nodes: [], edges: [], width: 0, height: 0 }
   const elk = new ELK()
-  const res = await elk.layout({
+  const res = await elk.layout<ElkNode>({
     id: 'root',
     layoutOptions: { 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT', 'elk.spacing.nodeNode': '48', 'elk.layered.spacing.nodeNodeBetweenLayers': '110', 'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP', 'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX', 'elk.padding': '[top=40,left=40,bottom=40,right=40]', 'elk.separateConnectedComponents': 'true', 'elk.spacing.componentComponent': '70' },
     children: g.nodes.map((n) => ({ id: n.id, width: n.width, height: n.height })),
