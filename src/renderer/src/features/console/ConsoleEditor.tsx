@@ -14,6 +14,8 @@ import { Icon } from '../../ui/Icon'
 import { ResultsPane } from './ResultsPane'
 import type * as Monaco from 'monaco-editor/editor/editor.api'
 
+const EMPTY_HISTORY: string[] = []
+
 export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: boolean }) {
   const host = useRef<HTMLDivElement>(null)
   const ed = useRef<Monaco.editor.IStandaloneCodeEditor | undefined>(undefined)
@@ -26,7 +28,9 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
   const redis = conn?.kind === 'redis'
   const elastic = conn?.kind === 'elastic'
   const cassandra = conn?.kind === 'cassandra'
-  const history = useWorkbench((s) => s.history[tab.connectionId] ?? [])
+  // Keep the selector snapshot stable: returning a fresh [] from the selector makes
+  // useSyncExternalStore re-render forever (React error #185) while the connection has no history yet.
+  const history = useWorkbench((s) => s.history[tab.connectionId]) ?? EMPTY_HISTORY
   const [histOpen, setHistOpen] = useState(false)
 
   /** Console language: SQL/CQL for those providers, redis-cli / Dev Tools / mongosh text otherwise. */

@@ -15,7 +15,7 @@
   const id = 'shop'
   await api.connections.save({ id, name: 'shop.db', kind: 'sqlite', filePath: ':memory:' })
   await wb.getState().load(); await wb.getState().connect(id)
-  const ex = (q) => api.db.execute(id, q)
+  const ex = (q) => api.db.execute(id, q, {})
   for (const q of [
     'create table customers (id integer primary key, name text not null, email text unique, country_id integer)',
     'create table countries (id integer primary key, code text not null, name text)',
@@ -131,8 +131,8 @@
 (async () => {
   const wb = window.__wb
   const tab = wb.getState().tabs[0]
-  const hist = wb.getState().prefs['query.history'][tab.connectionId] || []
-  const persisted = (await window.stratum.settings.get())['query.history'] || {}
+  const hist = wb.getState().history[tab.connectionId] || []
+  const persisted = (await window.stratum.history.get()) || {}
   return { entries: hist.length, hasParamSql: hist.some((h) => h.indexOf(':email') >= 0), persisted: Object.values(persisted).some((a) => Array.isArray(a) && a.length > 0), button: !!document.querySelector('button[title="Query history"]') }
 })()
 //--- rename-findusages

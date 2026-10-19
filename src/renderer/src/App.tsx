@@ -12,6 +12,7 @@ import { ConsoleEditor } from './features/console/ConsoleEditor'
 import { DatasourceDialog } from './features/connections/DatasourceDialog'
 import { ErdView } from './features/erd/ErdView'
 import { Explorer } from './features/explorer/Explorer'
+import { ErrorBoundary } from './ui/ErrorBoundary'
 import { Icon } from './ui/Icon'
 import { ParamDialog } from './features/console/ParamDialog'
 import { SettingsDialog } from './features/settings/SettingsDialog'
@@ -95,7 +96,9 @@ export function App() {
           )}
           {tabs.map((t) => (
             <div key={t.id} className="tab-body" style={{ display: t.id === activeTab ? 'flex' : 'none' }}>
-              {t.type === 'console' ? <ConsoleEditor tab={t} visible={t.id === activeTab} /> : t.type === 'table' ? <TableEditor tab={t} visible={t.id === activeTab} /> : <ErdView tab={t} visible={t.id === activeTab} />}
+              <ErrorBoundary>
+                {t.type === 'console' ? <ConsoleEditor tab={t} visible={t.id === activeTab} /> : t.type === 'table' ? <TableEditor tab={t} visible={t.id === activeTab} /> : <ErdView tab={t} visible={t.id === activeTab} />}
+              </ErrorBoundary>
             </div>
           ))}
         </div>
