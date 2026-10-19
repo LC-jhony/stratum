@@ -8,6 +8,27 @@
   const second = src()
   return { loaded, switched: second !== first && second !== '', loadedAfterSwitch: !!img() && img().naturalWidth > 0, variant: second.split('/').pop(), light: document.documentElement.dataset.theme }
 })()
+//--- empty-history console: opening a console without history must keep the workbench mounted
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms)), wb = window.__wb
+  const id = `smoke-empty-${crypto.randomUUID()}`
+  await window.stratum.connections.save({ id, name: 'empty-history.db', kind: 'sqlite', filePath: ':memory:' })
+  await wb.getState().load()
+  wb.getState().openConsole(id)
+  await sleep(900)
+  const tab = wb.getState().tabs.find((t) => t.type === 'console' && t.connectionId === id)
+  const result = {
+    mounted: !!document.getElementById('root')?.children.length,
+    console: !!document.querySelector('.console .editor-host'),
+    error: document.querySelector('.empty-state .error-box')?.textContent ?? null,
+    history: (wb.getState().history[id] ?? []).length,
+  }
+  if (tab) wb.getState().closeTab(tab.id)
+  await wb.getState().disconnect(id).catch(() => {})
+  await window.stratum.connections.remove(id)
+  await wb.getState().load()
+  return result
+})()
 //---
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms)), api = window.stratum, wb = window.__wb
