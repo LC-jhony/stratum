@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to publish (for example v0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  linux:
+    name: Linux installers
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify release tag
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG#v}"
+          version="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::Tag ${tag} does not match package.json version ${version}."
+            exit 1
+          fi
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint:arch
+      - run: npm test
+      - run: npm run fetch:jdbc
+      - run: npm run build
+
+      - name: Build Linux packages
+        run: npx electron-builder --linux deb rpm AppImage --publish never
+
+      - name: Collect release assets
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp "$(find dist -maxdepth 1 -name '*.deb' -print -quit)" release/stratum_amd64.deb
+          cp "$(find dist -maxdepth 1 -name '*.rpm' -print -quit)" release/stratum_x86_64.rpm
+          cp "$(find dist -maxdepth 1 -name '*.AppImage' -print -quit)" release/stratum_x86_64.AppImage
+          (
+            cd release
+            sha256sum stratum_amd64.deb stratum_x86_64.rpm stratum_x86_64.AppImage > SHA256SUMS
+          )
+          cat release/SHA256SUMS
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: Stratum ${{ github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release/stratum_amd64.deb
+            release/stratum_x86_64.rpm
+            release/stratum_x86_64.AppImage
+            release/SHA256SUMS

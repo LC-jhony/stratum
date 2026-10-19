@@ -1,7 +1,9 @@
 // Downloads the latest jdbc-adapter-server fat JAR (MIT) into resources/jdbc-adapter/.
 import { mkdirSync, writeFileSync } from 'node:fs'
 const api = 'https://api.github.com/repos/database-client/jdbc-adapter-server/releases/latest'
-const rel = await (await fetch(api, { headers: { 'user-agent': 'stratum' } })).json()
+const headers = { 'user-agent': 'stratum' }
+if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`
+const rel = await (await fetch(api, { headers })).json()
 const asset = rel.assets?.find((a) => /\.jar$/.test(a.name))
 if (!asset) throw new Error('No .jar asset in latest release; build from source with `gradle fatJar`.')
 mkdirSync('resources/jdbc-adapter', { recursive: true })

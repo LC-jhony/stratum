@@ -22,6 +22,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Lint the Linux installer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck -S warning scripts/install.sh
       - run: npm run typecheck
       - run: npm run lint:arch
       - run: npm test

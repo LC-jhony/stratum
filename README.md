@@ -5,6 +5,12 @@
 
 # Stratum
 
+[![CI](https://github.com/LC-jhony/stratum/actions/workflows/ci.yml/badge.svg)](https://github.com/LC-jhony/stratum/actions/workflows/ci.yml)
+[![Release](https://github.com/LC-jhony/stratum/actions/workflows/release.yml/badge.svg)](https://github.com/LC-jhony/stratum/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/LC-jhony/stratum?display_name=tag&sort=semver)](https://github.com/LC-jhony/stratum/releases/latest)
+[![License](https://img.shields.io/github/license/LC-jhony/stratum)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-2f81f7)](https://github.com/LC-jhony/stratum)
+
 A DataGrip-style database IDE built on Electron, Monaco and the VS Code theme ecosystem.
 Windows · macOS · Linux (native menu; global menu bar on macOS, and on Linux desktops with a DBusMenu host).
 
@@ -15,6 +21,7 @@ Windows · macOS · Linux (native menu; global menu bar on macOS, and on Linux d
 - [What you get](#what-you-get)
 - [Requirements](#requirements)
 - [Install](#install)
+- [Verifying downloads](#verifying-downloads)
 - [Quick start](#quick-start)
 - [Supported databases](#supported-databases)
 - [The workbench](#the-workbench)
@@ -36,6 +43,7 @@ Windows · macOS · Linux (native menu; global menu bar on macOS, and on Linux d
 - [Maintenance scripts](#maintenance-scripts)
 - [Upstream projects](#upstream-projects)
 - [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## What you get
@@ -75,35 +83,85 @@ Windows · macOS · Linux (native menu; global menu bar on macOS, and on Linux d
 
 | | |
 |---|---|
-| Development | Node.js 18 or newer, npm |
+| Released Linux installers | x86_64; Debian 12+ / Ubuntu 22.04+, Fedora/RHEL/openSUSE, or another glibc distribution via AppImage |
+| Development | Node.js 22.12+ and npm (Node 24 LTS is also supported) |
 | Running from source, Linux | an X11/Wayland session; `xvfb` only for `npm run smoke` |
 | JDBC data sources | Java 11+ on `PATH`, or a `JAVA_HOME` configured in Settings |
 | Everything else | bundled (Electron ships Chromium + Node; SQLite runs as WASM, so no native build step) |
 
 ## Install
 
-### Ubuntu / Debian (.deb)
+Prebuilt Linux packages are published on the
+[releases page](https://github.com/LC-jhony/stratum/releases). Every tagged release contains a
+Debian package, an RPM package and an AppImage, plus `SHA256SUMS`.
 
-Build the package once (from the repository root):
+### Linux installer (recommended)
+
+Install the latest release system-wide:
 
 ```bash
-npm install
-npm run build            # bundles out/ (main + preload + renderer)
-npm run fetch:jdbc       # optional: bundles the JDBC sidecar JAR
-npx electron-builder --linux deb
+curl -fsSL https://raw.githubusercontent.com/LC-jhony/stratum/main/scripts/install.sh | sudo bash
 ```
 
-Then install and launch:
+If you prefer to inspect the script before running it as root:
 
 ```bash
-sudo apt install ./dist/stratum_0.1.0_amd64.deb   # artifact name: stratum_<version>_<arch>.deb
+curl -fsSL https://raw.githubusercontent.com/LC-jhony/stratum/main/scripts/install.sh -o /tmp/stratum-install.sh
+less /tmp/stratum-install.sh
+sudo bash /tmp/stratum-install.sh
+```
+
+The installer:
+
+- detects Debian/Ubuntu, Fedora/RHEL/openSUSE or another glibc distribution;
+- selects the `.deb`, `.rpm` or AppImage asset from the latest release;
+- verifies the asset against the release's `SHA256SUMS` and aborts on a mismatch;
+- installs system-wide and registers the desktop entry and icon;
+- keeps `chrome-sandbox` setuid root when installing the AppImage system-wide.
+
+Pin a release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LC-jhony/stratum/main/scripts/install.sh \
+  | sudo bash -s -- --version v0.1.0
+```
+
+Install without root, under `~/.local` (AppImage):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LC-jhony/stratum/main/scripts/install.sh \
+  | bash -s -- --user
+```
+
+Uninstall while preserving settings and connections:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LC-jhony/stratum/main/scripts/install.sh \
+  | sudo bash -s -- --uninstall
+```
+
+For a `--user` install, drop `sudo` and add `--user`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LC-jhony/stratum/main/scripts/install.sh \
+  | bash -s -- --user --uninstall
+```
+
+Run the script with `--help` for every option. The installer only accepts HTTPS downloads and fails
+closed when the checksum is missing.
+
+### Debian / Ubuntu (.deb)
+
+```bash
+curl -fL --retry 3 \
+  https://github.com/LC-jhony/stratum/releases/latest/download/stratum_amd64.deb \
+  -o /tmp/stratum.deb
+sudo apt install /tmp/stratum.deb
 stratum
 ```
 
-`apt` resolves the runtime dependencies (GTK 3, NSS, libsecret and friends) automatically; all of
-them ship with a standard desktop installation, so installing with
-`sudo dpkg -i dist/stratum_*.deb` also works. The app installs under `/opt/Stratum` with a
-`.desktop` entry; `apt remove stratum` uninstalls it.
+`apt` resolves GTK 3, NSS, libsecret and the other runtime dependencies automatically. The app
+installs under `/opt/Stratum` with a `.desktop` entry; `apt remove stratum` uninstalls it.
 
 If the app silently fails to open on Ubuntu 24.04+ (no window, nothing in the launcher), the
 sandbox helper is missing its setuid bit — repair an existing install with:
@@ -113,14 +171,61 @@ sudo chown root:root /opt/Stratum/chrome-sandbox
 sudo chmod 4755 /opt/Stratum/chrome-sandbox
 ```
 
-Packages built from the current tree set this up in the post-install script, see
+Packages built from the current tree set this up in the post-install script; see
 [Packaging installers](#packaging-installers).
 
-### Other packages
+### Fedora / RHEL / openSUSE (.rpm)
 
-`npm run dist` builds every target configured for the current OS in `electron-builder.yml`:
+```bash
+curl -fL --retry 3 \
+  https://github.com/LC-jhony/stratum/releases/latest/download/stratum_x86_64.rpm \
+  -o /tmp/stratum.rpm
+sudo dnf install /tmp/stratum.rpm
+# openSUSE: sudo zypper install /tmp/stratum.rpm
+```
+
+### AppImage (other distributions)
+
+```bash
+curl -fL --retry 3 \
+  https://github.com/LC-jhony/stratum/releases/latest/download/stratum_x86_64.AppImage \
+  -o /tmp/Stratum.AppImage
+chmod +x /tmp/Stratum.AppImage
+/tmp/Stratum.AppImage
+```
+
+The AppImage needs a glibc-based x86_64 distribution. For a system-wide install with desktop
+integration, use the installer above: it extracts the AppImage instead of relying on FUSE and marks
+`chrome-sandbox` setuid root.
+
+### Build from source
+
+```bash
+npm ci
+npm run build            # bundles out/ (main + preload + renderer)
+npm run fetch:jdbc       # optional: bundles the JDBC sidecar JAR
+npx electron-builder --linux deb   # or: rpm, AppImage, or `npm run dist`
+```
+
+Artifacts land in `dist/`. `npm run dist` builds every target configured for the current OS:
 AppImage + deb + rpm on Linux, dmg + zip on macOS, NSIS + portable on Windows. Installers must be
 built on (or for) each OS.
+
+### Verifying downloads
+
+Each release publishes `SHA256SUMS` next to the packages. To verify a manual download:
+
+```bash
+curl -fL --retry 3 \
+  https://github.com/LC-jhony/stratum/releases/latest/download/SHA256SUMS \
+  -o /tmp/SHA256SUMS
+cd /tmp
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+`scripts/install.sh` performs the same check automatically. Packages are checksummed but not
+GPG-signed yet: the checksum protects against corrupted or truncated downloads, not against a
+compromised GitHub release account.
 
 ## Quick start
 
@@ -790,7 +895,7 @@ schema (`settings.ts`). That is what makes the non-UI half of the app unit-testa
 ## Development
 
 ```bash
-npm install
+npm ci                 # reproducible install from package-lock.json
 npm run dev            # electron-vite dev with HMR
 npm run build          # bundle out/ (used by packaging and smoke)
 npm run typecheck      # tsc --noEmit
@@ -801,6 +906,9 @@ npm run fetch:jdbc     # optional: download jdbc-adapter-server.jar
 npm run pack           # unpacked app directory (electron-builder --dir)
 npm run dist           # installers for the current OS
 ```
+
+Use `npm install <package>` only when changing dependencies; `npm ci` is the expected bootstrap for
+a checkout and for CI.
 
 `npm run dev` hot-reloads the renderer and restarts the main process on change. `npm run smoke` sets
 `STRATUM_SMOKE` to `scripts/smoke.js`, launches Electron under `xvfb-run --no-sandbox --disable-gpu`
@@ -914,34 +1022,62 @@ The smoke run complements them with an end-to-end pass through the real Electron
   real user, so Electron falls back to the SUID helper, finds it not setuid and aborts before the
   window opens. The custom script keeps the helper setuid root, like Chromium's own packaging.
 
+### Release pipeline
+
+`.github/workflows/release.yml` publishes the Linux assets on every `v*` tag and can also be run
+manually. It builds on `ubuntu-22.04` for a conservative glibc baseline, runs typecheck,
+architecture lint, tests and the production build, fetches the JDBC sidecar, and uploads:
+
+| Asset | Target |
+|---|---|
+| `stratum_amd64.deb` | Debian / Ubuntu |
+| `stratum_x86_64.rpm` | Fedora / RHEL / openSUSE |
+| `stratum_x86_64.AppImage` | other glibc distributions |
+| `SHA256SUMS` | integrity check for the three packages |
+
+The tag must match `version` in `package.json`; the workflow fails otherwise. Publish a release with:
+
+```bash
+git tag -a v0.1.0 -m "Stratum 0.1.0"
+git push origin v0.1.0
+```
+
+`scripts/install.sh` consumes the stable asset names through `/releases/latest/download/...`, so
+the one-line installer never needs to parse the GitHub API.
+
 The deb/rpm metadata (maintainer, homepage) comes from `author` and `homepage` in `package.json`.
 Running a single target is fine too:
 
 ```bash
-npx electron-builder --linux deb    # dist/stratum_<version>_<arch>.deb
-npx electron-builder --linux rpm
-npx electron-builder --mac dmg      # must run on macOS
+npx electron-builder --linux deb       # dist/stratum_<version>_<arch>.deb
+npx electron-builder --linux rpm       # needs `rpm` installed on Debian/Ubuntu: sudo apt install rpm
+npx electron-builder --linux AppImage
+npx electron-builder --mac dmg         # must run on macOS
 ```
 
 ## Project layout
 
 ```
+.github/workflows/ci.yml   typecheck, architecture lint, tests and build on every branch
+.github/workflows/release.yml  tagged Linux releases with checksums and installers
 connect-to-server.html  standalone connection-dialog preview (not bundled)
 electron-builder.yml    installer targets, resources and deb/rpm hooks
 electron.vite.config.ts electron-vite build for main, preload and renderer
 tsconfig.json           TypeScript compiler options
 vitest.config.ts        Vitest: Node environment, tests/**/*.test.ts
 src/
-  shared/          contracts + pure logic, no runtime deps
+  shared/          contracts only, no runtime dependencies
     types.ts         domain types (drivers, dialects, catalog, results, themes)
-    dialects.ts      SQL dialect labels and connection-dialect resolution
     ipc.ts           StratumApi — the typed renderer<->main contract
+    docker.ts        Docker helper shapes
+  core/            pure domain logic shared by main and tests (no Electron/React)
     sql.ts           statement splitter, caret semantics, line-comment stripping
     mongo.ts         mongosh statement splitter and caret semantics
     redis.ts         redis-cli statement splitter and caret semantics
     elastic.ts       Elasticsearch Dev Tools splitter, request parser and read-only allowlist
     cassandra.ts     CQL classification, USE parsing and the PAGE paging header
-    docker.ts        Docker helper shapes and image→provider inference
+    dialects.ts      SQL dialect labels and connection-dialect resolution
+    docker.ts        Docker helper inference (image→provider)
     kinds.ts         provider capabilities: SQL or not, default ports
     sqlComplete.ts   DataGrip-style completion engine
     sqlRank.ts       completion ranking signals
@@ -955,11 +1091,10 @@ src/
     settings.ts      settings schema, defaults and coercion
   main/
     index.ts         app lifecycle, window, tray, stratum-asset:// protocol
-    ipc.ts           IPC channel registration
+    ipc.ts           thin validated IPC router; delegates to application services
+    ipc/schemas.ts   zod schemas for every IPC payload
     menu.ts          native menu template (all accelerators)
     brand.ts         brand asset paths
-    ipc.ts           thin validated router; delegates to application services
-    ipc/schemas.ts   zod schemas for every IPC payload
     db/
       types.ts       Transport and Dialect interfaces
       session.ts     DbSession: paging, read-only, submit transactions
@@ -981,13 +1116,12 @@ src/
       sessionFactory.ts     SSH tunnel + JDBC transport composition
       desktopService.ts     native dialogs, file saves and PDF rendering
       settingsService.ts    settings.json owner and change notifications
+      historyService.ts     per-connection console history
       docker.ts             Docker helper: read-only container list over socket/TCP
       sshTunnel.ts          SSH connection helper: one tunnel per data source
       store.ts              atomic JsonStore + safeStorage password sealing
       themeService.ts       theme discovery, import and asset protocol roots
       jdbcSidecar.ts        shared jdbc-adapter-server process
-  core/              pure domain logic shared by main and tests (no Electron/React)
-  shared/            contracts: types, IPC API, Docker shapes
   preload/index.ts  contextBridge: window.stratum
   renderer/src/
     App.tsx           workbench layout, menu commands, command palette actions
@@ -1002,7 +1136,8 @@ src/
     workbench/        CommandPalette · Tabs (app shell)
     styles.css        workbench CSS built on the --vscode-* variables
 tests/               Vitest suites (see Testing); helpers/sshd.ts runs the in-process sshd
-scripts/             maintenance tools; linux/after-install.tpl is the deb/rpm post-install
+scripts/             maintenance tools; install.sh is the Linux installer;
+                     linux/after-install.tpl is the deb/rpm post-install
 themes/              built-in color and product icon themes
 fonts/               Carbon product icon fonts (woff2)
 resources/jdbc-adapter/  jdbc-adapter-server.jar (fetched, gitignored)
@@ -1013,6 +1148,7 @@ stratum-brand/       logos, app icons, tray icons, README preview image
 
 | Script | Purpose |
 |---|---|
+| `scripts/install.sh` | Linux installer: resolves a release, verifies `SHA256SUMS`, installs deb/rpm/AppImage, registers the desktop entry and supports `--uninstall`. |
 | `scripts/fetch-jdbc-adapter.mjs` | `npm run fetch:jdbc` — download the latest jdbc-adapter-server release JAR. |
 | `scripts/datagrip-keywords.mjs` | Decode DataGrip `*Keywords.class` constant pools into JSON. |
 | `scripts/datagrip-tokens.mjs` | Decode DataGrip `*Types.class` lexer vocabularies (via `javap`). |
@@ -1057,8 +1193,32 @@ stratum-brand/       logos, app icons, tray icons, README preview image
   every command remains available in the window via Find Action (`Ctrl+Shift+A`).
 - **Smoke test fails on a headless machine** — it needs `xvfb` (`xvfb-run`); it also passes
   `--no-sandbox --disable-gpu` for CI containers.
+- **The installer returns 404** — the tag is not published yet, or `--version` names a tag that does
+  not exist. Check the [releases page](https://github.com/LC-jhony/stratum/releases) or omit
+  `--version` to use the latest release.
+- **Checksum verification fails** — delete the partial download and run the installer again. The
+  script refuses to install an asset that does not match the release's `SHA256SUMS`.
+- **AppImage reports a FUSE error** — install `libfuse2`, or use `scripts/install.sh`, which extracts
+  the AppImage and does not need FUSE.
+- **"Stratum is installed through the package manager"** — remove the deb/rpm first
+  (`sudo apt remove stratum` or `sudo dnf remove stratum`) before forcing an AppImage install.
+- **No aarch64 packages** — release builds currently target x86_64 only; build from source on arm64.
+- **`stratum` is not found after `--user`** — add `~/.local/bin` to `PATH`, or run
+  `~/.local/opt/stratum/stratum` directly.
 - **Start over** — Settings → *Restore defaults*, or delete `settings.json` / `connections.json`
   under [the user data directory](#where-your-data-lives).
+
+## Contributing
+
+1. Fork the repository and create a topic branch.
+2. Bootstrap with `npm ci`, make the change, and run the checks listed in
+   [Development](#development): `npm run typecheck`, `npm run lint:arch`, `npm test` and
+   `npm run build`.
+3. Open a pull request. CI runs the same checks on every branch.
+
+Bug reports should include the operating system, Stratum version, the database/driver involved and
+the relevant main-process log lines. Never paste credentials, private keys or connection strings
+that contain passwords.
 
 ## License
 
