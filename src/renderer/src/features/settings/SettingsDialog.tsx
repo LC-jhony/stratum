@@ -128,10 +128,9 @@ export function SettingsDialog() {
           <Check label="Prompt for SQL parameters (:name, :'name', ${name}, #name#)" k="query.parameters.enabled" />
 
           <h3 className="section">JDBC adapter (advanced)</h3>
-          <F label="Sidecar port"><input type="number" min={1} max={65535} value={draft['jdbc.port']} onChange={(e) => up({ 'jdbc.port': Number(e.target.value) })} /></F>
           <F label="Server JAR" wide><div className="with-btn"><input value={draft['jdbc.jarPath']} placeholder="jdbc-adapter-server.jar (default: resources/, or STRATUM_JDBC_JAR)" onChange={(e) => up({ 'jdbc.jarPath': e.target.value })} /><button onClick={() => void pickJar()}>…</button></div></F>
           <F label="JAVA_HOME" wide><input value={draft['jdbc.javaHome']} placeholder="(default: java from PATH)" onChange={(e) => up({ 'jdbc.javaHome': e.target.value })} /></F>
-          <p className="hint"><Icon id="info" /> JDBC changes restart the sidecar and apply from the next JDBC connection.</p>
+          <p className="hint"><Icon id="info" /> The bundled adapter listens on 127.0.0.1:7823; JDBC changes restart the sidecar and apply from the next JDBC connection.</p>
 
           <h3 className="section">Advanced (JSON)</h3>
           <p className="hint"><Icon id="json" /> {rawMode ? 'Editing raw settings.json. Use “Apply raw JSON” to validate and keep editing, or OK to save.' : 'All settings are stored in settings.json and can be edited as JSON.'}</p>

@@ -32,7 +32,6 @@ export interface StratumSettings {
   'query.parameters.enabled': boolean
   /** Last value entered per parameter name (DataGrip remembers them too). */
   'query.parameters.values': Record<string, string>
-  'jdbc.port': number
   'jdbc.jarPath': string
   'jdbc.javaHome': string
   /** Advanced free-form keys pass through to the JSON store untouched. */
@@ -57,7 +56,6 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   'query.confirmDestructive': true,
   'query.parameters.enabled': true,
   'query.parameters.values': {},
-  'jdbc.port': 7823,
   'jdbc.jarPath': '',
   'jdbc.javaHome': '',
 }
@@ -90,7 +88,6 @@ export function mergeSettings(raw?: Record<string, unknown>): StratumSettings {
     'query.confirmDestructive': bool(r['query.confirmDestructive'], DEFAULT_SETTINGS['query.confirmDestructive']),
     'query.parameters.enabled': bool(r['query.parameters.enabled'], DEFAULT_SETTINGS['query.parameters.enabled']),
     'query.parameters.values': obj(r['query.parameters.values'], {}),
-    'jdbc.port': num(r['jdbc.port'], DEFAULT_SETTINGS['jdbc.port'], 1, 65535),
     'jdbc.jarPath': str(r['jdbc.jarPath'], ''),
     'jdbc.javaHome': str(r['jdbc.javaHome'], ''),
   }

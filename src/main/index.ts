@@ -37,7 +37,6 @@ async function main() {
   const applyJdbcSettings = (s: Record<string, unknown>): boolean => {
     let changed = false
     const jar = s['jdbc.jarPath']; if (typeof jar === 'string') { const v = jar || undefined; if (v !== jdbc.jar) { jdbc.jar = v; changed = true } }
-    const port = s['jdbc.port']; if (typeof port === 'number' && port > 0 && port !== jdbc.port) { jdbc.port = port; changed = true }
     const home = s['jdbc.javaHome']; if (typeof home === 'string') { const v = home || process.env.JAVA_HOME; if (v !== jdbc.javaHome) { jdbc.javaHome = v; changed = true } }
     return changed
   }

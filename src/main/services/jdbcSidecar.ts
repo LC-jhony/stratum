@@ -2,12 +2,12 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 
-const DEFAULT_PORT = 7823
+/** The bundled adapter JAR hardcodes this loopback port and accepts no port argument. */
+export const JDBC_PORT = 7823
 
 /** Runtime configuration, read on every use so the Settings dialog can change it without recreating the sidecar. */
 export interface JdbcRuntime {
   jar?: string
-  port?: number
   javaHome?: string
 }
 
@@ -16,15 +16,13 @@ export class JdbcSidecar {
   private proc?: ChildProcess
   private starting?: Promise<void>
   constructor(private runtime: () => JdbcRuntime = () => ({})) { }
-  private get port() { return this.runtime().port ?? DEFAULT_PORT }
-
   async post<T>(endpoint: string, body: unknown): Promise<T> {
-    const res = await fetch(`http://127.0.0.1:${this.port}/${endpoint}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    const res = await fetch(`http://127.0.0.1:${JDBC_PORT}/${endpoint}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
     if (!res.ok) throw new Error(`JDBC adapter ${endpoint} failed: HTTP ${res.status}`)
     return (await res.json()) as T
   }
   private async alive() {
-    try { return (await fetch(`http://127.0.0.1:${this.port}/test`, { signal: AbortSignal.timeout(500) })).ok } catch { return false }
+    try { return (await fetch(`http://127.0.0.1:${JDBC_PORT}/test`, { signal: AbortSignal.timeout(500) })).ok } catch { return false }
   }
   ensureRunning(): Promise<void> {
     return (this.starting ??= this.start().catch((e) => { this.starting = undefined; throw e }))

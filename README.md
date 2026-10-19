@@ -366,8 +366,8 @@ verifier is on the roadmap.
 - Get the JAR with `npm run fetch:jdbc` (downloads the latest release into
   `resources/jdbc-adapter/`). Alternatively point Stratum at any copy with the `STRATUM_JDBC_JAR`
   environment variable or **Settings → JDBC adapter → Server JAR**.
-- One Java process is shared by every JDBC data source; it listens on `127.0.0.1:7823` by default
-  (**Settings → Sidecar port**) and is started on demand.
+- One Java process is shared by every JDBC data source; it listens on the fixed loopback address
+  `127.0.0.1:7823` (the bundled JAR hardcodes it) and is started on demand.
 - Java is taken from `PATH` unless **Settings → JAVA_HOME** is set.
 
 ## The workbench
@@ -558,7 +558,6 @@ safe values, and *Restore defaults* resets everything.
 | `query.confirmDestructive` | `true` | Ask before `UPDATE` / `DELETE` without `WHERE`. |
 | `query.parameters.enabled` | `true` | Prompt for SQL parameters before running. |
 | `query.parameters.values` | `{}` | Remembered parameter values, keyed by name. |
-| `jdbc.port` | `7823` | Sidecar port (restarts the sidecar on change). |
 | `jdbc.jarPath` | `""` | `jdbc-adapter-server.jar` location; empty uses the bundled copy or `STRATUM_JDBC_JAR`. |
 | `jdbc.javaHome` | `""` | Java home for the sidecar; empty uses `java` from `PATH`. |
 | `colorTheme`, `fileIconTheme`, `productIconTheme`, `colorScheme`, `windowBackground` | — | Managed by the theme manager. |
