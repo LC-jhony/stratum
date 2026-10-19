@@ -1,7 +1,7 @@
 {
   "name": "stratum",
   "productName": "Stratum",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A DataGrip-style database IDE with VS Code theme compatibility",
   "main": "./out/main/index.js",
   "license": "MIT",
