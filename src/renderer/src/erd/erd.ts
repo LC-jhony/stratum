@@ -87,7 +87,7 @@ export async function layoutErd(g: ErdGraph): Promise<ErdLayout> {
   return { nodes, edges, width: Math.ceil(res.width ?? 0), height: Math.ceil(res.height ?? 0) }
 }
 
-export interface ErdPalette { bg: string; card: string; header: string; border: string; text: string; muted: string; accent: string; pk: string; fk: string; line: string; font: string; mono: string }
+export interface ErdPalette { bg: string; card: string; header: string; border: string; text: string; muted: string; accent: string; pk: string; fk: string; line: string; shadow: string; font: string; mono: string }
 
 /** Live palette: CSS variables, so the diagram re-themes instantly with the workbench. */
 export const cssPalette = (): ErdPalette => ({
@@ -95,6 +95,8 @@ export const cssPalette = (): ErdPalette => ({
   header: 'var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background))',
   border: 'var(--vscode-editorWidget-border, var(--vscode-panel-border))', text: 'var(--vscode-editor-foreground)', muted: 'var(--vscode-descriptionForeground)',
   accent: 'var(--vscode-focusBorder)', pk: 'var(--vscode-charts-yellow)', fk: 'var(--vscode-charts-blue)', line: 'var(--vscode-charts-lines, var(--vscode-descriptionForeground))',
+  // color-mix keeps the card shadow subtle on both light and dark themes without a per-theme value.
+  shadow: 'color-mix(in srgb, #000 22%, transparent)',
   font: `var(--stratum-font, system-ui, sans-serif)`, mono: `var(--stratum-mono, ui-monospace, Menlo, Consolas, monospace)`,
 })
 /** Resolve CSS variables into literal colors for standalone export. */
@@ -105,7 +107,7 @@ export function resolvePalette(p: ErdPalette, cs: CSSStyleDeclaration): ErdPalet
 /** Fixed light palette for file exports: diagrams saved to disk are always light on a white background, whatever the active theme. Fonts stay configurable through the caller. */
 export const exportPalette = (fonts?: Pick<ErdPalette, 'font' | 'mono'>): ErdPalette => ({
   bg: '#ffffff', card: '#ffffff', header: '#f3f3f3', border: '#d4d4d4', text: '#24292f', muted: '#6e7681',
-  accent: '#005fb8', pk: '#b7791f', fk: '#1976d2', line: '#8c959f',
+  accent: '#005fb8', pk: '#b7791f', fk: '#1976d2', line: '#8c959f', shadow: 'rgba(0,0,0,.18)',
   font: fonts?.font ?? 'system-ui, sans-serif', mono: fonts?.mono ?? 'ui-monospace, Menlo, Consolas, monospace',
 })
 
@@ -127,9 +129,12 @@ export function renderErdSvg(l: ErdLayout, palette: ErdPalette, o: { showTypes?:
       const mark = c.pk ? `<rect x="${PAD - 1}" y="${y - 4}" width="8" height="8" rx="2" fill="${p.pk}"/>` : c.fk ? `<circle cx="${PAD + 3}" cy="${y}" r="3.5" fill="none" stroke="${p.fk}" stroke-width="1.5"/>` : ''
       return `<g class="row"><text x="${PAD + 17}" y="${y}" dy=".35em" fill="${p.text}" font-size="12.5" ${c.pk ? 'font-weight="600"' : ''}>${esc(c.name)}</text>${showTypes ? `<text x="${n.width - PAD}" y="${y}" dy=".35em" text-anchor="end" fill="${p.muted}" font-size="11" font-family="${p.mono}">${esc(c.type)}${c.nullable || c.pk ? '' : ' •'}</text>` : ''}${mark}</g>`
     }).join('')
-    return `<g class="node" data-id="${esc(n.id)}" transform="translate(${n.x},${n.y})"><rect class="card" width="${n.width}" height="${n.height}" rx="9" fill="${p.card}" stroke="${p.border}"/><path d="M0,${HEADER_H} V9 a9,9 0 0 1 9,-9 H${n.width - 9} a9,9 0 0 1 9,9 V${HEADER_H} Z" fill="${p.header}"/><line x1="0" x2="${n.width}" y1="${HEADER_H}" y2="${HEADER_H}" stroke="${p.border}"/><text x="${PAD}" y="${HEADER_H / 2}" dy=".35em" fill="${p.text}" font-size="13.5" font-weight="650">${esc(n.name)}</text>${n.kind === 'view' ? `<text x="${n.width - PAD}" y="${HEADER_H / 2}" dy=".35em" text-anchor="end" fill="${p.muted}" font-size="10" letter-spacing="1">VIEW</text>` : ''}${rows}</g>`
+    return `<g class="node${n.kind === 'view' ? ' view' : ''}" data-id="${esc(n.id)}" transform="translate(${n.x},${n.y})"><rect class="card" width="${n.width}" height="${n.height}" rx="9" fill="${p.card}" stroke="${p.border}"/><path d="M0,${HEADER_H} V9 a9,9 0 0 1 9,-9 H${n.width - 9} a9,9 0 0 1 9,9 V${HEADER_H} Z" fill="${p.header}"/><line x1="0" x2="${n.width}" y1="${HEADER_H}" y2="${HEADER_H}" stroke="${p.border}"/><text x="${PAD}" y="${HEADER_H / 2}" dy=".35em" fill="${p.text}" font-size="13.5" font-weight="650">${esc(n.name)}</text>${n.kind === 'view' ? `<text x="${n.width - PAD}" y="${HEADER_H / 2}" dy=".35em" text-anchor="end" fill="${p.muted}" font-size="10" letter-spacing="1">VIEW</text>` : ''}${rows}</g>`
   }).join('')
-  const css = `.ln{fill:none;stroke:${p.line};stroke-width:1.3;opacity:.55;transition:opacity .12s,stroke .12s}.cf{stroke-linecap:round}.hit{fill:none;stroke:transparent;stroke-width:10}.card{transition:stroke .12s}.dim .node{opacity:.35}.dim .edge{opacity:.12}.dim .node.on,.dim .edge.on{opacity:1}.edge.on .ln{stroke:${p.accent};opacity:1}.node.on .card{stroke:${p.accent}}`
+  // A drop shadow per card is cheap for a normal schema and visibly slow for a huge one, so cap it.
+  const shadows = l.nodes.length <= 150
+  const shadowRule = shadows ? `.shadows .card{filter:drop-shadow(0 1px 2.5px ${p.shadow})}` : ''
+  const css = `.ln{fill:none;stroke:${p.line};stroke-width:1.3;opacity:.55;transition:opacity .12s,stroke .12s}.cf{stroke-linecap:round}.hit{fill:none;stroke:transparent;stroke-width:10}.card{transition:stroke .12s}.view .card{stroke-dasharray:5 3}${shadowRule}.dim .node{opacity:.35}.dim .edge{opacity:.12}.dim .node.on,.dim .edge.on{opacity:1}.edge.on .ln{stroke:${p.accent};opacity:1}.node.on .card{stroke:${p.accent}}`
   const attrs = o.standalone ? ` xmlns="http://www.w3.org/2000/svg" width="${l.width}" height="${l.height}"` : ''
-  return `<svg viewBox="0 0 ${Math.max(l.width, 1)} ${Math.max(l.height, 1)}"${attrs} font-family="${p.font}"><style>${css}</style>${o.standalone && o.background !== false ? `<rect width="100%" height="100%" fill="${p.bg}"/>` : ''}<g class="edges">${edges}</g><g class="nodes">${nodes}</g></svg>`
+  return `<svg viewBox="0 0 ${Math.max(l.width, 1)} ${Math.max(l.height, 1)}"${attrs}${shadows ? ' class="shadows"' : ''} font-family="${p.font}"><style>${css}</style>${o.standalone && o.background !== false ? `<rect width="100%" height="100%" fill="${p.bg}"/>` : ''}<g class="edges">${edges}</g><g class="nodes">${nodes}</g></svg>`
 }

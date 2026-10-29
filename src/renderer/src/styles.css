@@ -1,182 +1,812 @@
-/* App workbench styles. Monaco shares this DOM and reuses generic class names (.main, .tree, .empty,
-   .wide, .status, .meta…) inside its widgets, so keep every class here app-specific. */
+/* App workbench styles.
+ *
+ * Visual language ported from the valet dashboard (same author): a flat rail + side bar +
+ * work area + status bar, a 15 px chrome scale that grows with Settings ▸ Appearance, and
+ * controls whose heights derive from that scale. Every colour resolves from the active
+ * VS Code colour theme, so Carbon/Min reproduce valet's palette and third-party themes keep
+ * working. Monaco shares this DOM and reuses generic class names (.main, .tree, .empty,
+ * .wide, .status, .meta…) inside its widgets, so keep every class here app-specific.
+ */
 :root {
-  --stratum-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, "Helvetica Neue", sans-serif;
+  --stratum-font: "Cantarell", "Ubuntu", "Noto Sans", system-ui, sans-serif;
   --stratum-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  --b: var(--vscode-panel-border); --bg: var(--vscode-editor-background); --fg: var(--vscode-foreground);
-  --muted: var(--vscode-descriptionForeground); --accent: var(--vscode-focusBorder);
-  --sel: var(--vscode-list-activeSelectionBackground); --hover: var(--vscode-list-hoverBackground);
-  --grid-line: var(--vscode-tree-tableColumnsBorder, var(--b)); --zebra: var(--vscode-tree-tableOddRowsBackground);
-  /* Rounded workbench sections: panels float on a darker/lighter shell derived from the theme. */
-  --radius: 10px; --radius-in: 9px;
-  --shell: color-mix(in srgb, var(--vscode-editor-background) 92%, #000);
+
+  /* Theme-backed colours (themeService writes the --vscode-* variables). */
+  --bg: var(--vscode-editor-background);
+  --fg: var(--vscode-foreground);
+  --ink: var(--vscode-foreground);
+  --panel: var(--vscode-editorWidget-background);
+  --muted: var(--vscode-descriptionForeground);
+  --b: var(--vscode-panel-border);
+  --line: var(--vscode-panel-border);
+  --accent: var(--vscode-focusBorder);
+  --accent-ink: var(--vscode-textLink-foreground, var(--vscode-focusBorder));
+  --accent-fill: var(--vscode-button-background);
+  --on-accent: var(--vscode-button-foreground);
+  --sel: var(--vscode-list-activeSelectionBackground);
+  --hover-bg: var(--vscode-list-hoverBackground);
+  --nav: var(--vscode-activityBar-background);
+  --nav-ink: var(--vscode-activityBar-foreground);
+  --nav-muted: var(--vscode-activityBar-inactiveForeground);
+  --ok: var(--vscode-charts-green);
+  --ok-ink: var(--vscode-charts-green);
+  --warn: var(--vscode-editorWarning-foreground);
+  --warn-ink: var(--vscode-editorWarning-foreground);
+  --err: var(--vscode-errorForeground);
+  --grid-line: var(--vscode-tree-tableColumnsBorder, var(--vscode-panel-border));
+  --zebra: var(--vscode-tree-tableOddRowsBackground);
+
+  /* Chrome scale, driven by Settings ▸ Appearance (applyAppearance writes --fs/--dense). */
+  --fs: 15px;
+  --dense: 0;
+  --lh-tight: 1.25;
+  --lh-ui: 1.45;
+  --lh-prose: 1.6;
+  --text-2xs: max(9px, calc(var(--fs) * 2 / 3));
+  --text-xs: max(10px, calc(var(--fs) * 11 / 15));
+  --text-sm: max(11px, calc(var(--fs) * 4 / 5));
+  --text-md: max(12px, calc(var(--fs) * 13 / 15));
+  --h-control: calc(clamp(28px, calc(var(--fs) * 2), 38px) - var(--dense) * 2px);
+  --h-field: calc(clamp(30px, calc(var(--fs) * 32 / 15), 40px) - var(--dense) * 2px);
+  --h-compact: calc(clamp(22px, calc(var(--fs) * 26 / 15), 34px) - var(--dense) * 2px);
+  --h-tag: clamp(18px, calc(var(--fs) * 20 / 15), 26px);
+  --h-bar: calc(clamp(38px, calc(var(--fs) * 42 / 15), 50px) - var(--dense) * 4px);
+  --h-toolbar: calc(clamp(30px, calc(var(--fs) * 34 / 15), 40px) - var(--dense) * 2px);
+  --row-h: calc(clamp(22px, calc(var(--fs) * 24 / 15), 28px) - var(--dense) * 2px);
+  --rail-w: 48px;
+  --status-h: calc(clamp(24px, calc(var(--fs) * 26 / 15), 34px) - var(--dense) * 2px);
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius: 12px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --t: 120ms ease;
+
+  --hover: color-mix(in srgb, var(--ink) 6%, transparent);
+  --hover-strong: color-mix(in srgb, var(--ink) 10%, transparent);
+  --line-soft: color-mix(in srgb, var(--line) 68%, transparent);
+  --line-strong: color-mix(in srgb, var(--ink) 20%, var(--line));
+  --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
+  --active-bg: color-mix(in srgb, var(--accent) 11%, transparent);
+  --nav-hover: color-mix(in srgb, var(--nav-ink) 9%, transparent);
+  --surface-2: color-mix(in srgb, var(--panel) 62%, var(--bg));
+  --surface-3: color-mix(in srgb, var(--panel) 40%, var(--bg));
+  --shadow: 0 18px 48px rgb(0 0 0 / 0.34);
+  --shadow-lg: 0 24px 64px rgb(0 0 0 / 0.45);
+  --overlay: rgb(0 0 0 / 0.5);
 }
-:root[data-theme='dark'] { --shell: color-mix(in srgb, var(--vscode-editor-background) 62%, #000); }
+
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--fg); font: 13px/1.4 var(--stratum-font); overflow: hidden; -webkit-font-smoothing: antialiased; }
-button, input, select { font: inherit; color: inherit; }
-button { background: none; border: 1px solid transparent; border-radius: 5px; padding: 3px 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
-button:hover:not(:disabled) { background: var(--vscode-toolbar-hoverBackground, var(--hover)); }
-button:disabled { opacity: .4; cursor: default; }
-button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
-button.toggled { background: var(--sel); }
-input, select { background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--b)); border-radius: 5px; padding: 4px 8px; outline: none; min-width: 0; }
-input:focus, select:focus { border-color: var(--accent); }
-.grow { flex: 1; } .sep { width: 1px; align-self: stretch; margin: 3px 6px; background: var(--b); }
-::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; } ::-webkit-scrollbar-thumb:hover { background: var(--vscode-scrollbarSlider-hoverBackground); background-clip: content-box; }
+body {
+  font-family: var(--stratum-font);
+  font-size: var(--fs);
+  line-height: var(--lh-ui);
+  background: var(--bg);
+  color: var(--fg);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* Workbench shell: every section (activity bar, side bar, editor, status bar) is a rounded panel
-   floating over the shell background; the 6px spacer tracks and the sash make the gaps. */
-.workbench { display: grid; grid-template-columns: 44px 6px auto 6px 1fr; grid-template-rows: 1fr 24px; height: 100%; padding: 6px; row-gap: 6px; background: var(--shell); }
-.stripe { grid-area: 1 / 1; background: var(--vscode-activityBar-background); border: 1px solid var(--b); border-radius: var(--radius); display: flex; flex-direction: column; align-items: center; padding: 6px 0; gap: 4px; }
-.stripe button { position: relative; width: 34px; height: 34px; justify-content: center; color: var(--vscode-activityBar-inactiveForeground); font-size: 18px; border-radius: 7px; }
-.stripe button.on { color: var(--vscode-activityBar-foreground); }
-/* Hover label (VS Code activity-bar style) so each icon says where it takes you. The active section is
-   read from its brighter icon color alone — the accent line that used to mark it is gone by request. */
-.stripe button::after { content: attr(data-label); position: absolute; z-index: 70; top: 50%; left: calc(100% + 12px); transform: translateY(-50%); padding: 4px 9px; white-space: nowrap; font-size: 12px; line-height: 1.5; background: var(--vscode-editorWidget-background, var(--vscode-menu-background)); color: var(--vscode-editorWidget-foreground, var(--fg)); border: 1px solid var(--vscode-editorWidget-border, var(--b)); border-radius: 6px; box-shadow: 0 2px 10px #0007; opacity: 0; pointer-events: none; transition: opacity .1s ease .25s; }
-.stripe button:hover::after, .stripe button:focus-visible::after { opacity: 1; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--h-compact);
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t), border-color var(--t), color var(--t);
+}
+button:hover:not(:disabled) { background: var(--hover); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primary {
+  height: var(--h-control);
+  padding: 0 12px;
+  border-color: transparent;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-fill) 86%, #000); }
+button.toggled { background: var(--sel); color: var(--fg); }
+input, select, textarea {
+  background: var(--vscode-input-background, var(--surface-3));
+  border: 1px solid var(--vscode-input-border, var(--line));
+  border-radius: var(--radius-sm);
+  outline: none;
+  min-width: 0;
+}
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+select {
+  height: var(--h-control);
+  padding: 0 8px;
+  font-size: var(--text-sm);
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+input[type='checkbox'], input[type='radio'] { accent-color: var(--accent); }
+input[type='range'] { accent-color: var(--accent); }
+textarea { padding: 8px 10px; }
+.grow { flex: 1; }
+.sep { width: 1px; align-self: stretch; margin: 3px 6px; background: var(--line); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 32%, transparent);
+  border: 3px solid transparent;
+  border-radius: var(--radius-pill);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted) 52%, transparent);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+@keyframes spin { to { transform: rotate(1turn); } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px) scale(0.99); } }
+
+/* ── Shell ──────────────────────────────────────────────────────────────────
+   rail | side bar | 1 px divider | work area, with the status bar spanning the
+   bottom. The divider is a 1 px grid track whose ::after widens the hit area, so
+   the layout stays flat and the sash is still easy to grab. */
+.workbench {
+  display: grid;
+  grid-template-columns: var(--rail-w) auto 1px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--status-h);
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+.stripe { grid-area: 1 / 1; }
+.side { grid-area: 1 / 2; }
+.sash { grid-area: 1 / 3; }
+.editor-area { grid-area: 1 / 4; }
+.app-status { grid-area: 2 / 1 / 3 / -1; }
+.workbench.right { grid-template-columns: minmax(0, 1fr) 1px auto var(--rail-w); }
+.workbench.right .editor-area { grid-area: 1 / 1; }
+.workbench.right .sash { grid-area: 1 / 2; }
+.workbench.right .side { grid-area: 1 / 3; border-right: 0; border-left: 1px solid var(--line); }
+.workbench.right .stripe { grid-area: 1 / 4; border-right: 0; border-left: 1px solid var(--line); }
+/* Side Bar: Visible — the explorer stays mounted (expanded nodes and filter survive),
+   only its layout columns collapse. */
+.workbench.side-hidden { grid-template-columns: var(--rail-w) 0 0 minmax(0, 1fr); }
+.workbench.right.side-hidden { grid-template-columns: minmax(0, 1fr) 0 0 var(--rail-w); }
+.workbench.side-hidden .side, .workbench.side-hidden .sash { display: none; }
+
+/* ── Activity bar ───────────────────────────────────────────────────────── */
+.stripe {
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0;
+  background: var(--nav);
+  border-right: 1px solid var(--line);
+  overflow-x: visible;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.stripe::-webkit-scrollbar { display: none; }
+.rail-brand {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  margin-bottom: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+}
+.rail-brand:hover:not(:disabled) { background: var(--nav-hover); }
+.rail-brand .brand-logo {
+  width: 30px;
+  height: 30px;
+  display: block;
+  filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.22));
+}
+.stripe button {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  margin: 1px auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--nav-muted);
+  font-size: 18px;
+}
+.stripe button:hover:not(:disabled) { color: var(--nav-ink); background: var(--nav-hover); }
+.stripe button.on { color: var(--accent-ink); background: var(--active-bg); }
+/* Hover label (VS Code activity-bar style). The active section reads from its colour alone. */
+.stripe button::after {
+  content: attr(data-label);
+  position: absolute;
+  z-index: 120;
+  top: 50%;
+  left: calc(100% + 9px);
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(-3px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.stripe button:hover::after, .stripe button:focus-visible::after { opacity: 1; transform: translateY(-50%) translateX(0); }
 .stripe button:not([data-label])::after { display: none; }
-.side { grid-area: 1 / 3; background: var(--vscode-sideBar-background); color: var(--vscode-sideBar-foreground); overflow: hidden; display: flex; border: 1px solid var(--b); border-radius: var(--radius); }
-.sash { grid-area: 1 / 4; cursor: col-resize; margin: 8px 0; border-radius: 4px; } .sash:hover { background: var(--vscode-sash-hoverBorder, var(--accent)); }
-/* Side Bar: Position — the activity bar and side bar move to the right edge (grid columns swap).
-   Every child needs a fully definite area: with bare grid-column overrides the auto-placement cursor
-   walks 4→3→2→1, bumps a row per item and the editor/status land on implicit rows. */
-.workbench.right { grid-template-columns: 1fr 6px auto 6px 44px; }
-.workbench.right .editor-area { grid-area: 1 / 1; } .workbench.right .sash { grid-area: 1 / 2; } .workbench.right .stripe { grid-area: 1 / 5; }
-.workbench.right .stripe button::after { left: auto; right: calc(100% + 12px); }
-.editor-area { grid-area: 1 / 5; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); border: 1px solid var(--b); border-radius: var(--radius); }
-.app-status { grid-area: 2 / 1 / 3 / -1; display: flex; align-items: center; gap: 12px; padding: 0 10px; overflow: hidden; background: var(--vscode-statusBar-background); color: var(--vscode-statusBar-foreground); border: 1px solid var(--b); border-radius: var(--radius); font-size: 12px; }
-.app-status button { padding: 0 6px; font-size: 12px; }
+.stripe button .stratum-icon { font-size: 19px; }
+.workbench.right .stripe button::after { left: auto; right: calc(100% + 9px); transform: translateY(-50%) translateX(3px); }
+.workbench.right .stripe button:hover::after,
+.workbench.right .stripe button:focus-visible::after { transform: translateY(-50%) translateX(0); }
 
+/* ── Side bar ───────────────────────────────────────────────────────────── */
+.side {
+  position: relative;
+  z-index: 50;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface-2);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+}
+.sash {
+  position: relative;
+  z-index: 55;
+  background: var(--line);
+  cursor: col-resize;
+  transition: background var(--t);
+}
+.sash::after { content: ''; position: absolute; inset: 0 -3px; }
+.sash:hover, .sash:active { background: var(--accent); }
+
+/* ── Explorer ───────────────────────────────────────────────────────────── */
 .explorer { display: flex; flex-direction: column; width: 100%; min-width: 0; }
-.pane-title { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 6px 12px; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--vscode-sideBarTitle-foreground, var(--fg)); background: var(--vscode-sideBarSectionHeader-background); border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--b)); }
-.pane-actions { display: flex; gap: 2px; } .pane-actions button { padding: 2px 4px; }
-.filter { display: flex; align-items: center; gap: 6px; margin: 8px; padding: 0 8px; border: 1px solid var(--vscode-input-border, var(--b)); border-radius: 6px; background: var(--vscode-input-background); color: var(--muted); }
-.filter input { border: 0; background: none; padding: 4px 0; flex: 1; }
-.explorer-tree { flex: 1; overflow: auto; outline: none; padding-bottom: 12px; }
-.row { display: flex; align-items: center; gap: 5px; height: 24px; padding-right: 8px; cursor: default; white-space: nowrap; }
-.row:hover { background: var(--hover); } .explorer-tree:focus .row.selected { background: var(--sel); color: var(--vscode-list-activeSelectionForeground); } .row.selected { background: var(--vscode-list-inactiveSelectionBackground); }
-.row .chev { width: 16px; display: inline-flex; justify-content: center; color: var(--muted); font-size: 14px; }
-.row .label { overflow: hidden; text-overflow: ellipsis; } .row .detail { margin-left: auto; color: var(--muted); font-size: 11.5px; padding-left: 8px; font-family: var(--stratum-mono); }
-.badge-kind { font-size: 10px; color: var(--vscode-charts-green); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; opacity: .8; }
-.empty-state { display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; color: var(--muted); padding: 24px; text-align: center; flex: 1; }
-.menu { position: fixed; z-index: 50; list-style: none; margin: 0; padding: 4px; min-width: 200px; background: var(--vscode-menu-background); color: var(--vscode-menu-foreground); border: 1px solid var(--vscode-menu-border, var(--b)); border-radius: 8px; box-shadow: 0 8px 28px #0006; }
-.menu li { display: flex; gap: 8px; align-items: center; padding: 5px 10px; border-radius: 5px; } .menu li:hover { background: var(--vscode-menu-selectionBackground, var(--sel)); } .menu li.danger { color: var(--vscode-errorForeground); }
-.menu hr { border: 0; border-top: 1px solid var(--b); margin: 4px 0; }
+.pane-title {
+  flex: none;
+  height: var(--h-bar);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.pane-actions { display: flex; align-items: center; gap: 1px; }
+.pane-actions button { width: var(--h-compact); height: var(--h-compact); padding: 0; color: var(--muted); }
+.pane-actions button:hover:not(:disabled) { color: var(--ink); background: var(--hover); }
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: var(--h-control);
+  margin: 8px 10px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--muted);
+  transition: border-color var(--t), box-shadow var(--t);
+}
+.filter:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.filter input { flex: 1; height: 100%; padding: 0; border: 0; background: none; box-shadow: none; font-size: var(--text-sm); }
+.filter input:focus { box-shadow: none; }
+.explorer-tree { flex: 1; overflow: auto; outline: none; padding: 2px 0 12px; }
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 8px);
+  height: var(--row-h);
+  margin: 0 4px;
+  padding-right: 8px;
+  border-radius: var(--radius-xs);
+  cursor: default;
+  white-space: nowrap;
+  transition: background var(--t);
+}
+.row:hover { background: var(--hover); }
+.row.selected { background: var(--active-bg); box-shadow: inset 2px 0 var(--accent); }
+.explorer-tree:focus .row.selected { background: var(--sel); color: var(--vscode-list-activeSelectionForeground, var(--fg)); }
+.row .chev { width: 16px; flex: none; display: inline-flex; justify-content: center; color: var(--muted); font-size: 14px; }
+.row .label { overflow: hidden; text-overflow: ellipsis; }
+.row .detail {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--muted);
+  font-family: var(--stratum-mono);
+  font-size: var(--text-2xs);
+}
+.badge-kind {
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--ok) 45%, var(--line));
+  border-radius: var(--radius-pill);
+  color: var(--ok-ink);
+  font-size: var(--text-2xs);
+  line-height: var(--h-tag);
+}
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
+}
+.empty-state strong { color: var(--ink); font-size: var(--text-md); font-weight: 600; }
+.empty-state p { margin: 0; }
 
-.tabs { display: flex; background: var(--vscode-editorGroupHeader-tabsBackground); border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder, var(--b)); overflow-x: auto; min-height: 34px; padding: 4px 4px 0; border-top-left-radius: var(--radius-in); border-top-right-radius: var(--radius-in); }
-.tab { display: flex; align-items: center; gap: 7px; padding: 0 8px 0 12px; background: var(--vscode-tab-inactiveBackground); color: var(--vscode-tab-inactiveForeground); border-right: 1px solid var(--vscode-tab-border, var(--b)); border-top: 2px solid transparent; cursor: default; white-space: nowrap; }
-.tab:hover { background: var(--vscode-tab-hoverBackground); }
-.tab.active { background: var(--vscode-tab-activeBackground); color: var(--vscode-tab-activeForeground); border-top-color: var(--vscode-tab-activeBorderTop, var(--accent)); }
-.tab .close { padding: 2px; opacity: 0; } .tab:hover .close, .tab.active .close { opacity: .7; }
-.file-icon { width: 18px; height: 18px; object-fit: contain; display: inline-block; } .file-icon.glyph { font-size: 18px; line-height: 18px; text-align: center; }
+/* Context menu (explorer rows, ERD nodes). */
+.menu {
+  position: fixed;
+  z-index: 80;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  min-width: 210px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  animation: fade 100ms ease;
+}
+.menu li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.menu li:hover { background: var(--hover); }
+.menu li.danger { color: var(--err); }
+.menu hr { border: 0; border-top: 1px solid var(--line-soft); margin: 4px 0; }
+
+/* ── Work area ──────────────────────────────────────────────────────────── */
+.editor-area {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+  overflow: hidden;
+}
+.tabs {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-height: var(--h-toolbar);
+  padding: 0 6px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: calc(var(--h-toolbar) - 1px);
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: default;
+  transition: background var(--t), color var(--t);
+}
+.tab:hover { background: var(--hover); color: var(--ink); }
+.tab.active { background: var(--surface-3); color: var(--ink); box-shadow: inset 0 2px var(--accent); }
+.tab .close { width: 20px; height: 20px; padding: 0; opacity: 0; }
+.tab:hover .close, .tab.active .close { opacity: 0.7; }
+.tab .close:hover { opacity: 1; background: var(--hover-strong); }
+.file-icon { width: 18px; height: 18px; display: inline-block; flex: none; object-fit: contain; }
+.file-icon.glyph { font-size: 18px; line-height: 18px; text-align: center; }
 .content { flex: 1; min-height: 0; position: relative; display: flex; }
 .tab-body { flex: 1; min-width: 0; min-height: 0; flex-direction: column; }
 
-.editor-toolbar { display: flex; align-items: center; gap: 2px; padding: 3px 8px; border-bottom: 1px solid var(--b); background: var(--vscode-editorGroupHeader-noTabsBackground, var(--bg)); min-height: 32px; }
-.editor-toolbar .run { color: var(--vscode-charts-green); } .editor-toolbar .ds { color: var(--muted); margin-left: 4px; display: inline-flex; gap: 6px; align-items: center; } .hint { color: var(--muted); font-size: 12px; display: inline-flex; gap: 5px; align-items: center; margin-right: 8px; } .page { color: var(--muted); font-size: 12px; padding: 0 4px; font-variant-numeric: tabular-nums; }
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--h-toolbar);
+  padding: 0 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line-soft);
+}
+.editor-toolbar .run { color: var(--ok); }
+.editor-toolbar .ds { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; color: var(--muted); }
+.hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 8px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.page { padding: 0 4px; color: var(--muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+
 .console, .table-editor, .erd { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
-.table-editor, .erd { padding: 6px; }
+.table-editor, .erd { padding: 0; }
 /* minmax(0, 1fr) is load-bearing: with an implicit `auto` column a wide grid would size the track
    past the pane and paint over the side bar (the cards stay overflow-visible for popovers). */
-.split { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(120px, 1fr) auto; min-width: 0; min-height: 0; gap: 6px; padding: 6px; }
+.split {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(120px, 1fr) auto;
+  gap: 8px;
+  padding: 8px;
+  min-width: 0;
+  min-height: 0;
+}
 .split:has(.results) { grid-template-rows: minmax(120px, 1fr) minmax(160px, 42%); }
-/* Tab content floats as rounded cards: console (editor + results), plus the single card the table and
-   ERD tabs wrap toolbar + body in. Cards keep overflow visible so popovers may overlap them; children
-   round their own corners (toolbar top via the rule below, canvas/grid bottom where painted). */
-.editor-card { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; border: 1px solid var(--b); border-radius: var(--radius-in); background: var(--bg); }
-.editor-card .editor-toolbar { border-top-left-radius: var(--radius-in); border-top-right-radius: var(--radius-in); }
-.editor-host { flex: 1; min-height: 0; overflow: hidden; border-bottom-left-radius: var(--radius-in); border-bottom-right-radius: var(--radius-in); }
-.results { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--b); border-radius: var(--radius-in); background: var(--vscode-panel-background); }
+/* Cards keep overflow visible so popovers may overlap them; children round their own corners. */
+.editor-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.editor-card .editor-toolbar { border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+.editor-host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+.results {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--vscode-panel-background, var(--surface-3));
+}
 .results.empty-state { flex-direction: row; gap: 8px; color: var(--muted); }
-.result-tabs { display: flex; align-items: center; gap: 2px; padding: 3px 8px; border-bottom: 1px solid var(--b); overflow-x: auto; }
-.result-tabs button { color: var(--muted); max-width: 220px; white-space: nowrap; } .result-tabs button.active { background: var(--sel); color: var(--fg); } .result-tabs button.err .stratum-icon { color: var(--vscode-errorForeground); }
-.result-meta { color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.error-box { margin: 0; padding: 12px 14px; color: var(--vscode-errorForeground); font: 12.5px/1.5 var(--stratum-mono); white-space: pre-wrap; overflow: auto; }
-.filters { display: flex; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--b); } .filters label { display: flex; align-items: center; gap: 6px; flex: 1; } .filters span { color: var(--muted); font-size: 10.5px; letter-spacing: .06em; font-weight: 600; } .filters input { flex: 1; font-family: var(--stratum-mono); font-size: 12px; }
-.banner { padding: 6px 12px; background: var(--vscode-sideBarSectionHeader-background); border-bottom: 1px solid var(--b); font-size: 12px; } .banner.error { color: var(--vscode-errorForeground); }
-.grid-foot { padding: 3px 12px; font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--b); min-height: 22px; }
-.grid-foot-more { display: flex; align-items: center; gap: 8px; } .grid-foot-more button { font-size: 11.5px; padding: 1px 8px; }
-.fetch-error { display: inline-flex; align-items: center; gap: 4px; color: var(--vscode-errorForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  overflow-x: auto;
+}
+.result-tabs button { color: var(--muted); max-width: 220px; white-space: nowrap; }
+.result-tabs button.active { background: var(--active-bg); color: var(--ink); box-shadow: inset 0 -2px var(--accent); }
+.result-tabs button.err .stratum-icon { color: var(--err); }
+.result-meta { color: var(--muted); font-size: var(--text-xs); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.error-box {
+  margin: 0;
+  padding: 12px 14px;
+  color: var(--err);
+  font: 12.5px/1.5 var(--stratum-mono);
+  white-space: pre-wrap;
+  overflow: auto;
+}
+.filters { display: flex; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--line-soft); }
+.filters label { display: flex; align-items: center; gap: 6px; flex: 1; }
+.filters span { color: var(--muted); font-size: var(--text-2xs); font-weight: 600; letter-spacing: 0.06em; }
+.filters input { flex: 1; font-family: var(--stratum-mono); font-size: 12px; }
+.banner { padding: 6px 12px; background: var(--surface-3); border-bottom: 1px solid var(--line-soft); font-size: var(--text-xs); }
+.banner.error { color: var(--err); }
+.grid-foot { padding: 3px 12px; min-height: 22px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: var(--text-2xs); }
+.grid-foot-more { display: flex; align-items: center; gap: 8px; }
+.grid-foot-more button { font-size: var(--text-2xs); padding: 1px 8px; }
+.fetch-error { display: inline-flex; align-items: center; gap: 4px; color: var(--err); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .results:has(.grid-foot) .grid { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-.results .grid-foot:last-child { border-bottom-left-radius: var(--radius-in); border-bottom-right-radius: var(--radius-in); }
+.results .grid-foot:last-child { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
 
-/* Data grid: visible row + column borders come from the theme's tree.tableColumnsBorder */
-.grid { flex: 1; overflow: auto; position: relative; outline: none; font-size: 12.5px; background: var(--bg); }
-.results .grid { border-bottom-left-radius: var(--radius-in); border-bottom-right-radius: var(--radius-in); }
+/* Data grid: fixed 24 px rows (DataGrid virtualises with ROW_H = 24, so the CSS must not scale
+   with --fs); visible row + column borders come from the theme's tree.tableColumnsBorder. */
+.grid { flex: 1; overflow: auto; position: relative; outline: none; background: var(--bg); font-size: 12.5px; }
+.results .grid { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
 .grid > div { position: relative; }
-.grid-head { position: sticky; top: 0; z-index: 3; display: flex; height: 24px; background: var(--vscode-sideBarSectionHeader-background, var(--bg)); border-bottom: 1px solid var(--grid-line); }
+.grid-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  height: 24px;
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--grid-line);
+}
 .grid-row { position: absolute; left: 0; display: flex; height: 24px; border-bottom: 1px solid var(--grid-line); }
-.grid-row.odd { background: var(--zebra); } .grid-row:hover { background: var(--hover); } .grid-row.deleted { background: color-mix(in srgb, var(--vscode-errorForeground) 14%, transparent); text-decoration: line-through; opacity: .7; } .grid-row.inserted { background: color-mix(in srgb, var(--vscode-charts-green) 14%, transparent); }
-.cell { flex: none; padding: 0 8px; line-height: 23px; border-right: 1px solid var(--grid-line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; position: relative; font-family: var(--stratum-mono); font-size: 12px; }
-.cell.num { text-align: right; } .cell.null { color: var(--muted); font-style: italic; opacity: .7; } .cell.dirty { background: color-mix(in srgb, var(--vscode-charts-yellow) 22%, transparent); }
-.cell.cur { outline: 1.5px solid var(--accent); outline-offset: -1.5px; background: color-mix(in srgb, var(--accent) 10%, transparent); z-index: 1; } .grid-row.cur-row { background: color-mix(in srgb, var(--accent) 5%, transparent); }
-.cell.gutter { color: var(--muted); text-align: right; background: var(--vscode-sideBarSectionHeader-background, transparent); font-size: 11px; position: sticky; left: 0; z-index: 2; }
-.cell.head { font-family: var(--stratum-font); font-weight: 600; display: flex; gap: 6px; align-items: center; line-height: 23px; } .cell.head em { font-weight: 400; font-style: normal; color: var(--muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; }
-.cell input { position: absolute; inset: 0; width: 100%; border-radius: 0; font: inherit; padding: 0 8px; }
-.resize { position: absolute; right: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 4; } .resize:hover { background: var(--accent); opacity: .5; }
+.grid-row.odd { background: var(--zebra); }
+.grid-row:hover { background: var(--hover); }
+.grid-row.deleted { background: color-mix(in srgb, var(--err) 14%, transparent); text-decoration: line-through; opacity: 0.7; }
+.grid-row.inserted { background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.cell {
+  flex: none;
+  padding: 0 8px;
+  line-height: 23px;
+  border-right: 1px solid var(--grid-line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+  font-family: var(--stratum-mono);
+  font-size: 12px;
+}
+.cell.num { text-align: right; }
+.cell.null { color: var(--muted); font-style: italic; opacity: 0.7; }
+.cell.dirty { background: color-mix(in srgb, var(--vscode-charts-yellow) 22%, transparent); }
+.cell.cur { outline: 1.5px solid var(--accent); outline-offset: -1.5px; background: var(--accent-soft); z-index: 1; }
+.grid-row.cur-row { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.cell.gutter {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  color: var(--muted);
+  text-align: right;
+  background: var(--surface-3);
+  font-size: 11px;
+}
+.cell.head { display: flex; align-items: center; gap: 6px; font-family: var(--stratum-font); font-weight: 600; line-height: 23px; }
+.cell.head em { overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 10.5px; font-style: normal; font-weight: 400; }
+.cell input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0 8px; border-radius: 0; font: inherit; }
+.resize { position: absolute; right: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 4; }
+.resize:hover { background: var(--accent); opacity: 0.5; }
 .cell.head.sortable { cursor: pointer; }
 .cell.head.sortable:hover { background: var(--hover); }
-.cell.head .stratum-icon { font-size: 13px; color: var(--muted); }
+.cell.head .stratum-icon { color: var(--muted); font-size: 13px; }
 .sort-asc { transform: rotate(180deg); }
 
-/* ER diagram */
-.erd-canvas { flex: 1; position: relative; overflow: hidden; cursor: grab; background-color: var(--bg); background-image: radial-gradient(var(--grid-line) 1px, transparent 1px); background-size: 22px 22px; border-bottom-left-radius: var(--radius-in); border-bottom-right-radius: var(--radius-in); }
-.erd-canvas:active { cursor: grabbing; } .erd-svg { position: absolute; left: 0; top: 0; transform-origin: 0 0; } .erd-svg svg { display: block; width: 100%; height: 100%; overflow: visible; } .erd-svg .node { cursor: pointer; }
+/* ── ER diagram ─────────────────────────────────────────────────────────── */
+.erd-canvas {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  background-color: var(--bg);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+.erd-canvas:active { cursor: grabbing; }
+.erd-canvas:focus { outline: none; }
+.erd-svg { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.erd-svg svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.erd-svg .node { cursor: pointer; }
 
-.welcome { margin: auto; text-align: center; max-width: 420px; color: var(--muted); } .welcome .logo { width: 200px; height: auto; } .welcome .actions { display: flex; gap: 8px; justify-content: center; margin: 18px 0; } .welcome dl { display: grid; grid-template-columns: auto auto; gap: 4px 16px; justify-content: center; font-size: 12px; } .welcome dd { margin: 0; font-family: var(--stratum-mono); color: var(--fg); }
+/* ── Welcome ────────────────────────────────────────────────────────────── */
+.welcome { margin: auto; max-width: 460px; padding: 24px; color: var(--muted); text-align: center; }
+.welcome .logo { width: 190px; height: auto; }
+.welcome p { margin: 12px 0 0; font-size: var(--text-md); line-height: var(--lh-prose); text-wrap: pretty; }
+.welcome .actions { display: flex; gap: 8px; justify-content: center; margin: 22px 0; }
+.welcome dl { display: grid; grid-template-columns: auto auto; gap: 4px 16px; justify-content: center; font-size: var(--text-xs); }
+.welcome dd { margin: 0; color: var(--ink); font-family: var(--stratum-mono); }
 
-.scrim { position: fixed; inset: 0; background: #0006; z-index: 100; display: flex; align-items: center; justify-content: center; } .scrim.top { align-items: flex-start; padding-top: 12vh; }
-.dialog, .palette { background: var(--vscode-editorWidget-background, var(--bg)); border: 1px solid var(--vscode-editorWidget-border, var(--b)); border-radius: 10px; box-shadow: 0 18px 60px #0008; }
-.dialog { width: 560px; max-width: 92vw; max-height: 88vh; display: flex; flex-direction: column; }
-.dialog header { display: flex; gap: 8px; align-items: center; padding: 12px 16px; font-weight: 600; border-bottom: 1px solid var(--b); } .dialog header button { margin-left: auto; }
-.form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; overflow: auto; } .field { display: flex; flex-direction: column; gap: 4px; } .field > span { font-size: 11.5px; color: var(--muted); } .span-2 { grid-column: 1 / -1; } .check { display: flex; gap: 8px; align-items: center; } .with-btn { display: flex; gap: 6px; } .with-btn input { flex: 1; }
-.seg { display: inline-flex; gap: 4px; } .seg button { border: 1px solid var(--vscode-input-border, var(--b)); border-radius: 5px; padding: 4px 14px; }
-.dialog footer { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--b); } .test.ok { color: var(--vscode-charts-green); } .test.bad { color: var(--vscode-errorForeground); } .test { display: inline-flex; gap: 6px; align-items: center; max-width: 280px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-.palette { width: 600px; max-width: 92vw; overflow: hidden; } .pal-input { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--b); } .pal-input input { flex: 1; border: 0; background: none; font-size: 14px; }
-.palette ul { list-style: none; margin: 0; padding: 4px; max-height: 50vh; overflow: auto; } .palette li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 10px; border-radius: 6px; } .palette li.sel { background: var(--sel); } .palette li em { color: var(--muted); font-style: normal; font-size: 12px; } .palette li.none { color: var(--muted); }
-.codicon-modifier-spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+/* ── Overlays ───────────────────────────────────────────────────────────── */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--overlay);
+  backdrop-filter: blur(6px);
+  animation: fade 150ms ease;
+}
+.scrim.top { align-items: flex-start; padding-top: 12vh; }
+.dialog, .palette {
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--ink);
+  animation: rise 180ms ease;
+}
+.dialog { width: 620px; max-width: 92vw; max-height: 88vh; display: flex; flex-direction: column; }
+.dialog header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: calc(var(--fs) * 1.15);
+  font-weight: 600;
+}
+.dialog header button { margin-left: auto; width: var(--h-compact); height: var(--h-compact); padding: 0; color: var(--muted); }
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 18px; overflow: auto; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > span { color: var(--muted); font-size: var(--text-xs); font-weight: 600; }
+.span-2 { grid-column: 1 / -1; }
+.check { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); }
+.with-btn { display: flex; align-items: center; gap: 6px; }
+.with-btn input { flex: 1; }
+.seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+}
+.seg button {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--h-control);
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.seg button:not(.on):not(.toggled):hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.seg button.on, .seg button.toggled { background: var(--accent-fill); color: var(--on-accent); }
+.seg .dot { width: 11px; height: 11px; display: inline-block; flex: none; border: 1px solid transparent; border-radius: 50%; }
+.icon-opt { display: inline-flex; align-items: center; gap: 7px; }
+.dialog footer { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line-soft); }
+.dialog footer .grow { flex: 1; }
+.test { display: inline-flex; align-items: center; gap: 6px; max-width: 280px; overflow: hidden; color: var(--muted); font-size: var(--text-xs); text-overflow: ellipsis; }
+.test.ok { color: var(--ok-ink); }
+.test.bad { color: var(--err); }
+.palette { width: 600px; max-width: 92vw; overflow: hidden; }
+.pal-input { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); }
+.pal-input input { flex: 1; border: 0; background: none; font-size: var(--text-md); }
+.palette ul { list-style: none; margin: 0; padding: 4px; max-height: 50vh; overflow: auto; }
+.palette li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 10px; border-radius: var(--radius-xs); font-size: var(--text-sm); }
+.palette li.sel { background: var(--sel); }
+.palette li em { color: var(--muted); font-size: var(--text-xs); font-style: normal; }
+.palette li.none { color: var(--muted); }
+.param-dialog code { color: var(--muted); font-family: var(--stratum-mono); }
+.rename-dialog { width: 460px; }
+.value-dialog { width: 680px; }
+.value-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.value-view { margin: 0; padding: 12px 14px; max-height: 55vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12.5px/1.5 var(--stratum-mono); color: var(--fg); }
+.find-usages { width: 640px; }
+.usages { max-height: 320px; overflow: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.usages .hint { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+.usage { display: flex; gap: 10px; align-items: baseline; width: 100%; height: auto; padding: 4px 6px; text-align: left; }
+.usage .where { color: var(--accent-ink); white-space: nowrap; font-size: var(--text-xs); }
+.usage code { overflow: hidden; color: var(--muted); font-family: var(--stratum-mono); text-overflow: ellipsis; white-space: nowrap; }
 
-/* App icons: minimal SVG set vendored in workbench/lucide.tsx. Icons a product icon theme
-   repoints keep the codicon font glyph (workbench/Icon.tsx), so both share these hooks. */
-.stratum-icon { display: inline-block; flex: none; font-size: 18px; }
+/* ── Status bar ─────────────────────────────────────────────────────────── */
+.app-status {
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--status-h);
+  padding: 0 12px;
+  overflow: hidden;
+  background: var(--nav);
+  color: var(--nav-muted);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-2xs);
+  line-height: 1;
+}
+.app-status .conn { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.app-status .conn-name, .app-status .theme-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-status button { max-width: 300px; height: calc(var(--status-h) - 4px); padding: 0 6px; color: inherit; font-size: var(--text-2xs); border-radius: var(--radius-xs); }
+.app-status button:hover:not(:disabled) { background: var(--nav-hover); color: var(--nav-ink); }
+.app-status .stratum-icon { font-size: 13px; }
+.status-brand { color: var(--nav-ink); font-weight: 600; letter-spacing: 0.02em; }
+.status-sep { width: 1px; height: 11px; flex: none; background: color-mix(in srgb, var(--nav-muted) 32%, transparent); }
+
+/* ── Icons ──────────────────────────────────────────────────────────────── */
+.stratum-icon { display: inline-block; flex: none; font-size: 17px; }
 svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
+.icon-btn { width: var(--h-compact); height: var(--h-compact); padding: 0; color: var(--muted); }
+.icon-btn:hover:not(:disabled) { color: var(--ink); }
+.glyph { display: inline-block; flex: none; vertical-align: middle; }
 
-.app-status .stratum-icon { font-size: 16px; line-height: 1; vertical-align: -2px; }
-
-.settings-form h3.section { grid-column: 1 / -1; margin: 10px 0 0; padding-top: 12px; border-top: 1px solid var(--b); font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+/* ── Settings ───────────────────────────────────────────────────────────── */
+.settings-form h3.section {
+  grid-column: 1 / -1;
+  margin: 10px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
 .settings-form h3.section:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
-.settings-form .hint { grid-column: 1 / -1; display: flex; gap: 6px; align-items: flex-start; margin: 0; font-size: 11.5px; color: var(--muted); }
-.settings-form .hint.error { color: var(--vscode-errorForeground); }
-.settings-form textarea.json { grid-column: 1 / -1; min-height: 220px; padding: 8px 10px; border: 1px solid var(--b); border-radius: 6px; background: var(--vscode-input-background, #1e1e1e); color: var(--vscode-input-foreground, #ddd); font: 12px/1.5 var(--stratum-mono); resize: vertical; }
+.settings-form .hint {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--lh-ui);
+}
+.settings-form .hint.error { color: var(--err); }
+.settings-form textarea.json {
+  grid-column: 1 / -1;
+  min-height: 220px;
+  border-radius: var(--radius-sm);
+  background: var(--vscode-input-background, var(--surface-3));
+  color: var(--vscode-input-foreground, var(--fg));
+  font: 12px/1.5 var(--stratum-mono);
+  resize: vertical;
+}
 .settings-form .raw-toggle { grid-column: 1 / -1; justify-self: start; }
+.ui-size-row { display: flex; align-items: center; gap: 10px; }
+.ui-size-row input[type='range'] { flex: 1; }
+.ui-size-value { min-width: 42px; color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
 
 /* DataGrip-style popover menus (grid export, query history). */
 .menu-host { position: relative; display: inline-flex; }
-.popmenu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 60; display: flex; flex-direction: column; min-width: 190px; max-height: 320px; overflow-y: auto; padding: 4px; background: var(--vscode-menu-background); color: var(--vscode-menu-foreground); border: 1px solid var(--vscode-menu-border, var(--b)); border-radius: 8px; box-shadow: 0 8px 28px #0006; }
-.popmenu button { display: block; width: 100%; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 5px; }
-.popmenu button:hover { background: var(--vscode-menu-selectionBackground, var(--sel)); }
+.popmenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.popmenu button { display: block; width: 100%; height: auto; padding: 6px 8px; overflow: hidden; border-radius: var(--radius-xs); text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.popmenu button:hover { background: var(--hover); }
 .popmenu.popmenu-wide { max-width: 460px; }
-/* Floating variant for hosts that scroll (the results tab strip): the portal computes top/right inline. */
 .popmenu.popmenu-fixed { position: fixed; top: auto; right: auto; bottom: auto; }
 .menu-host .result-meta { display: inline-flex; align-items: center; gap: 4px; }
-.param-dialog code { color: var(--muted); font-family: var(--stratum-mono); }
-.rename-dialog { width: 420px; }
-.value-dialog { width: 640px; }
-.value-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.value-view { margin: 0; padding: 12px 14px; max-height: 55vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12.5px/1.5 var(--stratum-mono); color: var(--fg); }
-.find-usages { width: 620px; }
-.usages { max-height: 320px; overflow: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; }
-.usages .hint { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
-.usage { display: flex; gap: 10px; align-items: baseline; width: 100%; text-align: left; }
-.usage .where { color: var(--vscode-textLink-foreground, var(--fg)); white-space: nowrap; font-size: 12px; }
-.usage code { font-family: var(--stratum-mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu-host .result-meta.err { max-width: 460px; overflow: hidden; color: var(--err); text-overflow: ellipsis; }
+.export-scope { display: flex; gap: 4px; padding: 2px 2px 6px; margin-bottom: 4px; border-bottom: 1px solid var(--line-soft); }
+.export-scope button { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; }
+.export-scope button.on { background: var(--active-bg); color: var(--ink); }
+.export-scope button em { margin-left: 4px; font-size: var(--text-2xs); font-style: normal; opacity: 0.7; }
+.export-note { max-width: 280px; padding: 0 6px 6px; color: var(--muted); font-size: var(--text-2xs); line-height: 1.35; white-space: normal; }
 
-/* VS Code custom-CSS port — Monaco widgets: find bar, hover tooltips, scroll shadows, list focus
-   rings. These selectors live inside the embedded editor, so they apply 1:1; !important beats the
-   monaco sheet (which vite bundles ahead of this file). */
+/* ── VS Code custom-CSS port — Monaco widgets ───────────────────────────────
+   These selectors live inside the embedded editor, so they apply 1:1; !important
+   beats the Monaco sheet (which vite bundles ahead of this file). */
 .monaco-editor .find-widget { border-radius: 4px; padding-top: 1px; box-shadow: 0 0 2px 1px rgba(0, 0, 0, .15); top: 3px !important; }
 .monaco-editor .find-widget .monaco-sash { display: none; }
 .monaco-editor .find-widget .button.toggle { left: 2px; outline: none !important; }
@@ -186,40 +816,30 @@ svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
 .monaco-editor .scroll-decoration, .monaco-scrollable-element > .shadow.top { display: none; }
 .monaco-list:not(.element-focused):focus:before, .monaco-list-row.focused { outline: none !important; }
 
-/* VS Code custom-CSS port — workbench look: the quick-input rules map to the command palette and
-   the rounded list rows to the Explorer tree. There is no VS Code titlebar or quick-input DOM here,
-   so the title-label / title-actions / entry-action-bar rules are intentionally left out, and the
-   native window topbar (OS frame) stays untouched. quickInput.* variables come from the color
-   theme; the fallbacks cover themes that do not define them (Min, third-party). */
+/* VS Code quick-input look for the command palette. */
 .scrim.top { padding-top: 25vh; }
-.palette { border-radius: 14px; background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background, var(--bg))); box-shadow: 0 2px 10px 4px var(--vscode-widget-shadow, #00000059); }
+.palette { background: var(--vscode-quickInput-background, var(--panel)); box-shadow: 0 2px 10px 4px var(--vscode-widget-shadow, color-mix(in srgb, #000 35%, transparent)); }
 .pal-input { border-bottom: 0; }
-.pal-input input { padding: 12px; border: 1px solid var(--vscode-quickInputList-focusBackground, var(--b)); border-radius: 8px; background: var(--vscode-quickInput-background, var(--bg)); }
+.pal-input input { padding: 12px; border: 1px solid var(--vscode-quickInputList-focusBackground, var(--line)); border-radius: var(--radius-sm); background: var(--vscode-quickInput-background, var(--bg)); }
 .palette ul { padding: 0 2px; }
-.palette li { border-radius: 4px; }
+.palette li { border-radius: var(--radius-xs); }
 .palette li.sel { background: var(--vscode-quickInputList-focusBackground, var(--sel)); }
-.explorer-tree .row { border-radius: 8px; width: calc(100% - 8px); margin-left: 6px; padding-right: 6px; }
 
-/* Responsive: as the window narrows, secondary chrome yields room to the editor — long names
-   truncate, hints and row counts drop out, and toolbars/filters wrap instead of overflowing. */
-.app-status .conn { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
-.app-status .conn-name, .app-status .theme-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.app-status button { max-width: 300px; }
-.editor-toolbar .ds { min-width: 0; }
-.editor-toolbar .ds-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 1180px) { .editor-toolbar .hint { display: none; } }
-@media (max-width: 1000px) { .editor-toolbar, .filters { flex-wrap: wrap; } .row .detail { display: none; } .app-status { gap: 8px; } }
+@media (max-width: 1000px) {
+  .editor-toolbar, .filters { flex-wrap: wrap; }
+  .row .detail { display: none; }
+  .app-status { gap: 8px; }
+}
 
-/* ER diagram: table finder, zoom readout and the node context menu */
 .erd-search { display: inline-flex; align-items: center; gap: 6px; }
 .erd-search input { width: 150px; padding: 2px 7px; font-size: 12px; }
-.erd-search-count { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.zoom-pct { color: var(--muted); font-size: 11.5px; min-width: 44px; justify-content: center; font-variant-numeric: tabular-nums; }
-.erd-canvas:focus { outline: none; }
+.erd-search-count { color: var(--muted); font-size: var(--text-2xs); font-variant-numeric: tabular-nums; }
+.zoom-pct { min-width: 44px; justify-content: center; color: var(--muted); font-size: var(--text-2xs); font-variant-numeric: tabular-nums; }
 .erd-menu { top: auto; right: auto; z-index: 70; }
-/* Indeterminate progress for exports (the native dialogs and Chromium's PDF printer report no percentage). */
-.exporting .spinner { width: 11px; height: 11px; flex: none; border: 2px solid var(--b); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
-@keyframes spin { to { transform: rotate(1turn); } }
+/* Indeterminate progress for exports (native dialogs and Chromium's PDF printer report no percentage). */
+.exporting .spinner { width: 11px; height: 11px; flex: none; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .exporting .spinner { animation-duration: 1.8s; } }
 
 /* ---------------------------------------------------------------- "Connect to server" (new data source)
@@ -308,6 +928,7 @@ svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
 .ds-row-full { grid-column: 1 / -1; display: flex; align-items: center; height: 30px; }
 .ds-row-full .ds-cb { margin-right: 12px; }
 .ds-row-full .ds-cb + .ds-lbl { margin-right: 38px; }
+.ds-hint { margin-left: 18px; font-size: 13px; color: var(--muted); }
 
 /* Docker helper: read-only container list with published ports as fill buttons */
 .ds-docker-actions { display: flex; align-items: center; gap: 12px; }

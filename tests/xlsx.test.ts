@@ -85,4 +85,29 @@ describe('xlsx export', () => {
     const bytes = exportXlsx(columns, rows)
     expect(new Uint8Array(Buffer.from(bytesToBase64(bytes), 'base64'))).toEqual(bytes)
   })
+
+  it('caps cells at Excel\u2019s 32,767-character limit with a visible marker', () => {
+    const long = 'x'.repeat(40_000)
+    const xml = sheetXml([{ name: 'v' }], [[long]])
+    const cellXml = xml.match(/<c r="A2"[^>]*>([\s\S]*?)<\/c>/)![1]
+    const inner = cellXml.match(/<t xml:space="preserve">([\s\S]*)<\/t>/)![1]
+    expect(inner).toHaveLength(32_767)
+    expect(inner.endsWith('\u2026')).toBe(true)
+  })
+
+  it('refuses more rows than a worksheet can hold instead of writing an unreadable file', () => {
+    const tooMany = Array.from({ length: 1_048_576 }, () => [1])
+    expect(() => sheetXml([{ name: 'v' }], tooMany)).toThrow(/at most 1,048,575 data rows/)
+  })
+
+  it('escapes double quotes in the sheet-name attribute', () => {
+    const files = unzip(exportXlsx(columns, rows, 'a"b'))
+    expect(files.get('xl/workbook.xml')).toContain('name="a&quot;b"')
+  })
+
+  it('keeps formula-looking text literal (inline strings are never evaluated)', () => {
+    const xml = sheetXml([{ name: 'v' }], [['=1+1']])
+    expect(xml).toContain('<c r="A2" t="inlineStr"><is><t xml:space="preserve">=1+1</t></is></c>')
+    expect(xml).not.toContain('<f>')
+  })
 })

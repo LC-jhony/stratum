@@ -10,12 +10,18 @@ import { ConnectionService } from './services/connectionService'
 import { DesktopService } from './services/desktopService'
 import { HistoryService } from './services/historyService'
 import { JdbcSidecar, type JdbcRuntime } from './services/jdbcSidecar'
+import { configureKnownHosts } from './services/knownHosts'
 import { SessionFactory } from './services/sessionFactory'
 import { SettingsService } from './services/settingsService'
 import { ConnectionStore, JsonStore } from './services/store'
 import { ThemeService } from './services/themeService'
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'stratum-asset', privileges: { standard: true, secure: true, supportFetchAPI: true } }])
+
+// A transport socket that errors after the UI moved on must never take the whole app down. Log it and
+// let the session recover on its next query; the error is also visible in the devtools console.
+process.on('uncaughtException', (e) => console.error('[main] uncaughtException:', e))
+process.on('unhandledRejection', (e) => console.error('[main] unhandledRejection:', e))
 
 // Linux global menu (DBusMenu / appmenu) is exported automatically from Menu.setApplicationMenu.
 app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
@@ -30,6 +36,7 @@ async function main() {
   await app.whenReady()
   if (process.platform !== 'win32') app.setAboutPanelOptions({ applicationName: 'Stratum', applicationVersion: app.getVersion(), iconPath: brandPath('png/stratum-512.png') })
   const data = app.getPath('userData')
+  configureKnownHosts(path.join(data, 'known_hosts.json'))
   const connections = new ConnectionStore(new JsonStore(path.join(data, 'connections.json'), { connections: [] }))
   const settings = new SettingsService(new JsonStore<Record<string, unknown>>(path.join(data, 'settings.json'), {}))
   const jdbc: JdbcRuntime = { javaHome: process.env.JAVA_HOME }
@@ -140,7 +147,16 @@ async function main() {
     app.exit(0)
   }
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) void create() })
-  app.on('before-quit', () => { void manager.closeAll().finally(() => sidecar.stop()) })
+  let closing = false
+  // Give live sessions (and the sidecar) up to 3 s to close; a hung socket must not block quit forever.
+  app.on('before-quit', (e) => {
+    if (closing) return
+    closing = true
+    e.preventDefault()
+    const timeout = new Promise<void>((resolve) => setTimeout(resolve, 3000))
+    void Promise.race([manager.closeAll().catch((err) => console.warn('closing sessions:', err)), timeout])
+      .finally(() => { sidecar.stop(); app.quit() })
+  })
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
 }
 app.on('second-instance', () => {

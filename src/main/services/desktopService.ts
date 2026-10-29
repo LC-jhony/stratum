@@ -1,7 +1,10 @@
 import { app, BrowserWindow, dialog } from 'electron'
-import { rm, writeFile } from 'node:fs/promises'
+import { readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { SaveFilter } from '../../shared/ipc'
+
+/** Larger imports would freeze the renderer while the parser builds the statement list. */
+const MAX_TEXT_BYTES = 64 * 1024 * 1024
 
 /** Native dialogs, file saves and PDF rendering. Keeps Electron UI plumbing out of IPC routers. */
 export class DesktopService {
@@ -11,6 +14,20 @@ export class DesktopService {
     const win = this.window()
     if (!win) return undefined
     return (await dialog.showOpenDialog(win, { properties: ['openFile'], filters })).filePaths[0]
+  }
+
+  async openText(filters?: SaveFilter[]): Promise<{ path: string; name: string; content: string } | null> {
+    const win = this.window()
+    if (!win) return null
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openFile'], filters })
+    const file = filePaths[0]
+    if (canceled || !file) return null
+    const { size } = await stat(file)
+    if (size > MAX_TEXT_BYTES) {
+      throw new Error(`${path.basename(file)} is ${(size / 1048576).toFixed(1)} MB; the import limit is 64 MB.`)
+    }
+    const content = await readFile(file, 'utf8')
+    return { path: file, name: path.basename(file), content: content.replace(/^\uFEFF/, '') }
   }
 
   async saveFile(defaultName: string, content: string, filters?: SaveFilter[], encoding: BufferEncoding = 'utf8'): Promise<string | null> {

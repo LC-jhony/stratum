@@ -10,6 +10,7 @@ import { ValueDialog } from '../../ui/ValueDialog'
 export function ResultsPane({ tabId, results, active, onActive, running, dialect }: { tabId: string; results: ResultEntry[]; active: number; onActive(i: number): void; running: boolean; dialect: DialectId }) {
   const fetchMore = useWorkbench((s) => s.fetchMore), fetchAll = useWorkbench((s) => s.fetchAll)
   const pageSize = useWorkbench((s) => s.prefs['query.pageSize'])
+  const neutralize = useWorkbench((s) => s.prefs['export.neutralizeFormulas'])
   const [filter, setFilter] = useState(''), [sort, setSort] = useState<GridSort | null>(null)
   const [viewer, setViewer] = useState<{ title: string; value: unknown } | null>(null)
   const cur = results[active]
@@ -29,7 +30,7 @@ export function ResultsPane({ tabId, results, active, onActive, running, dialect
           </button>
         ))}
         <span className="grow" />
-        {grid && view.length > 0 && <ExportMenu columns={r.columns} rows={view} dialect={dialect} />}
+        {grid && view.length > 0 && <ExportMenu columns={r.columns} rows={view} source={{ connectionId: tabId, sql: r.sql, offset: r.offset, rawRows: r.rows, hasMore: r.hasMore }} dialect={dialect} neutralizeFormulas={neutralize} />}
         <span className="result-meta">{r.error ? 'failed' : r.columns.length ? `${rows.length}${r.hasMore ? '+' : ''} rows` : `${r.affectedRows ?? 0} rows affected`} · {r.durationMs} ms</span>
       </div>
       {grid && (

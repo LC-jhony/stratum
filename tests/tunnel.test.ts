@@ -1,7 +1,11 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import net from 'node:net'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import type { ConnectionConfig } from '../src/shared/types'
 import { ConnectionManager } from '../src/main/services/connectionManager'
+import { configureKnownHosts, knownHosts } from '../src/main/services/knownHosts'
 import { acquireTunnel, closeAllTunnels, rewriteForTunnel, sshConnectConfig, targetFromJdbc, tunnelTarget } from '../src/main/services/sshTunnel'
 import type { ConnectionStore } from '../src/main/services/store'
 import type { JdbcSidecar } from '../src/main/services/jdbcSidecar'
@@ -21,6 +25,20 @@ const cfg = (over: Partial<ConnectionConfig> = {}): ConnectionConfig =>
   ({ id: 'c1', name: 'test', kind: 'postgres', host: 'db.internal', port: 5432, ...over })
 
 afterAll(async () => { await closeAllTunnels() })
+
+// Host keys are recorded in a throwaway file: the live tests exercise the real TOFU path without
+// touching the developer's user data.
+const trustDir = mkdtempSync(path.join(tmpdir(), 'stratum-known-hosts-'))
+configureKnownHosts(path.join(trustDir, 'known_hosts.json'))
+afterAll(() => rmSync(trustDir, { recursive: true, force: true }))
+
+/** A well-formed SSH public key blob for the given algorithm, with random (untrusted) key bytes. */
+function fakeKeyBlob(type = 'ssh-ed25519'): Buffer {
+  const t = Buffer.from(type, 'ascii')
+  const len = Buffer.alloc(4)
+  len.writeUInt32BE(t.length)
+  return Buffer.concat([len, t, Buffer.alloc(32, 7)])
+}
 
 describe('tunnel target resolution', () => {
   it('reads host/port from plain network configs and falls back to the kind default port', () => {
@@ -108,6 +126,10 @@ describe('ssh tunnel over a real handshake', () => {
 
     const first = await acquireTunnel(target)
     const second = await acquireTunnel(target)
+    // Trust on first use: the real handshake recorded the server key.
+    const recorded = (await knownHosts().list())[`127.0.0.1:${sshPort}`]
+    expect(recorded?.[0]).toMatchObject({ type: 'ssh-ed25519' })
+    expect(recorded?.[0].fingerprint).toMatch(/^SHA256:/)
     try {
       expect(first.config.host).toBe('127.0.0.1')
       expect(first.config.port).not.toBe(echoPort)
@@ -124,6 +146,16 @@ describe('ssh tunnel over a real handshake', () => {
     // The last release closes the local listener: the old port refuses new sessions.
     await expect(roundtrip(first.config.port!, 'nadie', 500)).rejects.toBeTruthy()
     echo.close()
+    sshd.close()
+  }, 30000)
+
+  it('refuses a changed host key instead of silently trusting it', async () => {
+    const sshd = startSshd('s3cret')
+    const sshPort = await listen(sshd)
+    // Pretend a previous connection trusted a different ed25519 key for this host:port.
+    await knownHosts().verify('127.0.0.1', sshPort, fakeKeyBlob())
+    const changed = cfg({ id: 't-mismatch', host: '127.0.0.1', port: 1, ssh: ssh({ host: '127.0.0.1', port: sshPort }) })
+    await expect(acquireTunnel(changed)).rejects.toThrow(/host key verification failed/)
     sshd.close()
   }, 30000)
 

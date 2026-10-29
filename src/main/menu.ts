@@ -26,6 +26,7 @@ export function buildMenu() {
     { label: 'Edit', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }, { type: 'separator' }, { label: 'Find Action…', accelerator: 'CmdOrCtrl+Shift+A', click: send('palette') }] },
     { label: 'View', submenu: [
       { label: 'Database Explorer', accelerator: 'CmdOrCtrl+1', click: send('view.explorer') },
+      { label: 'Toggle Side Bar', accelerator: 'CmdOrCtrl+B', click: send('view.sideBar') },
       { label: 'Toggle Results Panel', accelerator: 'CmdOrCtrl+4', click: send('view.results') },
       { type: 'separator' },
       { label: 'Color Theme…', accelerator: 'CmdOrCtrl+K CmdOrCtrl+T', click: send('theme.color') },

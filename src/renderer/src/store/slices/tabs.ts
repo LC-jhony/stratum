@@ -1,6 +1,6 @@
 import type { ErdOptions } from '../../../../shared/types'
 import { uid } from '../internal'
-import type { ConsoleTab, DiagramTab, TableTab, TabsSlice, WorkbenchSlice } from '../types'
+import type { ConsoleTab, DesignerTab, DiagramTab, TableTab, TabsSlice, WorkbenchSlice } from '../types'
 
 export const createTabsSlice: WorkbenchSlice<TabsSlice> = (set, get) => ({
   tabs: [],
@@ -26,6 +26,13 @@ export const createTabsSlice: WorkbenchSlice<TabsSlice> = (set, get) => ({
   openDiagram(connectionId, options: ErdOptions = {}) {
     const name = options.focus?.table ?? get().connections.find((c) => c.id === connectionId)?.name ?? 'schema'
     const tab: DiagramTab = { id: uid('erd'), type: 'diagram', connectionId, options, title: `${name} diagram` }
+    set((s) => ({ tabs: [...s.tabs, tab], activeTab: tab.id }))
+  },
+
+  openDesigner(connectionId, schema) {
+    const ex = get().tabs.find((t) => t.type === 'designer' && t.connectionId === connectionId && t.schema === schema)
+    if (ex) return set({ activeTab: ex.id })
+    const tab: DesignerTab = { id: uid('designer'), type: 'designer', connectionId, schema, title: 'New table' }
     set((s) => ({ tabs: [...s.tabs, tab], activeTab: tab.id }))
   },
 

@@ -40,6 +40,8 @@ export interface ConnectionConfig {
   password?: string
   database?: string
   ssl?: boolean
+  /** Verify the server certificate and hostname (opt-in; off keeps the legacy "encrypt only" behaviour). */
+  sslVerify?: boolean
   /** Cassandra local data center (driver `localDataCenter`); defaults to `datacenter1`. */
   dataCenter?: string
   /** Cloud region (S3 and other regional services); defaults to `us-east-1`. */
@@ -90,6 +92,8 @@ export interface QueryResult extends RawResult {
   /** True when more rows exist beyond `rows` (DataGrip-style paged fetch). */
   hasMore: boolean
   offset: number
+  /** At least one binary value was shortened for display; "All rows" can fetch it in full. */
+  truncatedBinary?: boolean
   error?: string
 }
 

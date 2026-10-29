@@ -23,6 +23,7 @@ export const connectionSchema = z.object({
   password: z.string().max(100_000).optional(),
   database: z.string().max(2000).optional(),
   ssl: z.boolean().optional(),
+  sslVerify: z.boolean().optional(),
   dataCenter: z.string().max(200).optional(),
   region: z.string().max(200).optional(),
   socketPath: z.string().max(4000).optional(),
@@ -43,8 +44,9 @@ export const connectionSchema = z.object({
 export const idSchema = z.string().min(1).max(200)
 export const sqlSchema = z.string().max(10_000_000)
 export const queryOptionsSchema = z.object({
-  limit: z.number().int().min(1).max(100_000).optional(),
+  limit: z.number().int().min(1).max(1_000_000).optional(),
   offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+  full: z.boolean().optional(),
 }).strict().optional()
 export const statementsSchema = z.array(sqlSchema).max(10_000)
 export const settingsPatchSchema = z.record(z.string(), z.unknown())

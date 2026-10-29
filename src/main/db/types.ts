@@ -6,6 +6,8 @@ export interface Transport {
   query(sql: string): Promise<RawResult>
   cancel(): Promise<void>
   close(): Promise<void>
+  /** Server-side connection id, when the driver exposes one (cancel and live diagnostics). */
+  processId?(): number | undefined
 }
 export type Run = (sql: string) => Promise<RawResult>
 

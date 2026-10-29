@@ -14,7 +14,9 @@ interface TabBase { id: string; title: string; connectionId: string }
 export interface ConsoleTab extends TabBase { type: 'console'; sql: string; results: ResultEntry[]; activeResult: number; running: boolean }
 export interface TableTab extends TabBase { type: 'table'; schema?: string; table: string }
 export interface DiagramTab extends TabBase { type: 'diagram'; options: ErdOptions }
-export type Tab = ConsoleTab | TableTab | DiagramTab
+/** DataGrip's "New Table" designer; the table is created when Run is pressed. */
+export interface DesignerTab extends TabBase { type: 'designer'; schema?: string }
+export type Tab = ConsoleTab | TableTab | DiagramTab | DesignerTab
 
 export interface Live {
   status: 'connecting' | 'ready' | 'error'
@@ -47,6 +49,7 @@ export interface TabsSlice {
   openConsole(connectionId?: string, sql?: string): string | undefined
   openTable(connectionId: string, table: string, schema?: string): void
   openDiagram(connectionId: string, options?: ErdOptions): void
+  openDesigner(connectionId: string, schema?: string): void
   closeTab(id: string): void
   setActive(id: string): void
   patchTab(id: string, patch: Partial<Tab>): void
@@ -75,11 +78,15 @@ export interface PrefsSlice {
   previewPrefs(patch: Partial<StratumSettings>): void
 }
 
+/** Where a CSV/SQL import should land; `table` is preset when the dialog opens from a table node. */
+export interface ImportRequest { connectionId: string; schema?: string; table?: string }
+
 export interface UiSlice {
   dialog?: { editing?: ConnectionView } | null
+  importRequest?: ImportRequest
   palette?: null | 'actions' | 'colorTheme' | 'fileIconTheme' | 'productIconTheme'
   showResults: boolean
-  set(p: Partial<Pick<WorkbenchState, 'dialog' | 'palette' | 'showResults'>>): void
+  set(p: Partial<Pick<WorkbenchState, 'dialog' | 'importRequest' | 'palette' | 'showResults'>>): void
 }
 
 export type WorkbenchState = ConnectionsSlice & TabsSlice & ConsoleSlice & PrefsSlice & UiSlice

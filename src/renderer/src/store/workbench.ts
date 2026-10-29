@@ -20,6 +20,7 @@ export const useWorkbench = create<WorkbenchState>((set, get, api) => ({
 
 export type {
   ConsoleTab,
+  DesignerTab,
   DiagramTab,
   Live,
   ParamRequest,

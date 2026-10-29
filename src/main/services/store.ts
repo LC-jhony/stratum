@@ -10,7 +10,24 @@ export class JsonStore<T extends object> {
   constructor(private file: string, private defaults: T) {}
   async read(): Promise<T> {
     if (this.cache) return this.cache
-    try { this.cache = { ...this.defaults, ...JSON.parse(await fs.readFile(this.file, 'utf8')) } } catch { this.cache = structuredClone(this.defaults) }
+    let raw: string
+    try {
+      raw = await fs.readFile(this.file, 'utf8')
+    } catch (e) {
+      // A missing file is the normal first run; anything else (permissions, I/O) must not wipe state.
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+      this.cache = structuredClone(this.defaults)
+      return this.cache
+    }
+    try {
+      this.cache = { ...this.defaults, ...JSON.parse(raw) }
+    } catch {
+      // Keep the broken file for inspection before falling back to defaults; never lose user data silently.
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+      await fs.copyFile(this.file, `${this.file}.corrupt-${stamp}`)
+      console.warn(`[store] ${this.file} is not valid JSON; a backup was saved as ${this.file}.corrupt-${stamp}`)
+      this.cache = structuredClone(this.defaults)
+    }
     return this.cache!
   }
   async write(next: T) {
@@ -23,8 +40,21 @@ export class JsonStore<T extends object> {
 }
 
 const PREFIX = 'enc:'
+let warnedPlaintext = false
 /** Passwords are encrypted with the OS keychain (DPAPI / Keychain / libsecret) when available. */
-export const seal = (s?: string) => (s && safeStorage.isEncryptionAvailable() ? PREFIX + safeStorage.encryptString(s).toString('base64') : s)
+export const seal = (s?: string) => {
+  if (!s) return s
+  let available = false
+  try { available = safeStorage.isEncryptionAvailable() } catch { available = false }
+  if (!available) {
+    if (!warnedPlaintext) {
+      warnedPlaintext = true
+      console.warn('[store] safeStorage is unavailable: passwords will be stored in plain text in the connection file.')
+    }
+    return s
+  }
+  return PREFIX + safeStorage.encryptString(s).toString('base64')
+}
 export const unseal = (s?: string) => (s?.startsWith(PREFIX) ? safeStorage.decryptString(Buffer.from(s.slice(PREFIX.length), 'base64')) : s)
 
 /** Strip secrets from a persisted connection; the renderer only needs to know whether they exist. */

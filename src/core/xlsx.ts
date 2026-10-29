@@ -83,6 +83,16 @@ function zipStore(entries: { name: string; data: Uint8Array }[]): Uint8Array {
 /** Characters XML 1.0 forbids even escaped; database text carries them now and then. */
 const CONTROL = /[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]/g
 const esc = (s: string) => s.replace(CONTROL, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+/** The same, for values placed inside a double-quoted XML attribute. */
+const escAttr = (s: string) => esc(s).replace(/"/g, '&quot;')
+
+/** Excel refuses a cell longer than this; the workbook would be unreadable without truncation. */
+export const MAX_CELL_CHARS = 32_767
+/** Excel's last row: the header uses row 1, so this is the usable body-row count. */
+export const MAX_ROWS = 1_048_575
+
+/** Visible marker so a truncated value is never mistaken for the whole text. */
+export const truncateCell = (s: string): string => (s.length > MAX_CELL_CHARS ? s.slice(0, MAX_CELL_CHARS - 1) + '…' : s)
 
 /** Column reference in A1 notation (A..Z, AA..ZZ, AAA..). */
 export function colRef(n: number): string {
@@ -101,9 +111,12 @@ const cell = (ref: string, v: unknown, style = ''): string => {
   if (v === null || v === undefined) return `<c r="${ref}"${style}/>`
   if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}"${style}><v>${v}</v></c>`
   if (typeof v === 'boolean') return `<c r="${ref}"${style} t="b"><v>${v ? 1 : 0}</v></c>`
-  const t = typeof v === 'string' ? v : String(v)
+  const t = wallText(v)
   return `<c r="${ref}"${style} t="inlineStr"><is><t xml:space="preserve">${esc(t)}</t></is></c>`
 }
+
+/** Strings come from the database: strip what XML forbids and cap Excel's per-cell limit. */
+const wallText = (v: unknown): string => truncateCell(typeof v === 'string' ? v : String(v))
 
 const width = (columns: ColumnMeta[], rows: unknown[][], i: number): number => {
   let m = columns[i].name.length
@@ -113,6 +126,7 @@ const width = (columns: ColumnMeta[], rows: unknown[][], i: number): number => {
 
 /** Worksheet XML: bold frozen header, then one typed cell per grid value. */
 export function sheetXml(columns: ColumnMeta[], rows: unknown[][]): string {
+  if (rows.length > MAX_ROWS) throw new Error(`Excel supports at most ${MAX_ROWS.toLocaleString('en-US')} data rows; this export has ${rows.length.toLocaleString('en-US')}. Use CSV for larger results.`)
   const head = `<row r="1">${columns.map((c, i) => cell(`${colRef(i)}1`, c.name, ' s="1"')).join('')}</row>`
   const body = rows.map((r, i) => `<row r="${i + 2}">${columns.map((_c, j) => cell(`${colRef(j)}${i + 2}`, r[j])).join('')}</row>`).join('')
   const cols = columns.map((_c, i) => `<col min="${i + 1}" max="${i + 1}" width="${width(columns, rows, i)}" customWidth="1"/>`).join('')
@@ -164,7 +178,7 @@ const STYLES = XML_HEAD
 
 const workbook = (name: string) => XML_HEAD
   + `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`
-  + `<sheets><sheet name="${esc(name)}" sheetId="1" r:id="rId1"/></sheets>`
+  + `<sheets><sheet name="${escAttr(name)}" sheetId="1" r:id="rId1"/></sheets>`
   + `</workbook>`
 
 /** Build a one-sheet workbook. `table` names the sheet. */

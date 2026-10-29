@@ -5,12 +5,24 @@ export type KeywordCase = 'upper' | 'lower' | 'preserve'
 export type AppearanceMode = 'dark' | 'light' | 'system'
 /** Side of the workbench activity bar + side bar (VS Code's "Side Bar: Position"). */
 export type SideBarPosition = 'left' | 'right'
+/** UI (chrome) font family: the bundled stacks, or a family typed by the user. */
+export type UiFont = 'system' | 'mono' | 'serif' | 'custom'
 
 export interface StratumSettings {
   /** Settings reflects the active color mode; dark/light pin a theme kind, system follows the OS. */
   'appearance.mode': AppearanceMode
+  /** Interface family (rail, tree, dialogs); the editor keeps `editor.fontFamily`. */
+  'appearance.uiFont': UiFont
+  /** Family typed when `appearance.uiFont` is `custom` (sanitized, quoted ahead of the system stack). */
+  'appearance.customFont': string
+  /** Chrome text size in px (12–20). Monaco and the data grid keep their own density. */
+  'appearance.fontSize': number
+  /** Tighter control heights (valet dashboard's "Compact view"). */
+  'appearance.compact': boolean
   /** Workbench activity bar and side bar side. */
   'workbench.sideBar.position': SideBarPosition
+  /** Side bar visibility; the explorer stays mounted so expanding a tree survives a toggle. */
+  'workbench.sideBar.visible': boolean
   /** Monospace family for the editor, grids and code blocks; empty keeps the built-in chain. */
   'editor.fontFamily': string
   'editor.fontSize': number
@@ -32,6 +44,8 @@ export interface StratumSettings {
   'query.parameters.enabled': boolean
   /** Last value entered per parameter name (DataGrip remembers them too). */
   'query.parameters.values': Record<string, string>
+  /** Prefix CSV/TSV cells that a spreadsheet would run as a formula (=, +, -, @). */
+  'export.neutralizeFormulas': boolean
   'jdbc.jarPath': string
   'jdbc.javaHome': string
   /** Advanced free-form keys pass through to the JSON store untouched. */
@@ -40,7 +54,12 @@ export interface StratumSettings {
 
 export const DEFAULT_SETTINGS: StratumSettings = {
   'appearance.mode': 'system',
+  'appearance.uiFont': 'system',
+  'appearance.customFont': '',
+  'appearance.fontSize': 15,
+  'appearance.compact': false,
   'workbench.sideBar.position': 'left',
+  'workbench.sideBar.visible': true,
   'editor.fontFamily': '',
   'editor.fontSize': 13,
   'editor.tabSize': 2,
@@ -56,6 +75,7 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   'query.confirmDestructive': true,
   'query.parameters.enabled': true,
   'query.parameters.values': {},
+  'export.neutralizeFormulas': true,
   'jdbc.jarPath': '',
   'jdbc.javaHome': '',
 }
@@ -72,7 +92,12 @@ export function mergeSettings(raw?: Record<string, unknown>): StratumSettings {
     ...DEFAULT_SETTINGS,
     ...r,
     'appearance.mode': r['appearance.mode'] === 'dark' || r['appearance.mode'] === 'light' ? r['appearance.mode'] : 'system',
+    'appearance.uiFont': r['appearance.uiFont'] === 'mono' || r['appearance.uiFont'] === 'serif' || r['appearance.uiFont'] === 'custom' ? r['appearance.uiFont'] : 'system',
+    'appearance.customFont': str(r['appearance.customFont'], '').slice(0, 120),
+    'appearance.fontSize': num(r['appearance.fontSize'], DEFAULT_SETTINGS['appearance.fontSize'], 12, 20),
+    'appearance.compact': bool(r['appearance.compact'], DEFAULT_SETTINGS['appearance.compact']),
     'workbench.sideBar.position': r['workbench.sideBar.position'] === 'right' ? 'right' : 'left',
+    'workbench.sideBar.visible': bool(r['workbench.sideBar.visible'], DEFAULT_SETTINGS['workbench.sideBar.visible']),
     'editor.fontFamily': str(r['editor.fontFamily'], '').slice(0, 200),
     'editor.fontSize': num(r['editor.fontSize'], DEFAULT_SETTINGS['editor.fontSize'], 8, 32),
     'editor.tabSize': num(r['editor.tabSize'], DEFAULT_SETTINGS['editor.tabSize'], 1, 8),
@@ -88,6 +113,7 @@ export function mergeSettings(raw?: Record<string, unknown>): StratumSettings {
     'query.confirmDestructive': bool(r['query.confirmDestructive'], DEFAULT_SETTINGS['query.confirmDestructive']),
     'query.parameters.enabled': bool(r['query.parameters.enabled'], DEFAULT_SETTINGS['query.parameters.enabled']),
     'query.parameters.values': obj(r['query.parameters.values'], {}),
+    'export.neutralizeFormulas': bool(r['export.neutralizeFormulas'], DEFAULT_SETTINGS['export.neutralizeFormulas']),
     'jdbc.jarPath': str(r['jdbc.jarPath'], ''),
     'jdbc.javaHome': str(r['jdbc.javaHome'], ''),
   }

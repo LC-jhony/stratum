@@ -44,6 +44,38 @@ export function statementAt(sql: string, offset: number): StatementRange | undef
 const ROW_RETURNING = /^\s*(\(?\s*)*(select|with|show|describe|desc|explain|pragma|values|table)\b/i
 export const returnsRows = (sql: string) => ROW_RETURNING.test(stripLeadingComments(sql))
 
+/** Replace strings and comments with spaces so keyword scans cannot be fooled by their contents. */
+function codeOnly(sql: string): string {
+  let out = ''
+  for (let i = 0; i < sql.length;) {
+    const ch = sql[i], nx = sql[i + 1]
+    if (ch === '-' && nx === '-') { const e = nextLine(sql, i); out += ' '.repeat(e - i); i = e; continue }
+    if (ch === '/' && nx === '*') { const e = sql.indexOf('*/', i + 2); const end = e < 0 ? sql.length : e + 2; out += ' '.repeat(end - i); i = end; continue }
+    if (ch === "'" || ch === '"' || ch === '`') { const e = skipQuoted(sql, i, ch); out += ' '.repeat(e - i); i = e; continue }
+    if (ch === '$') {
+      const m = /^\$([A-Za-z_]\w*)?\$/.exec(sql.slice(i))
+      if (m) { const e = sql.indexOf(m[0], i + m[0].length); const end = e < 0 ? sql.length : e + m[0].length; out += ' '.repeat(end - i); i = end; continue }
+    }
+    out += ch
+    i++
+  }
+  return out
+}
+
+/**
+ * A statement that `returnsRows()` would treat as a read but can still write. The read-only flag
+ * must block these before the driver ever sees them.
+ */
+export function readOnlyViolation(sql: string): string | undefined {
+  const code = codeOnly(stripLeadingComments(sql))
+  if (/\bset_config\s*\(/i.test(code)) return 'set_config() changes session state'
+  if (/^\s*with\b/i.test(code) && /\b(insert\s+into|update\s+[A-Za-z_"`[]|delete\s+from|merge\s+into)\b/i.test(code)) {
+    return 'data-modifying CTEs (WITH … INSERT/UPDATE/DELETE/MERGE)'
+  }
+  return undefined
+}
+
+
 export function stripLeadingComments(sql: string): string {
   let s = sql
   for (;;) {

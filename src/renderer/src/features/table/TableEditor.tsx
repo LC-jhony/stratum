@@ -15,6 +15,7 @@ const PAGE = 500
 export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean }) {
   const model = useWorkbench((s) => s.live[tab.connectionId]?.model)
   const conn = useWorkbench((s) => s.connections.find((c) => c.id === tab.connectionId))
+  const neutralize = useWorkbench((s) => s.prefs['export.neutralizeFormulas'])
   const dialect = model?.dialect ?? 'generic'
   const sqlKind = isSqlKind(conn?.kind)
   const info = model?.schemas.find((s) => (tab.schema ? s.name === tab.schema : true))?.tables.find((t) => t.name === tab.table)
@@ -52,14 +53,17 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
 
   const load = useCallback(async (off = offset) => {
     setBusy(true); setMsg(undefined)
+    // Without an explicit ORDER BY, paging can repeat or skip rows. The primary key makes the
+    // order deterministic; a user-supplied ORDER BY always wins.
+    const stableOrder = order.trim() || (pkCols.length ? pkCols.map((c) => quote(dialect, c)).join(', ') : '')
     const q = sqlKind
-      ? `select * from ${target}${where.trim() ? ` where ${where}` : ''}${order.trim() ? ` order by ${order}` : ''}`
+      ? `select * from ${target}${where.trim() ? ` where ${where}` : ''}${stableOrder ? ` order by ${stableOrder}` : ''}`
       : source
     const r = await ipc.db.execute(tab.connectionId, q, { limit: PAGE, offset: off })
     setRes(r); setOffset(off); setBusy(false)
     if (r.error) setMsg(r.error)
     setEdits(new Map()); setDeleted(new Set()); setInserted([])
-  }, [tab.connectionId, sqlKind, target, source, where, order, offset])
+  }, [tab.connectionId, sqlKind, target, source, where, order, offset, pkCols, dialect])
   useEffect(() => { if (model && !res) void load(0) }, [model])
   useEffect(() => ipc.onCommand((c) => { if (visible && c === 'grid.submit') void submit() }), [visible, edits, deleted, inserted, res])
 
@@ -85,9 +89,9 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
     const key = (r: number) => ({ columns: pkCols, values: pkCols.map((c) => res.rows[r][colIdx(c)]) })
     const byRow = new Map<number, Record<string, unknown>>()
     for (const [k, v] of edits) { const [r, c] = k.split(':').map(Number); if (deleted.has(r)) continue; byRow.set(r, { ...byRow.get(r), [res.columns[c].name]: v }) }
-    for (const [r, ch] of byRow) stmts.push(buildUpdate(q, target, key(r), ch))
-    for (const r of deleted) stmts.push(buildDelete(q, target, key(r)))
-    for (const row of inserted) stmts.push(buildInsert(q, target, Object.fromEntries(res.columns.map((c, i) => [c.name, row[i]]).filter(([, v]) => v !== null && v !== ''))))
+    for (const [r, ch] of byRow) stmts.push(buildUpdate(q, target, key(r), ch, dialect))
+    for (const r of deleted) stmts.push(buildDelete(q, target, key(r), dialect))
+    for (const row of inserted) stmts.push(buildInsert(q, target, Object.fromEntries(res.columns.map((c, i) => [c.name, row[i]]).filter(([, v]) => v !== null && v !== '')), dialect))
     setBusy(true)
     const out = await ipc.db.submit(tab.connectionId, stmts)
     setBusy(false)
@@ -108,7 +112,7 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
           <button title="Revert" disabled={!pending} onClick={() => void load(offset)}><Icon id="discard" /></button>
           <button className={pending ? 'primary' : ''} title="Submit (Ctrl/⌘+Alt+Enter)" disabled={!pending || busy} onClick={() => void submit()}><Icon id="check" /> Submit{pending ? ` (${pending})` : ''}</button>
           <span className="grow" />
-          <ExportMenu columns={res?.columns ?? []} rows={rows} table={tab.table} dialect={dialect} disabled={!res || !!res.error || !rows.length} />
+          <ExportMenu columns={res?.columns ?? []} rows={rows} source={res ? { connectionId: tab.connectionId, sql: res.sql, offset: res.offset, rawRows: res.rows, hasMore: !!res.hasMore } : undefined} table={tab.table} dialect={dialect} neutralizeFormulas={neutralize} disabled={!res || !!res.error || !rows.length} />
           {!editable && (sqlKind
             ? info && <span className="hint"><Icon id="lock" /> {info.kind === 'view' ? 'View' : 'No primary key'} — read-only</span>
             : <span className="hint"><Icon id="lock" /> {redis ? 'Keys load read-only' : elastic ? 'Indices load read-only' : cassandra ? 'Tables load read-only' : s3 ? 'Objects load read-only' : ftp ? 'Files load read-only' : kafka ? 'Messages load read-only' : rabbitmq ? 'Messages load read-only' : 'Documents load read-only'}</span>)}

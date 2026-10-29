@@ -5,6 +5,7 @@
  * through the binary save channel.
  */
 import { quote } from './quoting'
+import { literalFor } from './sqlgen'
 import type { ColumnMeta, DialectId } from '../shared/types'
 
 export type ExportFormat = 'csv' | 'tsv' | 'pipe' | 'semicolon' | 'json' | 'insert'
@@ -26,31 +27,42 @@ const SEPARATORS: Partial<Record<ExportFormat, string>> = { csv: ',', tsv: '\t',
 
 const text = (v: unknown): string => (v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v))
 
+/** A valid number is data, not a formula: -5.20 and +3 must stay untouched. */
+const NUMERIC = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/
+
+/**
+ * Spreadsheet apps execute text that starts with =, +, - or @ as a formula. Prefixing an
+ * apostrophe keeps the value visible while disabling evaluation (CSV-injection protection).
+ */
+export function protectFormula(v: string): string {
+  return /^[=+\-@]/.test(v) && !NUMERIC.test(v) ? `'${v}` : v
+}
+
 /** DataGrip's "as needed" quoting: quote when the value contains the separator, a quote or a line break. */
 function delimited(v: string, sep: string): string {
   return v.includes(sep) || /["\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
 }
 
-function sqlLiteral(v: unknown, dialect: DialectId): string {
-  if (v === null || v === undefined) return 'NULL'
-  if (typeof v === 'number') return Number.isFinite(v) ? String(v) : 'NULL'
-  if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE'
-  return `'${String(v).replace(/'/g, "''")}'`
+export interface ExportOptions {
+  /** Prefix text that a spreadsheet would evaluate as a formula. Delimited formats only. */
+  neutralizeFormulas?: boolean
 }
 
 /** Render rows to text. `table` names the INSERT target. */
-export function exportText(columns: ColumnMeta[], rows: unknown[][], format: ExportFormat, table: string, dialect: DialectId): string {
+export function exportText(columns: ColumnMeta[], rows: unknown[][], format: ExportFormat, table: string, dialect: DialectId, opts: ExportOptions = {}): string {
   if (format === 'json') {
     return JSON.stringify(rows.map((r) => Object.fromEntries(columns.map((c, i) => [c.name, r[i] ?? null]))), null, 2)
   }
   if (format === 'insert') {
     const target = quote(dialect, table)
+    const lit = literalFor(dialect)
     const cols = columns.map((c) => quote(dialect, c.name)).join(', ')
-    return rows.map((r) => `INSERT INTO ${target} (${cols}) VALUES (${r.map((v) => sqlLiteral(v, dialect)).join(', ')});`).join('\n')
+    return rows.map((r) => `INSERT INTO ${target} (${cols}) VALUES (${r.map((v) => lit(v)).join(', ')});`).join('\n')
   }
   const sep = SEPARATORS[format] ?? ','
-  const lines = [columns.map((c) => delimited(c.name, sep)).join(sep)]
-  for (const r of rows) lines.push(r.map((v) => delimited(text(v), sep)).join(sep))
+  const safe = (v: unknown) => { const t = text(v); return opts.neutralizeFormulas ? protectFormula(t) : t }
+  const lines = [columns.map((c) => delimited(safe(c.name), sep)).join(sep)]
+  for (const r of rows) lines.push(r.map((v) => delimited(safe(v), sep)).join(sep))
   // Excel reads CSV using the legacy ANSI codepage unless a UTF-8 byte-order mark is present.
   const bom = format === 'csv' || format === 'semicolon' ? '\uFEFF' : ''
   return bom + lines.join('\n')

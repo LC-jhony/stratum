@@ -4,10 +4,10 @@ import { connectionDialect } from '../../../../core/dialects'
 import { isSqlKind } from '../../../../core/kinds'
 import { qualify, quote } from '../../../../core/quoting'
 import { useWorkbench } from '../../store/workbench'
-import { Icon } from '../../ui/Icon'
+import { FileIcon, Icon } from '../../ui/Icon'
 
 type Kind = 'connection' | 'schema' | 'group' | 'table' | 'view' | 'column' | 'index'
-interface Row { key: string; depth: number; kind: Kind; label: string; detail?: string; expandable: boolean; icon: string; color?: string; conn: ConnectionView; schema?: string; table?: string; pk?: boolean; fk?: boolean; extra?: string }
+interface Row { key: string; depth: number; kind: Kind; label: string; detail?: string; expandable: boolean; icon: string; fi?: string; color?: string; conn: ConnectionView; schema?: string; table?: string; pk?: boolean; fk?: boolean; extra?: string }
 
 export function Explorer() {
   const { connections, live, connect, refresh, openConsole, openTable, openDiagram, set, disconnect, removeConnection, setActive } = useWorkbench()
@@ -33,11 +33,11 @@ export function Explorer() {
         const sk = `${ck}/${s.name}`
         const tables = s.tables.filter((t) => !f || t.name.toLowerCase().includes(f))
         if (f && !tables.length) continue
-        out.push({ key: sk, depth: 1, kind: 'schema', label: s.name, detail: String(tables.length), expandable: true, icon: 'symbol-namespace', conn, schema: s.name })
+        out.push({ key: sk, depth: 1, kind: 'schema', label: s.name, detail: String(tables.length), expandable: true, icon: 'symbol-namespace', fi: open.has(sk) ? 'folder_database_open' : 'folder_database', conn, schema: s.name })
         if (!open.has(sk) && !f) continue
         for (const t of tables) {
           const tk = `${sk}/${t.name}`
-          out.push({ key: tk, depth: 2, kind: t.kind, label: t.name, expandable: true, icon: t.kind === 'view' ? 'eye' : 'table', color: 'var(--vscode-charts-blue)', conn, schema: s.name, table: t.name })
+          out.push({ key: tk, depth: 2, kind: t.kind, label: t.name, expandable: true, icon: t.kind === 'view' ? 'eye' : 'table', fi: t.kind === 'view' ? undefined : 'table', color: 'var(--vscode-charts-blue)', conn, schema: s.name, table: t.name })
           if (!open.has(tk)) continue
           pushChildren(out, t, tk, conn, s.name)
         }
@@ -117,7 +117,7 @@ export function Explorer() {
             onDoubleClick={() => (r.kind === 'table' || r.kind === 'view') ? openTable(r.conn.id, r.table!, r.schema) : undefined}
             onContextMenu={(e) => { e.preventDefault(); setSel(r.key); setMenu({ x: e.clientX, y: e.clientY, row: r }) }}>
             <span className="chev" onClick={(e) => { e.stopPropagation(); if (r.expandable) r.kind === 'connection' ? activate(r) : toggle(r.key) }}>{r.expandable ? <Icon id={open.has(r.key) ? 'chevron-down' : 'chevron-right'} /> : null}</span>
-            <Icon id={r.icon} className={r.icon === 'loading' ? 'codicon-modifier-spin' : ''} style={{ color: r.color }} />
+            {r.fi ? <FileIcon icon={r.fi} /> : <Icon id={r.icon} className={r.icon === 'loading' ? 'codicon-modifier-spin' : ''} style={{ color: r.color }} />}
             <span className="label">{r.label}</span>
             {r.extra && <span className="badge-kind">{r.extra}</span>}
             {r.detail && <span className="detail">{r.detail}</span>}

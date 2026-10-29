@@ -1,4 +1,5 @@
 import type { LUCIDE } from './lucide'
+import type { GlyphName } from './glyphs'
 
 /**
  * App icon map: codicon id -> Lucide icon name.
@@ -63,3 +64,31 @@ export const APP_ICONS = {
   'zoom-in': 'zoom-in',
   'zoom-out': 'zoom-out',
 } as const satisfies Record<string, keyof typeof LUCIDE>
+
+/**
+ * Codicon ids that resolve to the Valet interface glyphs instead of Lucide. These are the rail,
+ * toolbar and dialog actions where the Valet shapes read better than the generic pictograms;
+ * everything else keeps Lucide, and a product icon theme still wins over both.
+ */
+export const GLYPH_ICONS = {
+  add: 'plus',
+  check: 'check',
+  close: 'close',
+  copy: 'copy',
+  'debug-stop': 'stop',
+  discard: 'restart',
+  error: 'alert',
+  globe: 'globe',
+  info: 'info',
+  'layout-panel': 'panel',
+  'layout-panel-off': 'panel',
+  lock: 'lock',
+  loading: 'spinner',
+  play: 'play',
+  refresh: 'refresh',
+  'run-all': 'play',
+  search: 'search',
+  'settings-gear': 'settings',
+  terminal: 'terminal',
+  warning: 'alert',
+} as const satisfies Record<string, GlyphName>

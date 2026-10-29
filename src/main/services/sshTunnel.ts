@@ -5,6 +5,7 @@ import path from 'node:path'
 import { Client, type ConnectConfig } from 'ssh2'
 import { KINDS } from '../../core/kinds'
 import type { ConnectionConfig, DriverKind, SshConfig } from '../../shared/types'
+import { knownHosts } from './knownHosts'
 
 /**
  * SSH tunnel helper — DataGrip calls these "connection helpers": they are not data sources, they
@@ -18,8 +19,9 @@ import type { ConnectionConfig, DriverKind, SshConfig } from '../../shared/types
  * source share one SSH connection and one local port, and the last release tears everything down
  * (DbSession.close() is the caller that releases).
  *
- * Host keys are accepted without checking known_hosts in this first iteration; the roadmap entry
- * is a hostVerifier backed by ~/.ssh/known_hosts (like DataGrip's "Known hosts" tab).
+ * Host keys are verified on first use: the first key seen for a host:port is recorded in
+ * `known_hosts.json` (user data directory) and every later connection must present the same key.
+ * A changed key aborts the handshake instead of silently trusting an intercepting server.
  */
 
 export interface TunnelTarget { host: string; port: number }
@@ -201,9 +203,18 @@ function getTunnel(key: string, ssh: SshConfig, target: TunnelTarget): Promise<T
 async function createTunnel(ssh: SshConfig, target: TunnelTarget, onClose: () => void): Promise<Tunnel> {
   const client = new Client()
   const conf = await sshConnectConfig(ssh)
+  /** Set by the verifier and preferred over ssh2's generic "host denied" error. */
+  let hostKeyError: Error | undefined
+  const sshHost = conf.host ?? ''
+  const sshPort = typeof conf.port === 'number' ? conf.port : 22
+  conf.hostVerifier = (key: Buffer, verify: (valid: boolean) => void) => {
+    void knownHosts()
+      .verify(sshHost, sshPort, key)
+      .then(() => verify(true), (e: unknown) => { hostKeyError = e instanceof Error ? e : new Error(String(e)); verify(false) })
+  }
   await new Promise<void>((resolve, reject) => {
     const onReady = () => { cleanup(); resolve() }
-    const onError = (e: Error) => { cleanup(); reject(new Error(`SSH tunnel to ${conf.host}:${conf.port} failed: ${e.message}`)) }
+    const onError = (e: Error) => { cleanup(); reject(new Error(`SSH tunnel to ${conf.host}:${conf.port} failed: ${hostKeyError?.message ?? e.message}`)) }
     const cleanup = () => { client.removeListener('ready', onReady); client.removeListener('error', onError) }
     client.once('ready', onReady)
     client.once('error', onError)

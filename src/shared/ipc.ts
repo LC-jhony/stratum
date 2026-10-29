@@ -18,7 +18,7 @@ export interface StratumApi {
   }
   db: {
     introspect(id: string): Promise<DatabaseModel>
-    execute(id: string, sql: string, opts?: { limit?: number; offset?: number }): Promise<QueryResult>
+    execute(id: string, sql: string, opts?: { limit?: number; offset?: number; /** Fetch complete binary values (exports). */ full?: boolean }): Promise<QueryResult>
     cancel(id: string): Promise<void>
     /** Apply edits from the data grid (DataGrip "Submit"). Runs inside one transaction. */
     submit(id: string, statements: string[]): Promise<{ ok: boolean; error?: string }>
@@ -35,7 +35,11 @@ export interface StratumApi {
     get(): Promise<Record<string, string[]>>
     add(connectionId: string, statements: string[]): Promise<void>
   }
-  dialogs: { pickFile(filters?: { name: string; extensions: string[] }[]): Promise<string | undefined> }
+  dialogs: {
+    pickFile(filters?: { name: string; extensions: string[] }[]): Promise<string | undefined>
+    /** Read a text file through a native open dialog (UTF-8, BOM stripped); null when cancelled. */
+    openText(filters?: SaveFilter[]): Promise<{ path: string; name: string; content: string } | null>
+  }
   docker: {
     /** Read-only container listing for the Docker helper (unix socket or TCP daemon). */
     list(endpoint: DockerEndpoint): Promise<DockerContainer[]>

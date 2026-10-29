@@ -1,0 +1,368 @@
+{
+  "name": "Dawn",
+  "file": "file",
+  "folder": "folder_gray",
+  "folderExpanded": "folder_gray_open",
+  "rootFolder": "folder_root",
+  "rootFolderExpanded": "folder_root_open",
+  "iconDefinitions": {
+    "database": {
+      "iconPath": "./dawn/database.svg"
+    },
+    "__database": {
+      "iconPath": "./dawn-light/database.svg"
+    },
+    "table": {
+      "iconPath": "./dawn/table.svg"
+    },
+    "__table": {
+      "iconPath": "./dawn-light/table.svg"
+    },
+    "folder_database": {
+      "iconPath": "./dawn/folder_database.svg"
+    },
+    "__folder_database": {
+      "iconPath": "./dawn-light/folder_database.svg"
+    },
+    "folder_database_open": {
+      "iconPath": "./dawn/folder_database_open.svg"
+    },
+    "__folder_database_open": {
+      "iconPath": "./dawn-light/folder_database_open.svg"
+    },
+    "folder_schema": {
+      "iconPath": "./dawn/folder_schema.svg"
+    },
+    "__folder_schema": {
+      "iconPath": "./dawn-light/folder_schema.svg"
+    },
+    "folder_schema_open": {
+      "iconPath": "./dawn/folder_schema_open.svg"
+    },
+    "__folder_schema_open": {
+      "iconPath": "./dawn-light/folder_schema_open.svg"
+    },
+    "folder_views": {
+      "iconPath": "./dawn/folder_views.svg"
+    },
+    "__folder_views": {
+      "iconPath": "./dawn-light/folder_views.svg"
+    },
+    "folder_views_open": {
+      "iconPath": "./dawn/folder_views_open.svg"
+    },
+    "__folder_views_open": {
+      "iconPath": "./dawn-light/folder_views_open.svg"
+    },
+    "csv": {
+      "iconPath": "./dawn/csv.svg"
+    },
+    "__csv": {
+      "iconPath": "./dawn-light/csv.svg"
+    },
+    "json": {
+      "iconPath": "./dawn/json.svg"
+    },
+    "__json": {
+      "iconPath": "./dawn-light/json.svg"
+    },
+    "markdown": {
+      "iconPath": "./dawn/markdown.svg"
+    },
+    "__markdown": {
+      "iconPath": "./dawn-light/markdown.svg"
+    },
+    "settings": {
+      "iconPath": "./dawn/settings.svg"
+    },
+    "__settings": {
+      "iconPath": "./dawn-light/settings.svg"
+    },
+    "file": {
+      "iconPath": "./dawn/file.svg"
+    },
+    "__file": {
+      "iconPath": "./dawn-light/file.svg"
+    },
+    "folder_gray": {
+      "iconPath": "./dawn/folder_gray.svg"
+    },
+    "__folder_gray": {
+      "iconPath": "./dawn-light/folder_gray.svg"
+    },
+    "folder_gray_open": {
+      "iconPath": "./dawn/folder_gray_open.svg"
+    },
+    "__folder_gray_open": {
+      "iconPath": "./dawn-light/folder_gray_open.svg"
+    },
+    "folder_root": {
+      "iconPath": "./dawn/folder_root.svg"
+    },
+    "__folder_root": {
+      "iconPath": "./dawn-light/folder_root.svg"
+    },
+    "folder_root_open": {
+      "iconPath": "./dawn/folder_root_open.svg"
+    },
+    "__folder_root_open": {
+      "iconPath": "./dawn-light/folder_root_open.svg"
+    }
+  },
+  "fileExtensions": {
+    "csv": "csv",
+    "tsv": "csv",
+    "psv": "csv",
+    "pdb": "database",
+    "pks": "database",
+    "pkb": "database",
+    "debugsymbols": "database",
+    "odb": "database",
+    "bdb": "database",
+    "dbf": "database",
+    "fdb": "database",
+    "feather": "database",
+    "gdb": "database",
+    "ibd": "database",
+    "orc": "database",
+    "kdbx": "database",
+    "json": "json",
+    "jsonc": "json",
+    "tsbuildinfo": "json",
+    "json5": "json",
+    "jsonl": "json",
+    "ndjson": "json",
+    "webmanifest": "json",
+    "md": "markdown",
+    "markdown": "markdown",
+    "rst": "markdown",
+    "ini": "settings",
+    "dlc": "settings",
+    "config": "settings",
+    "conf": "settings",
+    "properties": "settings",
+    "prop": "settings",
+    "settings": "settings",
+    "option": "settings",
+    "props": "settings",
+    "prefs": "settings",
+    "sln.dotsettings": "settings",
+    "sln.dotsettings.user": "settings",
+    "cfg": "settings",
+    "cnf": "settings",
+    "tool-versions": "settings",
+    "xcconfig": "settings",
+    "xlsx": "table",
+    "xlsm": "table",
+    "xls": "table"
+  },
+  "fileNames": {
+    ".jscsrc": "json",
+    ".jshintrc": "json",
+    ".jsbeautifyrc": "json",
+    ".esformatter": "json",
+    "cdp.pid": "json",
+    ".whitesource": "json",
+    ".jshintignore": "settings",
+    ".buildignore": "settings",
+    ".mrconfig": "settings",
+    ".yardopts": "settings",
+    "manifest.mf": "settings",
+    ".clang-format": "settings",
+    ".clang-format-ignore": "settings",
+    ".clang-tidy": "settings",
+    ".conf": "settings"
+  },
+  "folderNames": {
+    "db": "folder_database",
+    "database": "folder_database",
+    "databases": "folder_database",
+    "sql": "folder_database",
+    "data": "folder_database",
+    "_data": "folder_database",
+    "datafiles": "folder_database",
+    "schema": "folder_schema",
+    "schemas": "folder_schema",
+    "scheme": "folder_schema",
+    "schemes": "folder_schema",
+    "pattern": "folder_schema",
+    "patterns": "folder_schema",
+    "html": "folder_views",
+    "html5": "folder_views",
+    "view": "folder_views",
+    "views": "folder_views",
+    "page": "folder_views",
+    "pages": "folder_views",
+    "_view": "folder_views",
+    "_views": "folder_views",
+    "_page": "folder_views",
+    "_pages": "folder_views"
+  },
+  "folderNamesExpanded": {
+    "db": "folder_database_open",
+    "database": "folder_database_open",
+    "databases": "folder_database_open",
+    "sql": "folder_database_open",
+    "data": "folder_database_open",
+    "_data": "folder_database_open",
+    "datafiles": "folder_database_open",
+    "schema": "folder_schema_open",
+    "schemas": "folder_schema_open",
+    "scheme": "folder_schema_open",
+    "schemes": "folder_schema_open",
+    "pattern": "folder_schema_open",
+    "patterns": "folder_schema_open",
+    "html": "folder_views_open",
+    "html5": "folder_views_open",
+    "view": "folder_views_open",
+    "views": "folder_views_open",
+    "page": "folder_views_open",
+    "pages": "folder_views_open",
+    "_view": "folder_views_open",
+    "_views": "folder_views_open",
+    "_page": "folder_views_open",
+    "_pages": "folder_views_open"
+  },
+  "languageIds": {
+    "csv": "csv",
+    "tsv": "csv",
+    "psv": "csv",
+    "json": "json",
+    "jsonl": "json",
+    "jsonc": "json",
+    "json5": "json",
+    "markdown": "markdown",
+    "ini": "settings",
+    "properties": "settings",
+    "spring-boot-properties": "settings"
+  },
+  "light": {
+    "fileExtensions": {
+      "csv": "__csv",
+      "tsv": "__csv",
+      "psv": "__csv",
+      "pdb": "__database",
+      "pks": "__database",
+      "pkb": "__database",
+      "debugsymbols": "__database",
+      "odb": "__database",
+      "bdb": "__database",
+      "dbf": "__database",
+      "fdb": "__database",
+      "feather": "__database",
+      "gdb": "__database",
+      "ibd": "__database",
+      "orc": "__database",
+      "kdbx": "__database",
+      "json": "__json",
+      "jsonc": "__json",
+      "tsbuildinfo": "__json",
+      "json5": "__json",
+      "jsonl": "__json",
+      "ndjson": "__json",
+      "webmanifest": "__json",
+      "md": "__markdown",
+      "markdown": "__markdown",
+      "rst": "__markdown",
+      "ini": "__settings",
+      "dlc": "__settings",
+      "config": "__settings",
+      "conf": "__settings",
+      "properties": "__settings",
+      "prop": "__settings",
+      "settings": "__settings",
+      "option": "__settings",
+      "props": "__settings",
+      "prefs": "__settings",
+      "sln.dotsettings": "__settings",
+      "sln.dotsettings.user": "__settings",
+      "cfg": "__settings",
+      "cnf": "__settings",
+      "tool-versions": "__settings",
+      "xcconfig": "__settings",
+      "xlsx": "__table",
+      "xlsm": "__table",
+      "xls": "__table"
+    },
+    "fileNames": {
+      ".jscsrc": "__json",
+      ".jshintrc": "__json",
+      ".jsbeautifyrc": "__json",
+      ".esformatter": "__json",
+      "cdp.pid": "__json",
+      ".whitesource": "__json",
+      ".jshintignore": "__settings",
+      ".buildignore": "__settings",
+      ".mrconfig": "__settings",
+      ".yardopts": "__settings",
+      "manifest.mf": "__settings",
+      ".clang-format": "__settings",
+      ".clang-format-ignore": "__settings",
+      ".clang-tidy": "__settings",
+      ".conf": "__settings"
+    },
+    "folderNames": {
+      "db": "__folder_database",
+      "database": "__folder_database",
+      "databases": "__folder_database",
+      "sql": "__folder_database",
+      "data": "__folder_database",
+      "_data": "__folder_database",
+      "datafiles": "__folder_database",
+      "schema": "__folder_schema",
+      "schemas": "__folder_schema",
+      "scheme": "__folder_schema",
+      "schemes": "__folder_schema",
+      "pattern": "__folder_schema",
+      "patterns": "__folder_schema",
+      "html": "__folder_views",
+      "html5": "__folder_views",
+      "view": "__folder_views",
+      "views": "__folder_views",
+      "page": "__folder_views",
+      "pages": "__folder_views",
+      "_view": "__folder_views",
+      "_views": "__folder_views",
+      "_page": "__folder_views",
+      "_pages": "__folder_views"
+    },
+    "folderNamesExpanded": {
+      "db": "__folder_database_open",
+      "database": "__folder_database_open",
+      "databases": "__folder_database_open",
+      "sql": "__folder_database_open",
+      "data": "__folder_database_open",
+      "_data": "__folder_database_open",
+      "datafiles": "__folder_database_open",
+      "schema": "__folder_schema_open",
+      "schemas": "__folder_schema_open",
+      "scheme": "__folder_schema_open",
+      "schemes": "__folder_schema_open",
+      "pattern": "__folder_schema_open",
+      "patterns": "__folder_schema_open",
+      "html": "__folder_views_open",
+      "html5": "__folder_views_open",
+      "view": "__folder_views_open",
+      "views": "__folder_views_open",
+      "page": "__folder_views_open",
+      "pages": "__folder_views_open",
+      "_view": "__folder_views_open",
+      "_views": "__folder_views_open",
+      "_page": "__folder_views_open",
+      "_pages": "__folder_views_open"
+    },
+    "languageIds": {
+      "csv": "__csv",
+      "tsv": "__csv",
+      "psv": "__csv",
+      "json": "__json",
+      "jsonl": "__json",
+      "jsonc": "__json",
+      "json5": "__json",
+      "markdown": "__markdown",
+      "ini": "__settings",
+      "properties": "__settings",
+      "spring-boot-properties": "__settings"
+    }
+  }
+}

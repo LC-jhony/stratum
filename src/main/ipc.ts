@@ -79,7 +79,10 @@ export function registerIpc(d: IpcDependencies) {
       get: () => d.history.get(),
       add: (connectionId, statements) => d.history.add(connectionId, statements),
     },
-    dialogs: { pickFile: (filters) => d.desktop.pickFile(filters) },
+    dialogs: {
+      pickFile: (filters) => d.desktop.pickFile(filters),
+      openText: (filters) => d.desktop.openText(filters),
+    },
     docker: { list: (endpoint) => listDockerContainers(endpoint) },
     export: {
       save: (defaultName, content, filters) => d.desktop.saveFile(defaultName, content, filters, 'utf8'),
@@ -109,13 +112,16 @@ export function registerIpc(d: IpcDependencies) {
   })
   route('dialogs', api.dialogs as unknown as Record<string, Handler>, {
     pickFile: [filtersSchema],
+    openText: [filtersSchema],
   })
   route('docker', api.docker as unknown as Record<string, Handler>, {
     list: [dockerEndpointSchema],
   })
   route('export', api.export as unknown as Record<string, Handler>, {
-    save: [z.string().max(1000), z.string().max(50_000_000), filtersSchema],
-    saveBinary: [z.string().max(1000), z.string().max(100_000_000), filtersSchema],
+    // "All rows" caps at 1,000,000 rows; these ceilings leave room for a very wide CSV and the
+    // base64 expansion of a large workbook without truncating silently.
+    save: [z.string().max(1000), z.string().max(300_000_000), filtersSchema],
+    saveBinary: [z.string().max(1000), z.string().max(400_000_000), filtersSchema],
     pdf: [z.string().max(1000), z.string().max(50_000_000), exportSizeSchema],
   })
 }

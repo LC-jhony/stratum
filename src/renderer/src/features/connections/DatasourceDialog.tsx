@@ -343,6 +343,14 @@ export function DatasourceDialog() {
         <Lbl style={{ marginLeft: 50 }}>SSL</Lbl>
         <Switch label="SSL" style={{ marginLeft: 26 }} checked={!!c.ssl} onChange={(ssl) => up({ ssl })} />
       </div>
+
+      {!!c.ssl && (
+        <div className="ds-row-full">
+          <Lbl style={{ width: 190 }}>Verify certificate</Lbl>
+          <Switch label="Verify certificate" checked={!!c.sslVerify} onChange={(sslVerify) => up({ sslVerify })} />
+          <span className="ds-hint">Rejects self-signed certificates and host-name mismatches.</span>
+        </div>
+      )}
     </Fragment>
   )
 

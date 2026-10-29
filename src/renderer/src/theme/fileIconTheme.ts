@@ -38,7 +38,18 @@ export function pickIconId(t: FileIconThemeJson, name: string, kind: 'file' | 'f
 export function resolveFileIcon(t: FileIconThemeJson | undefined, baseUrl: string, name: string, kind: 'file' | 'folder' | 'folderExpanded' | 'root', lightMode = false): ResolvedIcon {
   if (!t) return undefined
   const id = pickIconId(t, name, kind, lightMode)
-  const def = id ? t.iconDefinitions[id] : undefined
+  return resolveFileIconById(t, baseUrl, id, lightMode)
+}
+
+/**
+ * Resolve an explicit icon id (a table, a data source, a folder kind). Light mode prefers the
+ * theme's `__id` twin — the same convention its `light` association maps use — and falls back to
+ * the base definition when the theme ships a single flavour.
+ */
+export function resolveFileIconById(t: FileIconThemeJson | undefined, baseUrl: string, id: string | undefined, lightMode = false): ResolvedIcon {
+  if (!t || !id) return undefined
+  const key = lightMode && !id.startsWith('__') && t.iconDefinitions[`__${id}`] ? `__${id}` : id
+  const def = t.iconDefinitions[key]
   if (!def) return undefined
   if (def.iconPath) return { kind: 'image', url: new URL(def.iconPath, baseUrl).href }
   if (def.fontCharacter) return { kind: 'glyph', char: def.fontCharacter, color: def.fontColor, fontFamily: `stratum-fi-${def.fontId ?? t.fonts?.[0]?.id ?? 'default'}` }

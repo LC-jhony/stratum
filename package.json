@@ -17,6 +17,7 @@
     "test": "vitest run",
     "lint:arch": "depcruise src --config .dependency-cruiser.cjs",
     "fetch:jdbc": "node scripts/fetch-jdbc-adapter.mjs",
+    "sync:icons": "node scripts/sync-file-icons.mjs",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "smoke": "electron-vite build && STRATUM_SMOKE=$PWD/scripts/smoke.js xvfb-run -a electron . --no-sandbox --disable-gpu"
