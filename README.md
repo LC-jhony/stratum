@@ -93,7 +93,7 @@ on macOS, and themed minimize/maximize/close controls on Linux (including Waylan
 | | |
 |---|---|
 | Released Linux installers | x86_64; Debian 12+ / Ubuntu 22.04+, Fedora/RHEL/openSUSE, or another glibc distribution via AppImage |
-| Released macOS installers | macOS 11+ universal build (Apple silicon and Intel) |
+| Released macOS installers | macOS 13+ universal build (Apple silicon and Intel) |
 | Released Windows installers | Windows 10/11 x64: NSIS installer or portable executable |
 | Development | Node.js 22.12+ and npm (Node 24 LTS is also supported) |
 | Running from source, Linux | an X11/Wayland session; `xvfb` only for `npm run smoke` |
@@ -213,7 +213,7 @@ integration, use the installer above: it extracts the AppImage instead of relyin
 ### macOS
 
 Download `stratum_universal.dmg`, open it and drag **Stratum** into **Applications**. The build is
-universal, so it runs natively on Apple silicon and Intel. Releases are signed and notarized when
+universal, so it runs natively on Apple silicon and Intel, and needs macOS 13 (Ventura) or later. Releases are signed and notarized when
 the repository's signing secrets are configured; an unsigned build must be opened once with
 right-click ▸ **Open** (or System Settings ▸ Privacy & Security ▸ **Open Anyway**).
 

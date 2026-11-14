@@ -22,6 +22,7 @@ mac:
   target: [dmg, zip]
   artifactName: stratum_${arch}.${ext}
   hardenedRuntime: true
+  minimumSystemVersion: '13.0'   # Electron 44 requires macOS 13 (Ventura) or later.
   icon: stratum-brand/build/icon.icns
 win:  { target: [nsis, portable], icon: stratum-brand/build/icon.ico }
 linux:
