@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Tag to publish (for example v0.1.0)
+        description: Tag to publish (for example v0.2.0)
         required: true
         type: string
 
@@ -17,23 +17,20 @@ concurrency:
   group: release-${{ github.event.inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
+env:
+  NODE_VERSION: '22'
+
 jobs:
-  linux:
-    name: Linux installers
+  verify:
+    name: Verify release tag
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Verify release tag
+          fetch-depth: 1
+      - name: Tag matches package.json
         env:
           RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
@@ -45,12 +42,26 @@ jobs:
             exit 1
           fi
 
+  linux:
+    name: Linux installers
+    needs: verify
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
       - name: Install packaging tools
         run: |
           sudo apt-get update
           sudo apt-get install -y rpm
-
-      - run: npm ci
+      # redis-memory-server's postinstall calls make; no native module is needed at runtime.
+      - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm run lint:arch
       - run: npm test
@@ -60,32 +71,138 @@ jobs:
           # unauthenticated request if this token cannot read the other repo.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run build
-
       - name: Build Linux packages
         run: npx electron-builder --linux deb rpm AppImage --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stratum-linux
+          if-no-files-found: error
+          path: |
+            dist/stratum_amd64.deb
+            dist/stratum_x86_64.rpm
+            dist/stratum_x86_64.AppImage
+            dist/latest-linux.yml
 
-      - name: Collect release assets
+  windows:
+    name: Windows installers
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm run fetch:jdbc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm run build
+      - name: Configure code signing
+        shell: bash
+        env:
+          WIN_CERTIFICATE: ${{ secrets.WIN_CERTIFICATE }}
+          WIN_CERTIFICATE_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -n "$WIN_CERTIFICATE" ]; then
+            echo "CSC_LINK=$WIN_CERTIFICATE" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$WIN_CERTIFICATE_PASSWORD" >> "$GITHUB_ENV"
+          else
+            echo "::warning::WIN_CERTIFICATE is not set; building unsigned Windows installers."
+          fi
+      - name: Build Windows packages
+        run: npx electron-builder --win nsis portable --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stratum-windows
+          if-no-files-found: error
+          path: |
+            dist/stratum_setup.exe
+            dist/stratum_portable.exe
+            dist/*.blockmap
+            dist/latest.yml
+
+  macos:
+    name: macOS installers
+    needs: verify
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm run fetch:jdbc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm run build
+      - name: Configure code signing and notarization
+        shell: bash
+        env:
+          MAC_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$MAC_CERTIFICATE" ]; then
+            echo "CSC_LINK=$MAC_CERTIFICATE" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$MAC_CERTIFICATE_PASSWORD" >> "$GITHUB_ENV"
+          else
+            echo "::warning::MAC_CERTIFICATE is not set; building an unsigned macOS app."
+          fi
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
+            echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD" >> "$GITHUB_ENV"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Apple notarization secrets are not set; the macOS app will not be notarized."
+          fi
+      - name: Build macOS packages (universal)
+        run: npx electron-builder --mac --universal --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stratum-macos
+          if-no-files-found: error
+          path: |
+            dist/stratum_universal.dmg
+            dist/stratum_universal.zip
+            dist/*.blockmap
+            dist/latest-mac.yml
+
+  publish:
+    name: Publish GitHub Release
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: Checksums
         run: |
           set -euo pipefail
-          mkdir -p release
-          cp "$(find dist -maxdepth 1 -name '*.deb' -print -quit)" release/stratum_amd64.deb
-          cp "$(find dist -maxdepth 1 -name '*.rpm' -print -quit)" release/stratum_x86_64.rpm
-          cp "$(find dist -maxdepth 1 -name '*.AppImage' -print -quit)" release/stratum_x86_64.AppImage
-          (
-            cd release
-            sha256sum stratum_amd64.deb stratum_x86_64.rpm stratum_x86_64.AppImage > SHA256SUMS
-          )
-          cat release/SHA256SUMS
-
-      - name: Publish GitHub Release
+          cd release
+          ls -lh
+          sha256sum stratum_* > SHA256SUMS
+          cat SHA256SUMS
+      - name: Publish
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           name: Stratum ${{ github.event.inputs.tag || github.ref_name }}
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: |
-            release/stratum_amd64.deb
-            release/stratum_x86_64.rpm
-            release/stratum_x86_64.AppImage
-            release/SHA256SUMS
+          files: release/*

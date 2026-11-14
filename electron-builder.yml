@@ -5,6 +5,11 @@ npmRebuild: false
 directories: { output: dist, buildResources: stratum-brand/build }   # icon.png / icon.ico / icon.icns / icons/*
 files: ["out/**", "package.json"]
 asarUnpack: ["node_modules/sql.js/dist/*.wasm"]
+# electron-updater reads app-update.yml (embedded from this block) to find the GitHub feed.
+publish:
+  provider: github
+  owner: LC-jhony
+  repo: stratum
 extraResources:
   - { from: themes, to: themes }
   - { from: resources/jdbc-adapter, to: jdbc-adapter }   # populated by `npm run fetch:jdbc`
@@ -12,22 +17,41 @@ extraResources:
   - { from: stratum-brand/tray/tray-32.png, to: icons/tray-32.png }             # tray, Windows/Linux
   - { from: stratum-brand/tray/trayTemplate.png, to: icons/trayTemplate.png }   # tray, macOS (Electron picks up the @2x next to it)
   - { from: stratum-brand/tray/trayTemplate@2x.png, to: icons/trayTemplate@2x.png }
-mac:  { category: public.app-category.developer-tools, target: [dmg, zip], hardenedRuntime: true }
-win:  { target: [nsis, portable] }
+mac:
+  category: public.app-category.developer-tools
+  target: [dmg, zip]
+  artifactName: stratum_${arch}.${ext}
+  hardenedRuntime: true
+  icon: stratum-brand/build/icon.icns
+win:  { target: [nsis, portable], icon: stratum-brand/build/icon.ico }
 linux:
   target: [AppImage, deb, rpm]
   category: Development
+  icon: stratum-brand/build/icons
+  # Electron uses desktopName as app_id / WM_CLASS; syncing it keeps the .desktop file and the
+  # running window associated (no "desktopName is not set" warning at package time).
+  syncDesktopName: true
   desktop:
     entry: { StartupWMClass: stratum }
+# Stable asset names keep latest-linux.yml pointing at files the release workflow uploads and
+# scripts/install.sh already downloads. ${ext} is resolved per target by electron-builder.
+appImage:
+  artifactName: stratum_x86_64.${ext}
+nsis:
+  artifactName: stratum_setup.${ext}
+portable:
+  artifactName: stratum_portable.${ext}
 # electron-builder's default deb list still hard-depends on libxss1, but the packaged Electron
 # binary neither links nor dlopens libXss.so.1 (verified with readelf/ldd), so requiring it
 # only breaks `dpkg -i` on distros that no longer ship it (e.g. Ubuntu 26.04). Keep it as a
 # recommendation. The depends list below mirrors the 25.1.8 defaults minus libxss1.
 deb:
+  artifactName: stratum_amd64.${ext}
   depends: [libgtk-3-0, libnotify4, libnss3, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0]
   recommends: [libappindicator3-1, libxss1]
   afterInstall: scripts/linux/after-install.tpl
 rpm:
+  artifactName: stratum_x86_64.${ext}
   afterInstall: scripts/linux/after-install.tpl
 # afterInstall overrides electron-builder's stock post-install script. The stock one probes user
 # namespaces as root (where the probe always passes) and then leaves chrome-sandbox at 0755; on
