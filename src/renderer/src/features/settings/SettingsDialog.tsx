@@ -8,6 +8,7 @@ import { themeKind, type ColorThemeJson } from '../../theme/colorTheme'
 import { resolveFileIconById, type FileIconThemeJson } from '../../theme/fileIconTheme'
 import { clampUiFontSize, MAX_UI_FONT_SIZE, MIN_UI_FONT_SIZE } from '../../theme/appearance'
 import { MONO_FONTS, systemFonts } from '../../theme/fonts'
+import { formatBytes, formatSpeed, packageKindLabel, updatePhaseLabel, updateProgress } from '../../../../core/update'
 import { Icon } from '../../ui/Icon'
 
 const KEYWORD_CASES: { id: KeywordCase; label: string }[] = [
@@ -35,7 +36,7 @@ const SIDES: { id: SideBarPosition; label: string; hint: string }[] = [
 ]
 
 /** Keys owned by the theme manager (written straight to settings.json); a stale dialog draft must not overwrite them. */
-const MANAGED_KEYS = ['colorTheme', 'fileIconTheme', 'productIconTheme', 'colorScheme', 'windowBackground']
+const MANAGED_KEYS = ['colorTheme', 'fileIconTheme', 'productIconTheme', 'colorScheme', 'windowBackground', 'titleBarBackground', 'titleBarForeground']
 
 /** Appearance values that preview live, restored from a snapshot if the dialog is cancelled. */
 const APPEARANCE_KEYS = ['appearance.mode', 'appearance.uiFont', 'appearance.customFont', 'appearance.fontSize', 'appearance.compact', 'workbench.sideBar.position'] as const
@@ -46,6 +47,11 @@ const appearanceOf = (s: StratumSettings): Partial<StratumSettings> =>
 /** Application settings: editor, SQL completion (DataGrip-style), query safety, JDBC sidecar and raw JSON. */
 export function SettingsDialog() {
   const { prefs, savePrefs, previewPrefs, closeSettings } = useWorkbench()
+  const update = useWorkbench((s) => s.update)
+  const checkUpdates = useWorkbench((s) => s.checkUpdates)
+  const downloadUpdate = useWorkbench((s) => s.downloadUpdate)
+  const installUpdate = useWorkbench((s) => s.installUpdate)
+  const updateMeter = updateProgress(update)
   const active = useSyncExternalStore(themes.subscribe.bind(themes), () => themes.active)
   const [draft, setDraft] = useState<StratumSettings>(() => mergeSettings({ ...prefs, 'appearance.mode': themes.mode }))
   const [rawMode, setRawMode] = useState(false)
@@ -175,6 +181,7 @@ export function SettingsDialog() {
           </div>
           <p className="hint"><Icon id="symbol-field" /> Theme, File icons, Font, Text size and Compact preview live; Cancel restores the values you opened with.</p>
           <label className="check span-2"><input type="checkbox" checked={draft['workbench.sideBar.visible']} onChange={(e) => { up({ 'workbench.sideBar.visible': e.target.checked }); previewPrefs({ 'workbench.sideBar.visible': e.target.checked }) }} /> Show side bar</label>
+          <Check label="Reopen SQL consoles after a restart" k="workbench.restoreTabs" />
 
           <h3 className="section">Editor</h3>
           <F label="Font family" wide><input list="stratum-mono-fonts" placeholder="Default (JetBrains Mono, SF Mono, …)" value={draft['editor.fontFamily']} onChange={(e) => up({ 'editor.fontFamily': e.target.value })} /><datalist id="stratum-mono-fonts">{fonts.map((f) => <option key={f} value={f} />)}</datalist></F>
@@ -199,6 +206,26 @@ export function SettingsDialog() {
           <h3 className="section">Data export</h3>
           <Check label="Protect CSV and other delimited exports from spreadsheet formulas" k="export.neutralizeFormulas" />
           <p className="hint"><Icon id="info" /> Text starting with =, +, - or @ is prefixed with an apostrophe so Excel and LibreOffice show it instead of executing it. Numbers and JSON/SQL exports are unaffected.</p>
+
+          <h3 className="section">Updates</h3>
+          <p className="hint"><Icon id="info" /> Current version {update?.currentVersion ?? '—'} · {packageKindLabel(update?.packageKind)}. Checks run shortly after launch and every four hours.</p>
+          <Check label="Check for updates automatically" k="update.autoCheck" />
+          <Check label="Download updates in the background" k="update.autoDownload" />
+          <div className="field span-2"><span>Status</span>
+            <div className="update-settings-row">
+              <span className={`update-settings-text${update?.phase === 'error' ? ' error' : ''}`}>{updatePhaseLabel(update)}</span>
+              {update?.phase !== 'downloading' && update?.phase !== 'checking' && update?.phase !== 'disabled' && <button type="button" onClick={() => void checkUpdates(false)}>Check now</button>}
+              {update?.phase === 'available' && <button type="button" className="primary" onClick={() => void downloadUpdate()}>Download</button>}
+              {update?.phase === 'ready' && <button type="button" className="primary" onClick={() => void installUpdate()}>Restart and install</button>}
+              {update?.phase === 'disabled' && <button type="button" onClick={() => void ipc.update.openReleasePage()}>Open releases</button>}
+            </div>
+          </div>
+          {updateMeter && update?.phase === 'downloading' && (
+            <div className="span-2 update-settings-progress">
+              <div className="update-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(updateMeter.percent)}><div className="update-fill" style={{ width: `${updateMeter.percent}%` }} /></div>
+              <span className="update-meta">{Math.round(updateMeter.percent)}%{updateMeter.total > 0 && ` · ${formatBytes(updateMeter.transferred)} of ${formatBytes(updateMeter.total)}`}{updateMeter.bytesPerSecond > 0 && ` · ${formatSpeed(updateMeter.bytesPerSecond)}`}</span>
+            </div>
+          )}
 
           <h3 className="section">JDBC adapter (advanced)</h3>
           <F label="Server JAR" wide><div className="with-btn"><input value={draft['jdbc.jarPath']} placeholder="jdbc-adapter-server.jar (default: resources/, or STRATUM_JDBC_JAR)" onChange={(e) => up({ 'jdbc.jarPath': e.target.value })} /><button onClick={() => void pickJar()}>…</button></div></F>

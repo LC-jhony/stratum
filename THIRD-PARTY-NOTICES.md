@@ -9,22 +9,25 @@ available from the upstream repositories linked here.
 
 | Package | Version | License | Upstream |
 |---|---|---|---|
-| `@aws-sdk/client-s3` | 3.1152 | Apache-2.0 | https://github.com/aws/aws-sdk-js-v3 |
+| `@aws-sdk/client-s3` | 3.1152.0 | Apache-2.0 | https://github.com/aws/aws-sdk-js-v3 |
 | `@vscode/codicons` | 0.0.46-24 | CC-BY-4.0 | https://github.com/microsoft/vscode-codicons |
 | `basic-ftp` | 6.2.3 | MIT | https://github.com/patrickjuchli/basic-ftp |
-| `cassandra-driver` | 4.10 | Apache-2.0 | https://github.com/datastax/nodejs-driver |
+| `cassandra-driver` | 4.10.0 | Apache-2.0 | https://github.com/datastax/nodejs-driver |
 | `dockerode` | 5.0.1 | Apache-2.0 | https://github.com/apocas/dockerode |
-| `elkjs` | 0.9.3 | EPL-2.0 | https://github.com/kieler/elkjs |
+| `electron-updater` | 6.8.11 | MIT | https://github.com/electron-userland/electron-builder |
+| `elkjs` | 0.12.0 | EPL-2.0 | https://github.com/kieler/elkjs |
 | `ioredis` | 6.0.0 | MIT | https://github.com/redis/ioredis |
 | `jsonc-parser` | 3.3.1 | MIT | https://github.com/microsoft/node-jsonc-parser |
 | `kafkajs` | 2.2.4 | MIT | https://github.com/tulios/kafkajs |
-| `monaco-editor` | 0.52.2 | MIT | https://github.com/microsoft/monaco-editor |
+| `monaco-editor` | 0.57.0 | MIT | https://github.com/microsoft/monaco-editor |
 | `mongodb` | 7.7.0 | Apache-2.0 | https://github.com/mongodb/node-mongodb-native |
 | `mysql2` | 3.24.6 | MIT | https://github.com/sidorares/node-mysql2 |
 | `pg` | 8.23.1 | MIT | https://github.com/brianc/node-postgres |
-| `react` / `react-dom` | 18.3.1 | MIT | https://github.com/facebook/react |
+| `react` / `react-dom` | 19.3.1 | MIT | https://github.com/facebook/react |
+| `sql-formatter` | 15.9.0 | MIT | https://github.com/sql-formatter-org/sql-formatter |
 | `sql.js` | 1.15.0 | MIT | https://github.com/sql-js/sql.js |
 | `ssh2` | 1.17.0 | MIT | https://github.com/mscdex/ssh2 |
+| `zod` | 4.6.7 | MIT | https://github.com/colinhacks/zod |
 | `zustand` | 5.0.15 | MIT | https://github.com/pmndrs/zustand |
 
 Transitive dependencies keep the licenses declared in their own packages; `npm ls --all` (or the

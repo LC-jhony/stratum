@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, Menu } from 'electron'
 import { z } from 'zod'
 import type { StratumApi } from '../shared/ipc'
 import { listDockerContainers } from './services/docker'
@@ -8,12 +8,14 @@ import type { DesktopService } from './services/desktopService'
 import type { HistoryService } from './services/historyService'
 import type { SettingsService } from './services/settingsService'
 import type { ThemeService } from './services/themeService'
+import type { UpdateService } from './services/updateService'
 import {
   connectionSchema,
   dockerEndpointSchema,
   exportSizeSchema,
   filtersSchema,
   idSchema,
+  menuPositionSchema,
   queryOptionsSchema,
   settingsPatchSchema,
   sqlSchema,
@@ -22,6 +24,11 @@ import {
 } from './ipc/schemas'
 
 type Handlers = { [G in keyof StratumApi]: StratumApi[G] extends Record<string, (...a: any[]) => any> ? StratumApi[G] : never }
+/** Main-process side of the API: renderer-bound callbacks such as onState live in preload only. */
+type IpcHandlers = Omit<Handlers, 'update' | 'window'> & {
+  update: Omit<StratumApi['update'], 'onState'>
+  window: Omit<StratumApi['window'], 'onMaximized'>
+}
 type Handler = (...args: any[]) => unknown
 
 export interface IpcDependencies {
@@ -31,6 +38,7 @@ export interface IpcDependencies {
   history: HistoryService
   themes: ThemeService
   desktop: DesktopService
+  update: UpdateService
   window: () => BrowserWindow | null
 }
 
@@ -51,7 +59,7 @@ export function registerIpc(d: IpcDependencies) {
     })
   }
 
-  const api: Pick<Handlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'dialogs' | 'export' | 'docker'> = {
+  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'dialogs' | 'export' | 'docker' | 'update' | 'window'> = {
     connections: {
       list: () => d.connections.list(),
       save: (c) => d.connections.save(c),
@@ -89,6 +97,28 @@ export function registerIpc(d: IpcDependencies) {
       saveBinary: (defaultName, base64, filters) => d.desktop.saveFile(defaultName, base64, filters, 'base64'),
       pdf: (defaultName, svg, size) => d.desktop.savePdf(defaultName, svg, size),
     },
+    update: {
+      state: async () => d.update.getState(),
+      check: () => d.update.check('manual'),
+      download: () => d.update.download('manual'),
+      install: async () => { d.update.install() },
+      openReleasePage: async () => { d.update.openReleasePage() },
+    },
+    window: {
+      minimize: async () => { d.window()?.minimize() },
+      toggleMaximize: async () => {
+        const win = d.window()
+        if (!win) return
+        if (win.isMaximized()) win.unmaximize()
+        else win.maximize()
+      },
+      close: async () => { d.window()?.close() },
+      isMaximized: async () => d.window()?.isMaximized() ?? false,
+      showMenu: async ({ x, y }) => {
+        const win = d.window()
+        if (win) Menu.getApplicationMenu()?.popup({ window: win, x, y })
+      },
+    },
   }
 
   const route = <T extends Record<string, Handler>>(group: string, handlers: T, schemas: Record<string, z.ZodType[]>) => {
@@ -123,5 +153,11 @@ export function registerIpc(d: IpcDependencies) {
     save: [z.string().max(1000), z.string().max(300_000_000), filtersSchema],
     saveBinary: [z.string().max(1000), z.string().max(400_000_000), filtersSchema],
     pdf: [z.string().max(1000), z.string().max(50_000_000), exportSizeSchema],
+  })
+  route('update', api.update as unknown as Record<string, Handler>, {
+    state: [], check: [], download: [], install: [], openReleasePage: [],
+  })
+  route('window', api.window as unknown as Record<string, Handler>, {
+    minimize: [], toggleMaximize: [], close: [], isMaximized: [], showMenu: [menuPositionSchema],
   })
 }

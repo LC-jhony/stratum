@@ -32,6 +32,8 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
   // useSyncExternalStore re-render forever (React error #185) while the connection has no history yet.
   const history = useWorkbench((s) => s.history[tab.connectionId]) ?? EMPTY_HISTORY
   const [histOpen, setHistOpen] = useState(false)
+  const [formatNote, setFormatNote] = useState<{ text: string; error: boolean } | null>(null)
+  const noteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   /** Console language: SQL/CQL for those providers, redis-cli / Dev Tools / mongosh text otherwise. */
   const split = (text: string) => (sqlKind || cassandra ? splitStatements(text) : redis ? splitRedisStatements(text) : elastic ? splitElasticStatements(text) : splitMongoStatements(text)).map((s) => s.text)
@@ -47,12 +49,44 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
   }
   const execRef = useRef(exec); execRef.current = exec
 
+  /** Transient toolbar feedback for actions that can fail (formatting) without opening a dialog. */
+  const note = (text: string, error = false) => {
+    if (noteTimer.current) clearTimeout(noteTimer.current)
+    setFormatNote({ text, error })
+    noteTimer.current = setTimeout(() => setFormatNote(null), error ? 8000 : 3000)
+  }
+
+  /** Format the selection, or the whole buffer when nothing is selected. Never runs on non-SQL consoles. */
+  const format = async () => {
+    const e = ed.current, m = e?.getModel()
+    if (!e || !m) return
+    if (!sqlKind) { note('Format SQL is only available for SQL consoles.', true); return }
+    const sel = e.getSelection()
+    const range = sel && !sel.isEmpty() ? sel : m.getFullModelRange()
+    const text = m.getValueInRange(range)
+    if (!text.trim()) return
+    try {
+      // Loaded on first use: the formatter is a sizable dependency and most sessions never format.
+      const { formatSql } = await import('../../../../core/sqlFormat')
+      const out = formatSql(text, dialect, { keywordCase: prefs['completion.keywordCase'], tabWidth: prefs['editor.tabSize'] })
+      if (out === text) { note('Already formatted'); return }
+      e.pushUndoStop()
+      e.executeEdits('sql.format', [{ range, text: out, forceMoveMarkers: true }])
+      e.pushUndoStop()
+      note(sel && !sel.isEmpty() ? 'Selection formatted' : 'Formatted')
+    } catch (error) {
+      note(error instanceof Error ? error.message : String(error), true)
+    }
+  }
+  const formatRef = useRef(format); formatRef.current = format
+
   useEffect(() => {
     const monaco = ensureMonaco(); syncMonacoTheme()
     const e = monaco.editor.create(host.current!, { value: tab.sql, language: sqlKind ? 'sql' : 'plaintext', theme: 'stratum', automaticLayout: true, minimap: { enabled: prefs['editor.minimap'] }, fontSize: prefs['editor.fontSize'], wordWrap: prefs['editor.wordWrap'], fontFamily: monoFontStack(prefs['editor.fontFamily']), fontLigatures: true, scrollBeyondLastLine: false, renderLineHighlight: 'line', padding: { top: 10 }, smoothScrolling: true, quickSuggestions: { other: sqlKind && prefs['completion.enabled'], strings: false, comments: false }, bracketPairColorization: { enabled: true }, lineNumbersMinChars: 3 })
     e.getModel()?.updateOptions({ tabSize: prefs['editor.tabSize'] })
     e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => execRef.current(false))
     e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => execRef.current(true))
+    e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF, () => formatRef.current())
     e.onDidChangeModelContent(() => patchTab(tab.id, { sql: e.getValue() }))
     e.onDidFocusEditorText(() => setCompletionModel(sqlKind ? useWorkbench.getState().live[tab.connectionId]?.model : undefined))
     if (location.search.includes('smoke=1')) Object.assign(window, { __editor: e }) // test hook, only with ?smoke=1
@@ -67,6 +101,11 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
     e.getModel()?.updateOptions({ tabSize: prefs['editor.tabSize'] })
   }, [prefs, sqlKind])
   useEffect(() => ipc.onCommand((c) => { if (!visible) return; if (c === 'run.statement') execRef.current(false); if (c === 'run.script') execRef.current(true); if (c === 'run.cancel') void cancel(tab.id) }), [visible])
+  useEffect(() => {
+    const onFormat = () => { if (visible) formatRef.current() }
+    addEventListener('stratum:format', onFormat)
+    return () => { removeEventListener('stratum:format', onFormat); if (noteTimer.current) clearTimeout(noteTimer.current) }
+  }, [visible])
 
   return (
     <div className="console">
@@ -75,6 +114,7 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
           <div className="editor-toolbar">
             <button className="run" title="Execute (Ctrl/⌘+Enter)" disabled={tab.running} onClick={() => exec(false)}><Icon id="play" /></button>
             <button title="Execute script (Ctrl/⌘+Shift+Enter)" disabled={tab.running} onClick={() => exec(true)}><Icon id="run-all" /></button>
+            <button title="Format SQL (Ctrl/⌘+Shift+F)" disabled={!sqlKind} onClick={format}><Icon id="list-ordered" /></button>
             <button title="Cancel (Ctrl/⌘+F2)" disabled={!tab.running} onClick={() => void cancel(tab.id)}><Icon id="debug-stop" /></button>
             <div className="menu-host">
               <button title="Query history" disabled={!history.length} onClick={() => setHistOpen((o) => !o)}><Icon id="history" /></button>
@@ -90,6 +130,7 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
             </div>
             <span className="sep" />
             <span className="ds"><Icon id="database" /> <span className="ds-name">{conn?.name}</span></span>
+            {formatNote && <span className={`format-note${formatNote.error ? ' error' : ''}`} role="status" title={formatNote.text}>{formatNote.text}</span>}
             <span className="grow" />
             <button title="Toggle results" onClick={() => set({ showResults: !showResults })}><Icon id={showResults ? 'layout-panel' : 'layout-panel-off'} /></button>
           </div>

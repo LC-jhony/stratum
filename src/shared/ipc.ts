@@ -1,5 +1,6 @@
 import type { DockerContainer, DockerEndpoint } from './docker'
 import type { ConnectionConfig, ConnectionView, DatabaseModel, QueryResult, ThemeFile, ThemeManifestEntry } from './types'
+import type { UpdateState } from './update'
 
 /** Native save-dialog filter (matches Electron's FileFilter). */
 export interface SaveFilter { name: string; extensions: string[] }
@@ -51,6 +52,31 @@ export interface StratumApi {
     saveBinary(defaultName: string, base64: string, filters?: SaveFilter[]): Promise<string | null>
     /** Print a standalone SVG as a single-page vector PDF sized to the diagram. */
     pdf(defaultName: string, svg: string, size: { width: number; height: number }): Promise<string | null>
+  }
+  update: {
+    /** Current updater state; the renderer also receives every transition through onState. */
+    state(): Promise<UpdateState>
+    /** Manual check. Resolves with the state after the feed answers. */
+    check(): Promise<UpdateState>
+    /** Download the available update. */
+    download(): Promise<UpdateState>
+    /** Restart and install a downloaded update. */
+    install(): Promise<void>
+    /** Open the matching GitHub Release in the browser. */
+    openReleasePage(): Promise<void>
+    /** Main -> renderer update state transitions. Returns an unsubscribe function. */
+    onState(cb: (state: UpdateState) => void): () => void
+  }
+  window: {
+    minimize(): Promise<void>
+    /** Maximize when restored, restore when maximized. */
+    toggleMaximize(): Promise<void>
+    close(): Promise<void>
+    isMaximized(): Promise<boolean>
+    /** Pop up the application menu under a title-bar button, in window coordinates. */
+    showMenu(position: { x: number; y: number }): Promise<void>
+    /** Main -> renderer maximize/restore transitions. Returns an unsubscribe function. */
+    onMaximized(cb: (maximized: boolean) => void): () => void
   }
   /** Main -> renderer menu commands (global menu on macOS/Linux, window menu on Windows). */
   onCommand(cb: (cmd: string, arg?: unknown) => void): () => void

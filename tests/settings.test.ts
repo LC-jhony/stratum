@@ -24,3 +24,23 @@ describe('editor.fontFamily coercion', () => {
   })
   it('caps runaway values', () => expect(mergeSettings({ 'editor.fontFamily': 'x'.repeat(300) })['editor.fontFamily']).toHaveLength(200))
 })
+
+describe('workspace and update preferences', () => {
+  it('defaults to restoring consoles and checking for updates', () => {
+    expect(mergeSettings(undefined)['workbench.restoreTabs']).toBe(true)
+    expect(mergeSettings(undefined)['update.autoCheck']).toBe(true)
+    expect(mergeSettings(undefined)['update.autoDownload']).toBe(true)
+  })
+  it('keeps explicit booleans', () => {
+    const s = mergeSettings({ 'workbench.restoreTabs': false, 'update.autoCheck': false, 'update.autoDownload': false })
+    expect(s['workbench.restoreTabs']).toBe(false)
+    expect(s['update.autoCheck']).toBe(false)
+    expect(s['update.autoDownload']).toBe(false)
+  })
+  it('rejects non-boolean values', () => {
+    const s = mergeSettings({ 'workbench.restoreTabs': 'no', 'update.autoCheck': 0, 'update.autoDownload': null })
+    expect(s['workbench.restoreTabs']).toBe(true)
+    expect(s['update.autoCheck']).toBe(true)
+    expect(s['update.autoDownload']).toBe(true)
+  })
+})

@@ -13,6 +13,22 @@ const api: StratumApi = {
   dialogs: group('dialogs', ['pickFile', 'openText']) as StratumApi['dialogs'],
   docker: group('docker', ['list']) as StratumApi['docker'],
   export: group('export', ['save', 'saveBinary', 'pdf']) as StratumApi['export'],
+  update: {
+    ...group('update', ['state', 'check', 'download', 'install', 'openReleasePage']) as Omit<StratumApi['update'], 'onState'>,
+    onState(cb) {
+      const l = (_: unknown, state: Parameters<typeof cb>[0]) => cb(state)
+      ipcRenderer.on('update:state', l)
+      return () => ipcRenderer.removeListener('update:state', l)
+    },
+  },
+  window: {
+    ...group('window', ['minimize', 'toggleMaximize', 'close', 'isMaximized', 'showMenu']) as Omit<StratumApi['window'], 'onMaximized'>,
+    onMaximized(cb) {
+      const l = (_: unknown, maximized: boolean) => cb(maximized)
+      ipcRenderer.on('window:maximized', l)
+      return () => ipcRenderer.removeListener('window:maximized', l)
+    },
+  },
   onCommand(cb) {
     const l = (_: unknown, cmd: string, arg?: unknown) => cb(cmd, arg)
     ipcRenderer.on('command', l)

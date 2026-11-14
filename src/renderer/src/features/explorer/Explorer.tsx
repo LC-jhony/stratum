@@ -22,6 +22,8 @@ export function Explorer() {
   const rows = useMemo(() => {
     const out: Row[] = []
     const f = filter.trim().toLowerCase()
+    const hit = (value: string) => !f || value.toLowerCase().includes(f)
+    const childHit = (t: TableInfo) => !!f && (t.columns.some((c) => hit(c.name)) || t.indexes.some((i) => hit(i.name) || i.columns.some(hit)))
     for (const conn of connections) {
       const l = live[conn.id], ck = conn.id
       out.push({ key: ck, depth: 0, kind: 'connection', label: conn.name, detail: l?.version ? `${conn.kind} ${l.version}` : conn.kind, expandable: true, icon: l?.status === 'ready' ? 'database' : l?.status === 'error' ? 'error' : 'server', color: l?.status === 'ready' ? 'var(--vscode-charts-green)' : l?.status === 'error' ? 'var(--vscode-errorForeground)' : undefined, conn })
@@ -31,15 +33,19 @@ export function Explorer() {
       if (l?.status === 'error') out.push({ key: `${ck}/err`, depth: 1, kind: 'group', label: l.error ?? 'Connection failed', expandable: false, icon: 'warning', color: 'var(--vscode-errorForeground)', conn })
       for (const s of model?.schemas ?? []) {
         const sk = `${ck}/${s.name}`
-        const tables = s.tables.filter((t) => !f || t.name.toLowerCase().includes(f))
-        if (f && !tables.length) continue
-        out.push({ key: sk, depth: 1, kind: 'schema', label: s.name, detail: String(tables.length), expandable: true, icon: 'symbol-namespace', fi: open.has(sk) ? 'folder_database_open' : 'folder_database', conn, schema: s.name })
-        if (!open.has(sk) && !f) continue
+        const schemaHit = hit(s.name)
+        // The filter matches schemas, tables, columns and indexes; matching children are revealed inline.
+        const tables = s.tables.filter((t) => !f || schemaHit || hit(t.name) || childHit(t))
+        if (!schemaHit && !tables.length) continue
+        const schemaOpen = open.has(sk)
+        out.push({ key: sk, depth: 1, kind: 'schema', label: s.name, detail: String(tables.length), expandable: true, icon: 'symbol-namespace', fi: schemaOpen || (!!f && !schemaHit) ? 'folder_database_open' : 'folder_database', conn, schema: s.name })
+        if (!schemaOpen && !f) continue
         for (const t of tables) {
           const tk = `${sk}/${t.name}`
+          const nameHit = hit(t.name), expanded = open.has(tk)
           out.push({ key: tk, depth: 2, kind: t.kind, label: t.name, expandable: true, icon: t.kind === 'view' ? 'eye' : 'table', fi: t.kind === 'view' ? undefined : 'table', color: 'var(--vscode-charts-blue)', conn, schema: s.name, table: t.name })
-          if (!open.has(tk)) continue
-          pushChildren(out, t, tk, conn, s.name)
+          if (expanded) pushChildren(out, t, tk, conn, s.name)
+          else if (f && !schemaHit && !nameHit && childHit(t)) pushChildren(out, t, tk, conn, s.name, f)
         }
       }
     }
@@ -108,7 +114,7 @@ export function Explorer() {
           <button title="New Query Console" onClick={() => openConsole(sel ? rows.find((r) => r.key === sel)?.conn.id : undefined)}><Icon id="terminal" /></button>
         </div>
       </header>
-      <div className="filter"><Icon id="filter" /><input placeholder="Filter tables" value={filter} onChange={(e) => setFilter(e.target.value)} /></div>
+      <div className="filter"><Icon id="filter" /><input placeholder="Filter schemas, tables, columns, indexes" value={filter} onChange={(e) => setFilter(e.target.value)} /></div>
       <div className="explorer-tree" tabIndex={0} onKeyDown={onKey} role="tree">
         {!connections.length && <div className="empty-state"><p>No data sources yet.</p><button className="primary" onClick={() => set({ dialog: {} })}>New Data Source…</button></div>}
         {rows.map((r) => (
@@ -183,7 +189,14 @@ export function Explorer() {
   )
 }
 
-function pushChildren(out: Row[], t: TableInfo, tk: string, conn: ConnectionView, schema: string) {
-  for (const c of t.columns) out.push({ key: `${tk}/c/${c.name}`, depth: 3, kind: 'column', label: c.name, detail: c.dataType + (c.nullable ? '' : ' • not null'), expandable: false, icon: c.isPrimaryKey ? 'key' : t.foreignKeys.some((f) => f.columns.includes(c.name)) ? 'references' : 'symbol-field', color: c.isPrimaryKey ? 'var(--vscode-charts-yellow)' : t.foreignKeys.some((f) => f.columns.includes(c.name)) ? 'var(--vscode-charts-blue)' : 'var(--vscode-descriptionForeground)', conn, schema, table: t.name })
-  for (const i of t.indexes) out.push({ key: `${tk}/i/${i.name}`, depth: 3, kind: 'index', label: i.name, detail: `(${i.columns.join(', ')})`, extra: i.unique ? 'unique' : undefined, expandable: false, icon: 'list-ordered', conn, schema, table: t.name })
+function pushChildren(out: Row[], t: TableInfo, tk: string, conn: ConnectionView, schema: string, filter?: string) {
+  const hit = (value: string) => !filter || value.toLowerCase().includes(filter)
+  for (const c of t.columns) {
+    if (!hit(c.name)) continue
+    out.push({ key: `${tk}/c/${c.name}`, depth: 3, kind: 'column', label: c.name, detail: c.dataType + (c.nullable ? '' : ' • not null'), expandable: false, icon: c.isPrimaryKey ? 'key' : t.foreignKeys.some((f) => f.columns.includes(c.name)) ? 'references' : 'symbol-field', color: c.isPrimaryKey ? 'var(--vscode-charts-yellow)' : t.foreignKeys.some((f) => f.columns.includes(c.name)) ? 'var(--vscode-charts-blue)' : 'var(--vscode-descriptionForeground)', conn, schema, table: t.name })
+  }
+  for (const i of t.indexes) {
+    if (!hit(i.name) && !i.columns.some(hit)) continue
+    out.push({ key: `${tk}/i/${i.name}`, depth: 3, kind: 'index', label: i.name, detail: `(${i.columns.join(', ')})`, extra: i.unique ? 'unique' : undefined, expandable: false, icon: 'list-ordered', conn, schema, table: t.name })
+  }
 }

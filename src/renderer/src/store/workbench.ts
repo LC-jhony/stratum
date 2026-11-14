@@ -4,6 +4,7 @@ import { createConsoleSlice } from './slices/console'
 import { createPrefsSlice } from './slices/prefs'
 import { createTabsSlice } from './slices/tabs'
 import { createUiSlice } from './slices/ui'
+import { createUpdateSlice } from './slices/update'
 import type { WorkbenchState } from './types'
 
 /**
@@ -16,6 +17,7 @@ export const useWorkbench = create<WorkbenchState>((set, get, api) => ({
   ...createConsoleSlice(set, get, api),
   ...createPrefsSlice(set, get, api),
   ...createUiSlice(set, get, api),
+  ...createUpdateSlice(set, get, api),
 }))
 
 export type {

@@ -12,7 +12,8 @@
 [![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-2f81f7)](https://github.com/LC-jhony/stratum)
 
 A DataGrip-style database IDE built on Electron, Monaco and the VS Code theme ecosystem.
-Windows · macOS · Linux (native menu; global menu bar on macOS, and on Linux desktops with a DBusMenu host).
+Windows · macOS · Linux, with an in-app title bar: native caption buttons on Windows, traffic lights
+on macOS, and themed minimize/maximize/close controls on Linux (including Wayland).
 
 ![Stratum workbench: database explorer, SQL console, results grid and ER diagram](stratum-brand/preview.png)
 
@@ -33,6 +34,7 @@ Windows · macOS · Linux (native menu; global menu bar on macOS, and on Linux d
 - [Entity-relationship diagrams](#entity-relationship-diagrams)
 - [Themes and appearance](#themes-and-appearance)
 - [Settings](#settings)
+- [Updates](#updates)
 - [Keyboard shortcuts](#keyboard-shortcuts)
 - [Where your data lives](#where-your-data-lives)
 - [Architecture](#architecture)
@@ -58,10 +60,13 @@ Windows · macOS · Linux (native menu; global menu bar on macOS, and on Linux d
   local unix socket or TCP and fills Host/Port from a published port — plus the matching server type
   when the image is recognized. It is read-only: only `GET /containers/json` is ever called.
 - **Database Explorer.** Schemas, tables, views, columns (with PK / FK badges and nullability), and
-  indexes; a filter box; context menus for opening consoles, data editors and diagrams; plus
-  light Rename… / Find Usages helpers that generate SQL instead of silently executing it.
+  indexes; a filter box that matches schema, table, column and index names; context menus for opening
+  consoles, data editors and diagrams; plus light Rename… / Find Usages helpers that generate SQL
+  instead of silently executing it.
 - **SQL consoles.** Monaco with statement-under-caret execution, whole-script execution, cancel,
-  per-connection history, and DataGrip-style SQL parameter prompts.
+  per-connection history, DataGrip-style SQL parameter prompts, dialect-aware **Format SQL**
+  (`Ctrl/⌘+Shift+F`, formats the selection or the whole buffer), and optional session restore that
+  reopens SQL consoles with their text after a restart.
 - **DataGrip-style completion.** Dialect-aware suggestions for 23 SQL dialects: aliases, qualified
   names, INSERT auto-fill, JOIN generation from foreign keys, live templates and a DataGrip-like
   ranker (match quality, label length, word usage).
@@ -78,12 +83,18 @@ Windows · macOS · Linux (native menu; global menu bar on macOS, and on Linux d
 - **VS Code themes.** Any color theme, file icon theme or product icon theme; installed VS Code /
   VSCodium / Cursor extensions are discovered automatically, and Dark / Light / System modes switch
   between sibling themes.
+- **In-app updates.** The status bar shows download progress and offers *Restart and install*;
+  Settings ▸ Updates controls automatic checks and background downloads. AppImage, deb, rpm, Windows
+  NSIS and macOS builds update from GitHub Releases; portable and Snap builds open the release page
+  instead.
 
 ## Requirements
 
 | | |
 |---|---|
 | Released Linux installers | x86_64; Debian 12+ / Ubuntu 22.04+, Fedora/RHEL/openSUSE, or another glibc distribution via AppImage |
+| Released macOS installers | macOS 11+ universal build (Apple silicon and Intel) |
+| Released Windows installers | Windows 10/11 x64: NSIS installer or portable executable |
 | Development | Node.js 22.12+ and npm (Node 24 LTS is also supported) |
 | Running from source, Linux | an X11/Wayland session; `xvfb` only for `npm run smoke` |
 | JDBC data sources | Java 11+ on `PATH`, or a `JAVA_HOME` configured in Settings |
@@ -91,9 +102,10 @@ Windows · macOS · Linux (native menu; global menu bar on macOS, and on Linux d
 
 ## Install
 
-Prebuilt Linux packages are published on the
+Prebuilt installers are published on the
 [releases page](https://github.com/LC-jhony/stratum/releases). Every tagged release contains a
-Debian package, an RPM package and an AppImage, plus `SHA256SUMS`.
+Debian package, an RPM package and an AppImage for Linux; a universal DMG and ZIP for macOS; an NSIS
+installer and a portable executable for Windows; the platform update metadata; and `SHA256SUMS`.
 
 ### Linux installer (recommended)
 
@@ -123,7 +135,7 @@ Pin a release:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/LC-jhony/stratum/main/scripts/install.sh \
-  | sudo bash -s -- --version v0.1.0
+  | sudo bash -s -- --version v0.2.0
 ```
 
 Install without root, under `~/.local` (AppImage):
@@ -198,6 +210,20 @@ The AppImage needs a glibc-based x86_64 distribution. For a system-wide install 
 integration, use the installer above: it extracts the AppImage instead of relying on FUSE and marks
 `chrome-sandbox` setuid root.
 
+### macOS
+
+Download `stratum_universal.dmg`, open it and drag **Stratum** into **Applications**. The build is
+universal, so it runs natively on Apple silicon and Intel. Releases are signed and notarized when
+the repository's signing secrets are configured; an unsigned build must be opened once with
+right-click ▸ **Open** (or System Settings ▸ Privacy & Security ▸ **Open Anyway**).
+
+### Windows
+
+Download `stratum_setup.exe` and run it, or use `stratum_portable.exe` for a no-install copy.
+The NSIS installer updates itself through GitHub Releases; the portable executable does not and
+offers the releases page instead. SmartScreen may warn on unsigned builds; signed artifacts require
+the `WIN_CERTIFICATE` repository secret.
+
 ### Build from source
 
 ```bash
@@ -210,6 +236,13 @@ npx electron-builder --linux deb   # or: rpm, AppImage, or `npm run dist`
 Artifacts land in `dist/`. `npm run dist` builds every target configured for the current OS:
 AppImage + deb + rpm on Linux, dmg + zip on macOS, NSIS + portable on Windows. Installers must be
 built on (or for) each OS.
+
+The [release workflow](.github/workflows/release.yml) does that in parallel on GitHub runners and
+publishes one GitHub Release. It embeds `latest-linux.yml`, `latest.yml` and `latest-mac.yml` next to
+the installers so `electron-updater` can find them. Code signing is optional: set
+`MAC_CERTIFICATE` / `MAC_CERTIFICATE_PASSWORD` (plus `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and
+`APPLE_TEAM_ID` for notarization) and `WIN_CERTIFICATE` / `WIN_CERTIFICATE_PASSWORD` to sign; without
+them the workflow still builds, but the artifacts are unsigned and Gatekeeper/SmartScreen warn.
 
 ### Verifying downloads
 
@@ -479,6 +512,10 @@ verifier is on the roadmap.
 
 The window is the familiar IDE layout:
 
+- **Title bar:** the Stratum mark and current tab, a **Search actions** field, and window controls.
+  Linux draws themed minimize / maximize / close buttons (also under Wayland, where native
+  decorations are not guaranteed); Windows uses the native caption-button overlay; macOS keeps its
+  traffic lights. The ☰ button opens the application menu (macOS uses the global menu bar).
 - **Activity bar** (left or right, see `workbench.sideBar.position`): Database Explorer, New Query
   Console, Diagram, Find Action (`Ctrl/⌘+Shift+A`) and Settings. Hovering shows each action's
   name and shortcut.
@@ -490,9 +527,9 @@ The window is the familiar IDE layout:
 - **Status bar:** the active data source with its version, and the active color theme (click to
   change it).
 
-The native menu (File / Edit / View / Run / Database / Help) exposes the same commands as the UI.
-A tray icon shows or hides the window where the platform supports it, and all database sessions are
-closed cleanly on quit.
+The application menu (File / Edit / View / Run / Database / Help) exposes the same commands as the
+UI. A tray icon shows or hides the window where the platform supports it, and all database sessions
+are closed cleanly on quit.
 
 ## SQL completion
 
@@ -640,14 +677,15 @@ Carbon themes (visible borders, `tree.tableColumnsBorder`, `charts.*`) from the 
 ## Settings
 
 Settings live in `<userData>/settings.json` and are editable both in the dialog (`Ctrl+Alt+S`, macOS
-`⌘,`) — Appearance, Editor, SQL completion, Query execution, JDBC adapter, and a raw-JSON mode with
-validation — and directly as JSON. Unknown keys pass through untouched; known keys are coerced to
-safe values, and *Restore defaults* resets everything.
+`⌘,`) — Appearance, Editor, SQL completion, Query execution, Updates, JDBC adapter, and a raw-JSON
+mode with validation — and directly as JSON. Unknown keys pass through untouched; known keys are
+coerced to safe values, and *Restore defaults* resets everything.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `appearance.mode` | `system` | `dark` / `light` pin a theme kind; `system` follows the OS. |
 | `workbench.sideBar.position` | `left` | `left` / `right`; moves activity bar and side bar together. |
+| `workbench.restoreTabs` | `true` | Reopen SQL consoles (text only) after a restart. |
 | `editor.fontFamily` | `""` | Monospace family; empty keeps the built-in chain (JetBrains Mono, SF Mono…). |
 | `editor.fontSize` | `13` | 8–32. |
 | `editor.tabSize` | `2` | 1–8. |
@@ -665,7 +703,36 @@ safe values, and *Restore defaults* resets everything.
 | `query.parameters.values` | `{}` | Remembered parameter values, keyed by name. |
 | `jdbc.jarPath` | `""` | `jdbc-adapter-server.jar` location; empty uses the bundled copy or `STRATUM_JDBC_JAR`. |
 | `jdbc.javaHome` | `""` | Java home for the sidecar; empty uses `java` from `PATH`. |
-| `colorTheme`, `fileIconTheme`, `productIconTheme`, `colorScheme`, `windowBackground` | — | Managed by the theme manager. |
+| `update.autoCheck` | `true` | Check GitHub Releases shortly after launch and every four hours. |
+| `update.autoDownload` | `true` | Download an available update in the background; installing still needs a restart. |
+| `colorTheme`, `fileIconTheme`, `productIconTheme`, `colorScheme`, `windowBackground`, `titleBarBackground`, `titleBarForeground` | — | Managed by the theme manager. |
+
+## Updates
+
+Stratum updates itself from the project's GitHub Releases. The feed is the
+[`latest-linux.yml`](https://github.com/LC-jhony/stratum/releases/latest/download/latest-linux.yml)
+asset published next to the installers, and `app-update.yml` inside the package points
+`electron-updater` at it. Builds made for Windows or macOS use the same configuration and publish
+the matching `latest.yml` / `latest-mac.yml` metadata.
+
+- **Check manually** from the status-bar button, **Help ▸ Check for Updates…**, or
+  **Settings ▸ Updates**. Manual checks always report the result, including “you are on the latest
+  version”.
+- **Automatic checks** start about 20 seconds after launch and repeat every four hours. They are
+  quiet: a missing network or a feed error never opens a dialog at startup.
+- **Download** happens in the background when `update.autoDownload` is on; the status bar shows
+  percentage, transferred size and speed. Turn it off to download only when you press
+  *Download update*.
+- **Install** with *Restart and install*. AppImage replaces itself; deb and rpm call the system
+  package manager through `pkexec`/`sudo`, so the desktop asks for administrator approval. Windows
+  NSIS and macOS builds restart into the new version automatically.
+- **Release notes** for the offered version open from the update panel, or from
+  **Help ▸ Release Notes**.
+- **Unsupported builds**: the portable Windows build, Snap packages, and unpackaged development
+  builds do not self-update; the panel offers *Open releases* instead.
+
+Updates only move forward, prereleases are ignored, and the feed is HTTPS. If a check fails, the
+panel shows the reason and a *Try again* button; the previous version keeps working.
 
 ## Keyboard shortcuts
 
@@ -677,6 +744,7 @@ safe values, and *Restore defaults* resets everything.
 | `Ctrl/⌘+Alt+U` | Show Diagram for the current data source |
 | `Ctrl/⌘+Enter` | Execute the statement under the caret |
 | `Ctrl/⌘+Shift+Enter` | Execute the whole script |
+| `Ctrl/⌘+Shift+F` | Format SQL (selection, or the whole console) |
 | `Ctrl/⌘+F2` | Cancel the running statement |
 | `Ctrl/⌘+Alt+Enter` | Submit pending grid changes |
 | `Ctrl/⌘+Shift+A` | Find Action (command palette) |
@@ -698,6 +766,7 @@ All application state lives under Electron's per-user data directory (`~/.config
 | `connections.json` | Data source configs, written atomically (temp file + rename). Passwords are sealed with the OS keychain (`safeStorage`) when available. |
 | `settings.json` | Everything in the [Settings](#settings) table. |
 | `history.json` | Per-connection console history (newest first, max 100 statements each). |
+| `Local Storage/` | The restored console workspace when `workbench.restoreTabs` is on: tab titles, connection ids and SQL text, capped and validated on read. Results and sessions are never stored. |
 | `themes/` | Drop-in VS Code themes (color, file icon, product icon). |
 
 SQLite files are modified in place by the SQLite transport (written after each statement that
@@ -1009,6 +1078,12 @@ The smoke run complements them with an end-to-end pass through the real Electron
   the brand icons (window icon, tray icons including the macOS template variants).
 - **Targets:** macOS `dmg` + `zip` (hardened runtime), Windows `nsis` + `portable`, Linux
   `AppImage` + `deb` + `rpm` (category *Development*, `StartupWMClass=stratum`).
+- **Stable asset names:** `stratum_x86_64.AppImage`, `stratum_amd64.deb`, `stratum_x86_64.rpm`,
+  `stratum_setup.exe` and `stratum_portable.exe`, so `scripts/install.sh` and the generated update
+  metadata never depend on electron-builder's versioned defaults.
+- **Update feed:** the `publish` block points at `github:LC-jhony/stratum`. electron-builder embeds
+  `app-update.yml` in the package and writes `latest-linux.yml` next to the Linux artifacts; both are
+  required by electron-updater.
 - **deb dependencies:** the top-level `deb` block overrides electron-builder's default list to drop
   the legacy `libxss1` hard dependency — the packaged Electron neither links nor `dlopen`s
   `libXss.so.1`, so requiring it only made `dpkg -i` fail on distributions that no longer ship the
@@ -1033,13 +1108,14 @@ architecture lint, tests and the production build, fetches the JDBC sidecar, and
 | `stratum_amd64.deb` | Debian / Ubuntu |
 | `stratum_x86_64.rpm` | Fedora / RHEL / openSUSE |
 | `stratum_x86_64.AppImage` | other glibc distributions |
+| `latest-linux.yml` | update metadata read by `electron-updater` |
 | `SHA256SUMS` | integrity check for the three packages |
 
 The tag must match `version` in `package.json`; the workflow fails otherwise. Publish a release with:
 
 ```bash
-git tag -a v0.1.0 -m "Stratum 0.1.0"
-git push origin v0.1.0
+git tag -a v0.2.0 -m "Stratum 0.2.0"
+git push origin v0.2.0
 ```
 
 `scripts/install.sh` consumes the stable asset names through `/releases/latest/download/...`, so
@@ -1049,9 +1125,9 @@ The deb/rpm metadata (maintainer, homepage) comes from `author` and `homepage` i
 Running a single target is fine too:
 
 ```bash
-npx electron-builder --linux deb       # dist/stratum_<version>_<arch>.deb
+npx electron-builder --linux deb       # dist/stratum_amd64.deb
 npx electron-builder --linux rpm       # needs `rpm` installed on Debian/Ubuntu: sudo apt install rpm
-npx electron-builder --linux AppImage
+npx electron-builder --linux AppImage  # dist/stratum_x86_64.AppImage
 npx electron-builder --mac dmg         # must run on macOS
 ```
 
@@ -1070,6 +1146,7 @@ src/
     types.ts         domain types (drivers, dialects, catalog, results, themes)
     ipc.ts           StratumApi — the typed renderer<->main contract
     docker.ts        Docker helper shapes
+    update.ts        update phases, install kinds and the renderer state snapshot
   core/            pure domain logic shared by main and tests (no Electron/React)
     sql.ts           statement splitter, caret semantics, line-comment stripping
     mongo.ts         mongosh statement splitter and caret semantics
@@ -1084,6 +1161,9 @@ src/
     sqlDialectData.ts  generated keyword/function catalogs for 23 dialects
     sqlgen.ts        UPDATE/DELETE/INSERT builders for the data editor
     sqlParams.ts     SQL parameter patterns and substitution
+    sqlFormat.ts     dialect-aware Format SQL (sql-formatter)
+    workspace.ts     versioned console snapshot used by session restore
+    update.ts        update labels, progress and release-notes helpers
     quoting.ts       dialect identifier quoting
     gridView.ts      result filtering and sorting
     export.ts        CSV/TSV/pipe/semicolon/JSON/INSERT writers
@@ -1121,6 +1201,7 @@ src/
       sshTunnel.ts          SSH connection helper: one tunnel per data source
       store.ts              atomic JsonStore + safeStorage password sealing
       themeService.ts       theme discovery, import and asset protocol roots
+      updateService.ts      electron-updater state machine, schedule and install
       jdbcSidecar.ts        shared jdbc-adapter-server process
   preload/index.ts  contextBridge: window.stratum
   renderer/src/
@@ -1132,7 +1213,7 @@ src/
     theme/            colorTheme · fileIconTheme · productIconTheme · monacoTheme · fonts · themeManager
     erd/erd.ts        graph build, ELK layout, orthogonal routing, SVG render
     ui/               Icon/iconMap/lucide · DataGrid · ExportMenu · ValueDialog
-    features/         connections · console · table · ERD · explorer · settings
+    features/         connections · console · table · ERD · explorer · settings · updates
     workbench/        CommandPalette · Tabs (app shell)
     styles.css        workbench CSS built on the --vscode-* variables
 tests/               Vitest suites (see Testing); helpers/sshd.ts runs the in-process sshd
@@ -1170,6 +1251,8 @@ stratum-brand/       logos, app icons, tray icons, README preview image
   from a locally installed copy (scripts above); no DataGrip code or resources are copied.
 - Runtime building blocks: [Electron](https://www.electronjs.org/), [Monaco Editor](https://microsoft.github.io/monaco-editor/),
   [React](https://react.dev/), [zustand](https://zustand-demo.pmnd.rs/), [elkjs](https://github.com/kieler/elkjs),
+  [electron-updater](https://github.com/electron-userland/electron-builder),
+  [sql-formatter](https://github.com/sql-formatter-org/sql-formatter),
   [sql.js](https://sql.js.org/), [pg](https://node-postgres.com/), [mysql2](https://github.com/sidorares/node-mysql2),
   [ssh2](https://github.com/mscdex/ssh2), [ioredis](https://github.com/redis/ioredis),
   [mongodb](https://github.com/mongodb/node-mongodb-native),

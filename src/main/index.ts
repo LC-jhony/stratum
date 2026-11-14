@@ -15,6 +15,7 @@ import { SessionFactory } from './services/sessionFactory'
 import { SettingsService } from './services/settingsService'
 import { ConnectionStore, JsonStore } from './services/store'
 import { ThemeService } from './services/themeService'
+import { UpdateService } from './services/updateService'
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'stratum-asset', privileges: { standard: true, secure: true, supportFetchAPI: true } }])
 
@@ -32,8 +33,27 @@ let tray: Tray | null = null
 let syncTray: (() => void) | null = null
 const resourcePath = (...p: string[]) => (app.isPackaged ? path.join(process.resourcesPath, ...p) : path.join(app.getAppPath(), ...p))
 
+/** Height of the in-app title bar; the Windows caption overlay must match it exactly. */
+const TITLE_BAR_HEIGHT = 36
+
+/** Native chrome for each platform: WCO captions (Windows), traffic lights (macOS), custom controls (Linux). */
+const titleBarOptions = (prefs: Record<string, unknown>) => process.platform === 'win32'
+  ? {
+    titleBarStyle: 'hidden' as const,
+    titleBarOverlay: {
+      color: typeof prefs.titleBarBackground === 'string' ? prefs.titleBarBackground : (prefs.windowBackground as string) ?? '#171717',
+      symbolColor: typeof prefs.titleBarForeground === 'string' ? prefs.titleBarForeground : '#cccccc',
+      height: TITLE_BAR_HEIGHT,
+    },
+  }
+  : process.platform === 'darwin'
+    ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 14, y: 12 } }
+    : { frame: false }
+
 async function main() {
   await app.whenReady()
+  // Windows taskbar grouping, notifications and jump lists use this stable application id.
+  if (process.platform === 'win32') app.setAppUserModelId('dev.stratum.app')
   if (process.platform !== 'win32') app.setAboutPanelOptions({ applicationName: 'Stratum', applicationVersion: app.getVersion(), iconPath: brandPath('png/stratum-512.png') })
   const data = app.getPath('userData')
   configureKnownHosts(path.join(data, 'known_hosts.json'))
@@ -51,6 +71,15 @@ async function main() {
   applyJdbcSettings(initial)
   // Native chrome (the in-window menu bar, popup menus, dialogs) follows the selected color theme, like VS Code.
   nativeTheme.themeSource = initial.colorScheme === 'light' || initial.colorScheme === 'dark' ? initial.colorScheme : 'system'
+  /** Windows draws the caption buttons over the web view; keep their colours in sync with the active theme. */
+  let titleBarColors = {
+    color: typeof initial.titleBarBackground === 'string' ? initial.titleBarBackground : (initial.windowBackground as string) ?? '#171717',
+    symbolColor: typeof initial.titleBarForeground === 'string' ? initial.titleBarForeground : '#cccccc',
+  }
+  const applyTitleBarColors = () => {
+    if (process.platform !== 'win32' || !win || win.isDestroyed()) return
+    win.setTitleBarOverlay({ ...titleBarColors, height: TITLE_BAR_HEIGHT })
+  }
   const sidecar = new JdbcSidecar(() => ({ ...jdbc, jar: jdbc.jar ?? process.env.STRATUM_JDBC_JAR ?? resourcePath('jdbc-adapter', 'jdbc-adapter-server.jar') }))
   const sessionFactory = new SessionFactory(sidecar)
   const manager = new ConnectionManager(connections, sessionFactory)
@@ -58,6 +87,7 @@ async function main() {
   const desktop = new DesktopService(() => win)
   const history = new HistoryService(new JsonStore(path.join(data, 'history.json'), { queries: {} }))
   const themes = new ThemeService(resourcePath('themes'), path.join(data, 'themes'))
+  const updates = new UpdateService({ settings, getWindow: () => win })
   // Settings used to hold console history; move it once, then drop the old key.
   if (await history.importLegacy((await settings.get())['query.history'])) await settings.update({ 'query.history': undefined })
 
@@ -71,6 +101,14 @@ async function main() {
     if (applyJdbcSettings(patch)) sidecar.stop()
     if (patch.colorScheme === 'light' || patch.colorScheme === 'dark' || patch.colorScheme === 'system') nativeTheme.themeSource = patch.colorScheme
     if (typeof patch.windowBackground === 'string' && patch.windowBackground && win && !win.isDestroyed()) win.setBackgroundColor(patch.windowBackground)
+    if (typeof patch.titleBarBackground === 'string' || (typeof patch.windowBackground === 'string' && patch.windowBackground)) {
+      titleBarColors = { ...titleBarColors, color: typeof patch.titleBarBackground === 'string' ? patch.titleBarBackground : patch.windowBackground as string }
+      applyTitleBarColors()
+    }
+    if (typeof patch.titleBarForeground === 'string') {
+      titleBarColors = { ...titleBarColors, symbolColor: patch.titleBarForeground }
+      applyTitleBarColors()
+    }
   })
   registerIpc({
     connections: connectionService,
@@ -79,6 +117,7 @@ async function main() {
     settings,
     history,
     desktop,
+    update: updates,
     window: () => win,
   })
   buildMenu()
@@ -89,13 +128,16 @@ async function main() {
       width: 1440, height: 900, minWidth: 820, minHeight: 560, show: false,
       icon: brandPath('png/stratum-512.png'),
       backgroundColor: (prefs.windowBackground as string) ?? '#171717',
-      // On Linux the in-window menu bar is drawn with the system GTK colours, so it cannot follow the app theme
-      // (a dark GTK theme keeps it dark on light themes). Hide it like VS Code does; Alt reveals it.
-      autoHideMenuBar: process.platform === 'linux',
+      // The app draws its own title bar on every platform. Hide the native menu bar everywhere except
+      // macOS (which has the global menu bar); the ☰ button in the title bar opens the same menu.
+      ...titleBarOptions(prefs),
       webPreferences: { preload: path.join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: true, nodeIntegration: false },
     })
-    if (process.platform === 'linux') win.setMenuBarVisibility(false)
+    if (process.platform !== 'darwin') { win.setMenuBarVisibility(false); win.setAutoHideMenuBar(false) }
+    if (process.platform === 'win32') applyTitleBarColors()
     win.once('ready-to-show', () => win?.show())
+    win.on('maximize', () => win?.webContents.send('window:maximized', true))
+    win.on('unmaximize', () => win?.webContents.send('window:maximized', false))
     win.on('show', () => syncTray?.())
     win.on('hide', () => syncTray?.())
     win.on('closed', () => syncTray?.())
@@ -112,6 +154,7 @@ async function main() {
     else await win.loadFile(path.join(__dirname, '../renderer/index.html'), { query: process.env.STRATUM_SMOKE ? { smoke: '1' } : undefined })
   }
   await create()
+  updates.start()
   /** System tray: click toggles the window (macOS opens the menu instead, like other menu-bar apps). */
   const createTray = () => {
     tray = new Tray(brandPath(process.platform === 'darwin' ? 'tray/trayTemplate.png' : 'tray/tray-32.png'))
@@ -150,6 +193,11 @@ async function main() {
   let closing = false
   // Give live sessions (and the sidecar) up to 3 s to close; a hung socket must not block quit forever.
   app.on('before-quit', (e) => {
+    updates.stop()
+    // electron-updater already installed the downloaded build and spawned the new process. Exit at
+    // once so that process can take the single-instance lock; the normal graceful close would keep
+    // this one alive for up to 3 s and the relaunched build would quit instead.
+    if (updates.isQuittingForUpdate()) { sidecar.stop(); app.exit(0); return }
     if (closing) return
     closing = true
     e.preventDefault()

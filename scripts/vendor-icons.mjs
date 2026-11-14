@@ -22,7 +22,9 @@ const mapPath = join(root, 'src/renderer/src/ui/iconMap.ts')
 const outPath = join(root, 'src/renderer/src/ui/lucide.tsx')
 
 const map = readFileSync(mapPath, 'utf8')
-const names = [...new Set([...map.matchAll(/^\s*'?[a-z0-9-]+'?:\s*'([a-z0-9-]+)',\s*$/gm)].map((m) => m[1]))].sort()
+// Only APP_ICONS holds Lucide names; GLYPH_ICONS below it points at the hand-drawn Valet set.
+const appBlock = map.slice(map.indexOf('export const APP_ICONS'), map.indexOf('} as const satisfies'))
+const names = [...new Set([...appBlock.matchAll(/^\s*'?[a-z0-9-]+'?:\s*'([a-z0-9-]+)',\s*$/gm)].map((m) => m[1]))].sort()
 if (!names.length) throw new Error(`no icon names found in ${mapPath}`)
 
 const toJsx = (svg) =>

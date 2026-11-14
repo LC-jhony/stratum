@@ -59,6 +59,10 @@ export const dockerEndpointSchema = z.object({
   ssl: z.boolean().optional(),
 }).strict()
 export const themePathSchema = z.string().min(1).max(4000)
+export const menuPositionSchema = z.object({
+  x: z.number().int().min(0).max(100_000),
+  y: z.number().int().min(0).max(100_000),
+}).strict()
 export const exportSizeSchema = z.object({
   width: z.number().finite().min(1).max(100_000),
   height: z.number().finite().min(1).max(100_000),

@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { ipc } from './ipc/client'
 import logoDark from './assets/brand/stratum-logo-vertical-on-dark.svg'
 import logoLight from './assets/brand/stratum-logo-vertical-on-light.svg'
-import markDark from './assets/brand/stratum-mark-on-dark.svg'
-import markLight from './assets/brand/stratum-mark-on-light.svg'
 import { setCompletionPrefs } from './monaco'
 import { isSqlKind } from '../../core/kinds'
+import { parseWorkspace, serializeWorkspace, WORKSPACE_STORAGE_KEY } from '../../core/workspace'
 import { useWorkbench } from './store/workbench'
 import { themes } from './theme/themeManager'
 import { applyFontPrefs } from './theme/fonts'
@@ -15,16 +14,18 @@ import { ConsoleEditor } from './features/console/ConsoleEditor'
 import { DatasourceDialog } from './features/connections/DatasourceDialog'
 import { ErdView } from './features/erd/ErdView'
 import { Explorer } from './features/explorer/Explorer'
+import { UpdateStatus } from './features/updates/UpdateStatus'
 import { ErrorBoundary } from './ui/ErrorBoundary'
 import { Icon } from './ui/Icon'
 import { ParamDialog } from './features/console/ParamDialog'
 import { SettingsDialog } from './features/settings/SettingsDialog'
 import { TableEditor } from './features/table/TableEditor'
 import { Tabs } from './workbench/Tabs'
+import { TitleBar } from './workbench/TitleBar'
 
 export function App() {
   const wb = useWorkbench()
-  const { tabs, activeTab, live, connections, prefs, prefsLoaded, set } = wb
+  const { tabs, activeTab, live, connections, prefs, prefsLoaded, history, set } = wb
   const [width, setWidth] = useState(280)
   const active = tabs.find((t) => t.id === activeTab)
   const activeConn = connections.find((c) => c.id === active?.connectionId)
@@ -32,7 +33,55 @@ export function App() {
   const light = document.documentElement.dataset.theme === 'light'
   const sideRight = prefs['workbench.sideBar.position'] === 'right'
   const sideVisible = prefs['workbench.sideBar.visible']
-  useEffect(() => { void wb.load() }, [])
+  const restored = useRef(false)
+  // Restore the previous SQL consoles after connections load; corruption or deleted sources are ignored.
+  useEffect(() => {
+    let live = true
+    void wb.load().then(() => {
+      if (!live) return
+      const s = useWorkbench.getState()
+      if (s.prefs['workbench.restoreTabs']) {
+        try {
+          const raw = localStorage.getItem(WORKSPACE_STORAGE_KEY)
+          const snapshot = parseWorkspace(raw, s.connections.map((c) => c.id))
+          if (snapshot) s.restoreWorkspace(snapshot)
+          else if (raw) localStorage.removeItem(WORKSPACE_STORAGE_KEY)
+        } catch { /* storage can be unavailable; start with an empty workbench */ }
+      }
+      restored.current = true
+    }).catch((e) => console.error('loading workspace:', e))
+    return () => { live = false }
+  }, [])
+  // Persist only SQL consoles (never results or sessions). Writes are debounced while typing.
+  useEffect(() => {
+    const save = () => {
+      if (!restored.current) return
+      const s = useWorkbench.getState()
+      try {
+        if (!s.prefs['workbench.restoreTabs']) { localStorage.removeItem(WORKSPACE_STORAGE_KEY); return }
+        const raw = serializeWorkspace(
+          s.tabs.filter((t) => t.type === 'console').map((t) => ({ id: t.id, title: t.title, connectionId: t.connectionId, sql: t.sql })),
+          s.activeTab,
+        )
+        if (raw) localStorage.setItem(WORKSPACE_STORAGE_KEY, raw)
+        else localStorage.removeItem(WORKSPACE_STORAGE_KEY)
+      } catch { /* quota or private mode: restoring is a convenience, never a failure */ }
+    }
+    let timer: number | undefined
+    const off = useWorkbench.subscribe((s, prev) => {
+      if (!restored.current || (s.tabs === prev.tabs && s.activeTab === prev.activeTab)) return
+      if (timer) clearTimeout(timer)
+      timer = window.setTimeout(save, 500)
+    })
+    addEventListener('beforeunload', save)
+    return () => { off(); removeEventListener('beforeunload', save); if (timer) clearTimeout(timer); save() }
+  }, [])
+  useEffect(() => {
+    let off: (() => void) | undefined
+    let live = true
+    void wb.initUpdates().then((f) => { if (live) off = f; else f() })
+    return () => { live = false; off?.() }
+  }, [])
   useEffect(() => { setCompletionPrefs({ enabled: prefs['completion.enabled'], suggestOnSpace: prefs['completion.suggestOnSpace'], autoAlias: prefs['completion.autoAlias'], snippets: prefs['completion.snippets'], joinByForeignKey: prefs['completion.joinByForeignKey'], keywordCase: prefs['completion.keywordCase'] }) }, [prefs])
   useEffect(() => { applyFontPrefs(prefs) }, [prefs['editor.fontFamily']]) // Settings may change after mount; reapply the mono family live.
   // UI scale and family: Settings previews them through previewPrefs, so this also drives the live preview.
@@ -61,6 +110,9 @@ export function App() {
       case 'theme.color': return s.set({ palette: 'colorTheme' })
       case 'theme.fileIcon': return s.set({ palette: 'fileIconTheme' })
       case 'theme.productIcon': return s.set({ palette: 'productIconTheme' })
+      case 'update.check': return void (s.showUpdates(), s.checkUpdates(false))
+      case 'update.open': return s.showUpdates()
+      case 'sql.format': { dispatchEvent(new Event('stratum:format')); return }
     }
   }, [])
   useEffect(() => ipc.onCommand((c) => void command(c)), [command])
@@ -75,30 +127,41 @@ export function App() {
     // Capture: Monaco consumes some modified keys before they reach the window bubble phase.
     addEventListener('keydown', h, true); return () => removeEventListener('keydown', h, true)
   }, [command])
+  // The native title bar is hidden, but the OS still uses the document title for the window list.
+  useEffect(() => { document.title = active ? `${active.title} — Stratum` : 'Stratum' }, [active?.title])
 
-  const actions = useMemo<PaletteItem[]>(() => [
-    { id: 'ds', label: 'New Data Source…', run: () => void command('datasource.new') },
-    { id: 'sqlite', label: 'Open SQLite File…', run: () => void command('datasource.openSqlite') },
-    { id: 'console', label: 'New Query Console', run: () => void command('console.new') },
-    { id: 'erd', label: 'Show Diagram for Current Data Source', run: () => void command('erd.open') },
-    { id: 'refresh', label: 'Refresh Database Explorer', run: () => void command('explorer.refresh') },
-    { id: 'side', label: 'View: Toggle Side Bar', hint: ipc.platform === 'darwin' ? '⌘B' : 'Ctrl+B', run: () => void command('view.sideBar') },
-    { id: 'explorer', label: 'View: Focus Database Explorer', hint: ipc.platform === 'darwin' ? '⌘1' : 'Ctrl+1', run: () => void command('view.explorer') },
-    { id: 'results', label: 'Toggle Results Panel', run: () => void command('view.results') },
-    { id: 'prefs', label: 'Preferences: Open Settings', hint: ipc.platform === 'darwin' ? '⌘,' : 'Ctrl+Alt+S', run: () => void command('settings') },
-    { id: 'ct', label: 'Preferences: Color Theme', hint: activeThemes.color?.entry.label, run: () => void command('theme.color') },
-    { id: 'fi', label: 'Preferences: File Icon Theme', hint: activeThemes.fileIcon?.entry.label ?? 'none', run: () => void command('theme.fileIcon') },
-    { id: 'pi', label: 'Preferences: Product Icon Theme', hint: activeThemes.productIcon?.entry.label ?? 'Codicons', run: () => void command('theme.productIcon') },
-  ], [command, activeThemes])
+  const actions = useMemo<PaletteItem[]>(() => {
+    const recent = activeConn ? (history[activeConn.id] ?? []).slice(0, 6) : []
+    return [
+      { id: 'ds', label: 'New Data Source…', run: () => void command('datasource.new') },
+      { id: 'sqlite', label: 'Open SQLite File…', run: () => void command('datasource.openSqlite') },
+      { id: 'console', label: 'New Query Console', run: () => void command('console.new') },
+      { id: 'erd', label: 'Show Diagram for Current Data Source', run: () => void command('erd.open') },
+      { id: 'refresh', label: 'Refresh Database Explorer', run: () => void command('explorer.refresh') },
+      { id: 'format', label: 'Format SQL', hint: ipc.platform === 'darwin' ? '⇧⌘F' : 'Ctrl+Shift+F', run: () => void command('sql.format') },
+      { id: 'side', label: 'View: Toggle Side Bar', hint: ipc.platform === 'darwin' ? '⌘B' : 'Ctrl+B', run: () => void command('view.sideBar') },
+      { id: 'explorer', label: 'View: Focus Database Explorer', hint: ipc.platform === 'darwin' ? '⌘1' : 'Ctrl+1', run: () => void command('view.explorer') },
+      { id: 'results', label: 'Toggle Results Panel', run: () => void command('view.results') },
+      { id: 'prefs', label: 'Preferences: Open Settings', hint: ipc.platform === 'darwin' ? '⌘,' : 'Ctrl+Alt+S', run: () => void command('settings') },
+      { id: 'ct', label: 'Preferences: Color Theme', hint: activeThemes.color?.entry.label, run: () => void command('theme.color') },
+      { id: 'fi', label: 'Preferences: File Icon Theme', hint: activeThemes.fileIcon?.entry.label ?? 'none', run: () => void command('theme.fileIcon') },
+      { id: 'pi', label: 'Preferences: Product Icon Theme', hint: activeThemes.productIcon?.entry.label ?? 'Codicons', run: () => void command('theme.productIcon') },
+      { id: 'updates', label: 'Help: Check for Updates…', run: () => void command('update.check') },
+      ...recent.map((sql, i) => ({
+        id: `recent-${i}`,
+        label: `Recent query: ${sql.replace(/\s+/g, ' ').slice(0, 70)}`,
+        hint: 'Open in console',
+        run: () => { if (activeConn) useWorkbench.getState().openConsole(activeConn.id, sql) },
+      })),
+    ]
+  }, [command, activeThemes, activeConn, history])
 
   const startResize = (e: React.MouseEvent) => { const x0 = e.clientX, w0 = width, right = sideRight; const mm = (m: MouseEvent) => { const dx = m.clientX - x0; setWidth(Math.min(560, Math.max(200, w0 + (right ? -dx : dx)))) }; const up = () => { removeEventListener('mousemove', mm); removeEventListener('mouseup', up) }; addEventListener('mousemove', mm); addEventListener('mouseup', up) }
 
   return (
     <div className={`workbench${sideRight ? ' right' : ''}${sideVisible ? '' : ' side-hidden'}`}>
+      <TitleBar title={active?.title} light={light} onCommand={(cmd) => void command(cmd)} />
       <nav className="stripe" aria-label="Tool windows">
-        <button className="rail-brand" data-label={ipc.platform === 'darwin' ? 'Stratum · Find Action (⇧⌘A)' : 'Stratum · Find Action (Ctrl+Shift+A)'} aria-label="Stratum — Find Action" onClick={() => command('palette')}>
-          <img className="brand-logo" src={light ? markLight : markDark} alt="" draggable={false} />
-        </button>
         <button className={sideVisible ? 'on' : ''} data-label={sideVisible ? 'Hide Database Explorer (⌘/Ctrl+B)' : 'Show Database Explorer (⌘/Ctrl+B)'} aria-label="Database Explorer" aria-pressed={sideVisible} onClick={() => void command('view.sideBar')}><Icon id="database" /></button>
         <button data-label="New Query Console" aria-label="New Query Console" onClick={() => void command('console.new')}><Icon id="terminal" /></button>
         <button data-label="Diagram" aria-label="Diagram" onClick={() => void command('erd.open')}><Icon id="type-hierarchy" /></button>
@@ -133,6 +196,7 @@ export function App() {
         <span className="status-sep" />
         <span className="conn"><Icon id={activeConn && live[activeConn.id]?.status === 'ready' ? 'pass-filled' : 'circle-slash'} /><span className="conn-name">{activeConn ? `${activeConn.name}${live[activeConn.id]?.version ? ' · ' + live[activeConn.id]!.version : ''}` : 'No data source'}</span></span>
         <span className="grow" />
+        <UpdateStatus />
         <button onClick={() => command('theme.color')} title="Select color theme"><Icon id="symbol-color" /> <span className="theme-label">{activeThemes.color?.entry.label}</span></button>
       </footer>
       <CommandPalette actions={actions} />

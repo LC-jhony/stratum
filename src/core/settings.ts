@@ -23,6 +23,8 @@ export interface StratumSettings {
   'workbench.sideBar.position': SideBarPosition
   /** Side bar visibility; the explorer stays mounted so expanding a tree survives a toggle. */
   'workbench.sideBar.visible': boolean
+  /** Reopen SQL consoles with their text after a restart. */
+  'workbench.restoreTabs': boolean
   /** Monospace family for the editor, grids and code blocks; empty keeps the built-in chain. */
   'editor.fontFamily': string
   'editor.fontSize': number
@@ -48,6 +50,10 @@ export interface StratumSettings {
   'export.neutralizeFormulas': boolean
   'jdbc.jarPath': string
   'jdbc.javaHome': string
+  /** Check GitHub Releases shortly after launch and every four hours. */
+  'update.autoCheck': boolean
+  /** Download an available update in the background; installation still needs a restart. */
+  'update.autoDownload': boolean
   /** Advanced free-form keys pass through to the JSON store untouched. */
   [key: string]: unknown
 }
@@ -60,6 +66,7 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   'appearance.compact': false,
   'workbench.sideBar.position': 'left',
   'workbench.sideBar.visible': true,
+  'workbench.restoreTabs': true,
   'editor.fontFamily': '',
   'editor.fontSize': 13,
   'editor.tabSize': 2,
@@ -78,6 +85,8 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   'export.neutralizeFormulas': true,
   'jdbc.jarPath': '',
   'jdbc.javaHome': '',
+  'update.autoCheck': true,
+  'update.autoDownload': true,
 }
 
 const num = (v: unknown, d: number, min: number, max: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : d)
@@ -98,6 +107,7 @@ export function mergeSettings(raw?: Record<string, unknown>): StratumSettings {
     'appearance.compact': bool(r['appearance.compact'], DEFAULT_SETTINGS['appearance.compact']),
     'workbench.sideBar.position': r['workbench.sideBar.position'] === 'right' ? 'right' : 'left',
     'workbench.sideBar.visible': bool(r['workbench.sideBar.visible'], DEFAULT_SETTINGS['workbench.sideBar.visible']),
+    'workbench.restoreTabs': bool(r['workbench.restoreTabs'], DEFAULT_SETTINGS['workbench.restoreTabs']),
     'editor.fontFamily': str(r['editor.fontFamily'], '').slice(0, 200),
     'editor.fontSize': num(r['editor.fontSize'], DEFAULT_SETTINGS['editor.fontSize'], 8, 32),
     'editor.tabSize': num(r['editor.tabSize'], DEFAULT_SETTINGS['editor.tabSize'], 1, 8),
@@ -116,5 +126,7 @@ export function mergeSettings(raw?: Record<string, unknown>): StratumSettings {
     'export.neutralizeFormulas': bool(r['export.neutralizeFormulas'], DEFAULT_SETTINGS['export.neutralizeFormulas']),
     'jdbc.jarPath': str(r['jdbc.jarPath'], ''),
     'jdbc.javaHome': str(r['jdbc.javaHome'], ''),
+    'update.autoCheck': bool(r['update.autoCheck'], DEFAULT_SETTINGS['update.autoCheck']),
+    'update.autoDownload': bool(r['update.autoDownload'], DEFAULT_SETTINGS['update.autoDownload']),
   }
 }

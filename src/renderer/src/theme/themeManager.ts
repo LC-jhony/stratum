@@ -112,7 +112,13 @@ class ThemeManager {
       if (persist) this.mode = themeKind(json) // Picking a theme explicitly pins its kind, like VS Code.
       const colors = applyColorTheme(json)
       // colorScheme drives the native chrome (menu bar, dialogs) in the main process; 'system' keeps following the OS.
-      void ipc.settings.set({ windowBackground: colors['editor.background'], colorScheme: this.mode === 'system' ? 'system' : themeKind(json) })
+      // The title-bar colours feed the Windows caption overlay so its buttons match the editor chrome.
+      void ipc.settings.set({
+        windowBackground: colors['editor.background'],
+        colorScheme: this.mode === 'system' ? 'system' : themeKind(json),
+        titleBarBackground: colors['titleBar.activeBackground'] ?? colors['editor.background'],
+        titleBarForeground: colors['titleBar.activeForeground'] ?? colors['foreground'],
+      })
     } else if (entry.kind === 'fileIcon') {
       this.styleEl('stratum-file-icon-fonts').textContent = fileIconFontCss(file.json as FileIconThemeJson, file.baseUrl)
     } else {

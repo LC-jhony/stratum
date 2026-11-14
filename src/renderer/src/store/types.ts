@@ -1,6 +1,8 @@
 import type { StateCreator } from 'zustand'
 import type { StratumSettings } from '../../../core/settings'
+import type { WorkspaceSnapshot } from '../../../core/workspace'
 import type { ConnectionConfig, ConnectionView, DatabaseModel, ErdOptions, QueryResult } from '../../../shared/types'
+import type { UpdateState } from '../../../shared/update'
 
 export interface ResultEntry {
   id: string
@@ -53,6 +55,8 @@ export interface TabsSlice {
   closeTab(id: string): void
   setActive(id: string): void
   patchTab(id: string, patch: Partial<Tab>): void
+  /** Reopen SQL consoles saved by the previous session (validated against the current connections). */
+  restoreWorkspace(snapshot: WorkspaceSnapshot): void
 }
 
 export interface ConsoleSlice {
@@ -89,5 +93,18 @@ export interface UiSlice {
   set(p: Partial<Pick<WorkbenchState, 'dialog' | 'importRequest' | 'palette' | 'showResults'>>): void
 }
 
-export type WorkbenchState = ConnectionsSlice & TabsSlice & ConsoleSlice & PrefsSlice & UiSlice
+export interface UpdateSlice {
+  /** Latest snapshot pushed by the main process. */
+  update?: UpdateState
+  /** The status-bar popover is open. */
+  updatesOpen: boolean
+  initUpdates(): Promise<() => void>
+  showUpdates(): void
+  hideUpdates(): void
+  checkUpdates(open?: boolean): Promise<void>
+  downloadUpdate(): Promise<void>
+  installUpdate(): Promise<void>
+}
+
+export type WorkbenchState = ConnectionsSlice & TabsSlice & ConsoleSlice & PrefsSlice & UiSlice & UpdateSlice
 export type WorkbenchSlice<T> = StateCreator<WorkbenchState, [], [], T>

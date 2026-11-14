@@ -15,7 +15,7 @@ export function buildMenu() {
   const isMac = process.platform === 'darwin'
   const send = (cmd: string, arg?: unknown) => () => BrowserWindow.getFocusedWindow()?.webContents.send('command', cmd, arg)
   const t: MenuItemConstructorOptions[] = [
-    ...(isMac ? [{ label: app.name, submenu: [{ role: 'about' }, { type: 'separator' }, { label: 'Settings…', accelerator: 'Cmd+,', click: send('settings') }, { type: 'separator' }, { role: 'services' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] } as MenuItemConstructorOptions] : []),
+    ...(isMac ? [{ label: app.name, submenu: [{ role: 'about' }, { type: 'separator' }, { label: 'Check for Updates…', click: send('update.check') }, { label: 'Settings…', accelerator: 'Cmd+,', click: send('settings') }, { type: 'separator' }, { role: 'services' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] } as MenuItemConstructorOptions] : []),
     { label: 'File', submenu: [
       { label: 'New Data Source…', accelerator: 'CmdOrCtrl+Alt+Shift+D', click: send('datasource.new') },
       { label: 'New Query Console', accelerator: 'CmdOrCtrl+Shift+L', click: send('console.new') },
@@ -23,7 +23,7 @@ export function buildMenu() {
       { type: 'separator' },
       ...(isMac ? [{ role: 'close' } as MenuItemConstructorOptions] : [{ label: 'Settings…', accelerator: 'Ctrl+Alt+S', click: send('settings') } as MenuItemConstructorOptions, { role: 'quit' } as MenuItemConstructorOptions]),
     ] },
-    { label: 'Edit', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }, { type: 'separator' }, { label: 'Find Action…', accelerator: 'CmdOrCtrl+Shift+A', click: send('palette') }] },
+    { label: 'Edit', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }, { type: 'separator' }, { label: 'Find Action…', accelerator: 'CmdOrCtrl+Shift+A', click: send('palette') }, { label: 'Format SQL', accelerator: 'CmdOrCtrl+Shift+F', click: send('sql.format') }] },
     { label: 'View', submenu: [
       { label: 'Database Explorer', accelerator: 'CmdOrCtrl+1', click: send('view.explorer') },
       { label: 'Toggle Side Bar', accelerator: 'CmdOrCtrl+B', click: send('view.sideBar') },
@@ -47,6 +47,9 @@ export function buildMenu() {
     ] },
     { role: 'windowMenu' },
     { role: 'help', submenu: [
+      { label: 'Check for Updates…', click: send('update.check') },
+      { label: 'Release Notes', click: () => shell.openExternal('https://github.com/LC-jhony/stratum/releases') },
+      { type: 'separator' },
       { label: 'jdbc-adapter-server', click: () => shell.openExternal('https://github.com/database-client/jdbc-adapter-server') },
       { label: 'vscode-database-client', click: () => shell.openExternal('https://github.com/cweijan/vscode-database-client') },
       ...(isMac ? [] : [{ type: 'separator' } as MenuItemConstructorOptions, { label: 'About Stratum', click: about } as MenuItemConstructorOptions]),

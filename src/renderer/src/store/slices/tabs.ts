@@ -1,3 +1,4 @@
+import type { WorkspaceSnapshot } from '../../../../core/workspace'
 import type { ErdOptions } from '../../../../shared/types'
 import { uid } from '../internal'
 import type { ConsoleTab, DesignerTab, DiagramTab, TableTab, TabsSlice, WorkbenchSlice } from '../types'
@@ -46,4 +47,13 @@ export const createTabsSlice: WorkbenchSlice<TabsSlice> = (set, get) => ({
   setActive: (id) => set({ activeTab: id }),
 
   patchTab: (id, patch) => set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? ({ ...t, ...patch } as typeof t) : t)) })),
+
+  restoreWorkspace(snapshot: WorkspaceSnapshot) {
+    const connections = new Set(get().connections.map((c) => c.id))
+    const tabs: ConsoleTab[] = snapshot.tabs
+      .filter((t) => connections.has(t.connectionId))
+      .map((t) => ({ id: t.id, type: 'console', connectionId: t.connectionId, title: t.title, sql: t.sql, results: [], activeResult: 0, running: false }))
+    if (!tabs.length) return
+    set({ tabs, activeTab: tabs.find((t) => t.id === snapshot.activeTab)?.id ?? tabs[0].id })
+  },
 })

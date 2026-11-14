@@ -54,6 +54,7 @@
   --h-toolbar: calc(clamp(30px, calc(var(--fs) * 34 / 15), 40px) - var(--dense) * 2px);
   --row-h: calc(clamp(22px, calc(var(--fs) * 24 / 15), 28px) - var(--dense) * 2px);
   --rail-w: 48px;
+  --titlebar-h: 36px;
   --status-h: calc(clamp(24px, calc(var(--fs) * 26 / 15), 34px) - var(--dense) * 2px);
 
   --radius-xs: 4px;
@@ -166,26 +167,120 @@ textarea { padding: 8px 10px; }
 .workbench {
   display: grid;
   grid-template-columns: var(--rail-w) auto 1px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) var(--status-h);
+  grid-template-rows: var(--titlebar-h) minmax(0, 1fr) var(--status-h);
   height: 100%;
   overflow: hidden;
   background: var(--bg);
 }
-.stripe { grid-area: 1 / 1; }
-.side { grid-area: 1 / 2; }
-.sash { grid-area: 1 / 3; }
-.editor-area { grid-area: 1 / 4; }
-.app-status { grid-area: 2 / 1 / 3 / -1; }
+.titlebar { grid-area: 1 / 1 / 2 / -1; }
+.stripe { grid-area: 2 / 1; }
+.side { grid-area: 2 / 2; }
+.sash { grid-area: 2 / 3; }
+.editor-area { grid-area: 2 / 4; }
+.app-status { grid-area: 3 / 1 / 4 / -1; }
 .workbench.right { grid-template-columns: minmax(0, 1fr) 1px auto var(--rail-w); }
-.workbench.right .editor-area { grid-area: 1 / 1; }
-.workbench.right .sash { grid-area: 1 / 2; }
-.workbench.right .side { grid-area: 1 / 3; border-right: 0; border-left: 1px solid var(--line); }
-.workbench.right .stripe { grid-area: 1 / 4; border-right: 0; border-left: 1px solid var(--line); }
+.workbench.right .editor-area { grid-area: 2 / 1; }
+.workbench.right .sash { grid-area: 2 / 2; }
+.workbench.right .side { grid-area: 2 / 3; border-right: 0; border-left: 1px solid var(--line); }
+.workbench.right .stripe { grid-area: 2 / 4; border-right: 0; border-left: 1px solid var(--line); }
 /* Side Bar: Visible — the explorer stays mounted (expanded nodes and filter survive),
    only its layout columns collapse. */
 .workbench.side-hidden { grid-template-columns: var(--rail-w) 0 0 minmax(0, 1fr); }
 .workbench.right.side-hidden { grid-template-columns: minmax(0, 1fr) 0 0 var(--rail-w); }
 .workbench.side-hidden .side, .workbench.side-hidden .sash { display: none; }
+
+/* ── Title bar ──────────────────────────────────────────────────────────── */
+.titlebar {
+  z-index: 80;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 420px) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  height: var(--titlebar-h);
+  padding: 0 0 0 8px;
+  background: var(--vscode-titleBar-activeBackground, var(--nav));
+  color: var(--vscode-titleBar-activeForeground, var(--nav-ink));
+  border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+.titlebar button,
+.titlebar input { -webkit-app-region: no-drag; app-region: no-drag; }
+.titlebar-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
+html[data-platform="darwin"] .titlebar-left { padding-left: 72px; }
+.titlebar-menu {
+  width: 28px;
+  height: 26px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  opacity: 0.8;
+}
+.titlebar-menu:hover:not(:disabled) { background: color-mix(in srgb, currentColor 14%, transparent); opacity: 1; }
+.titlebar-menu .stratum-icon { font-size: 15px; }
+.titlebar-mark { width: 17px; height: 17px; flex: none; display: block; }
+.titlebar-name { flex: none; font-size: var(--text-sm); font-weight: 650; letter-spacing: 0.02em; white-space: nowrap; }
+.titlebar-sep { flex: none; color: var(--muted); }
+.titlebar-doc {
+  min-width: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.titlebar-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: calc(var(--titlebar-h) - 12px);
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  color: color-mix(in srgb, currentColor 72%, transparent);
+  font-size: var(--text-xs);
+  text-align: left;
+}
+.titlebar-search:hover:not(:disabled) { background: color-mix(in srgb, currentColor 13%, transparent); color: inherit; border-color: color-mix(in srgb, currentColor 30%, transparent); }
+.titlebar-search .stratum-icon { font-size: 14px; }
+.titlebar-search-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.titlebar-search kbd {
+  margin-left: auto;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: var(--radius-xs);
+  color: color-mix(in srgb, currentColor 55%, transparent);
+  font-family: var(--stratum-font);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+}
+.titlebar-right { display: flex; justify-content: flex-end; align-items: stretch; align-self: stretch; min-width: 0; }
+.window-controls { display: flex; height: 100%; }
+.window-controls button {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.82;
+}
+.window-controls button:hover:not(:disabled) { background: color-mix(in srgb, currentColor 14%, transparent); opacity: 1; }
+.window-controls button.close:hover:not(:disabled) { background: #e81123; color: #fff; }
+.window-controls .stratum-icon { font-size: 14px; }
+.titlebar .stratum-icon { vertical-align: middle; }
+@media (max-width: 900px) {
+  .titlebar-search kbd { display: none; }
+}
 
 /* ── Activity bar ───────────────────────────────────────────────────────── */
 .stripe {
@@ -202,25 +297,6 @@ textarea { padding: 8px 10px; }
   scrollbar-width: none;
 }
 .stripe::-webkit-scrollbar { display: none; }
-.rail-brand {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  flex: none;
-  margin-bottom: 12px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-}
-.rail-brand:hover:not(:disabled) { background: var(--nav-hover); }
-.rail-brand .brand-logo {
-  width: 30px;
-  height: 30px;
-  display: block;
-  filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.22));
-}
 .stripe button {
   position: relative;
   width: 40px;
@@ -1016,3 +1092,61 @@ svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
 .ds-status.ok { color: var(--vscode-charts-green, #3FB950); }
 .ds-status.bad { color: var(--ds-req); }
 .ds-modal button:focus-visible, .ds-modal .ds-field:focus-visible { outline: 1px solid var(--ds-focus); outline-offset: 1px; }
+
+/* ── Software updates ───────────────────────────────────────────────────── */
+.stratum-icon.codicon { width: 1em; height: 1em; line-height: 1; text-align: center; }
+.update-status { gap: 5px; color: var(--nav-muted); }
+.update-status.ready { color: var(--ok); }
+.update-status.error { color: var(--err); }
+.update-status .update-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Fixed so the status bar's overflow:hidden never clips the panel. */
+.update-pop {
+  position: fixed;
+  z-index: 90;
+  right: 12px;
+  bottom: calc(var(--status-h) + 8px);
+  display: flex;
+  flex-direction: column;
+  width: min(370px, calc(100vw - 24px));
+  max-height: min(560px, calc(100vh - var(--status-h) - 24px));
+  overflow: hidden;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  animation: fade 100ms ease;
+  font-size: var(--text-sm);
+}
+.update-pop header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); font-weight: 600; }
+.update-pop header > span { flex: 1; }
+.update-pop button { height: var(--h-control); max-width: none; padding: 0 10px; border-radius: var(--radius-xs); color: var(--ink); font-size: var(--text-sm); }
+.update-pop button:hover:not(:disabled) { background: var(--hover); }
+.update-pop button.primary { background: var(--accent-fill); color: var(--on-accent); }
+.update-pop button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-fill) 86%, #000); }
+.update-pop .update-close { width: 24px; height: 24px; flex: none; padding: 0; color: var(--muted); }
+.update-body { display: flex; flex-direction: column; gap: 8px; padding: 12px; overflow: auto; }
+.update-version { margin: 0; color: var(--muted); font-size: var(--text-xs); }
+.update-message { margin: 0; line-height: var(--lh-ui); }
+.update-message.error { color: var(--err); }
+.update-progress { display: flex; flex-direction: column; gap: 5px; }
+.update-track { height: 6px; overflow: hidden; background: var(--hover-strong); border-radius: var(--radius-pill); }
+.update-fill { height: 100%; background: var(--accent-fill); border-radius: inherit; transition: width 160ms ease; }
+.update-meta { color: var(--muted); font-size: var(--text-2xs); font-variant-numeric: tabular-nums; }
+.update-note { margin: 0; color: var(--muted); font-size: var(--text-xs); }
+.update-notes { border-top: 1px solid var(--line-soft); padding-top: 8px; }
+.update-notes summary { color: var(--accent-ink); cursor: pointer; font-size: var(--text-xs); }
+.update-notes pre { max-height: 160px; margin: 6px 0 0; padding: 8px; overflow: auto; background: var(--surface-3); border-radius: var(--radius-xs); font: 11.5px/1.5 var(--stratum-mono); white-space: pre-wrap; word-break: break-word; }
+.update-pop footer { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--line-soft); }
+.update-pop footer .grow { flex: 1; }
+.update-pop footer .update-settings { padding: 0 6px; color: var(--muted); }
+
+/* Settings ▸ Updates */
+.update-settings-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: var(--h-control); }
+.update-settings-text { flex: 1; min-width: 140px; color: var(--muted); font-size: var(--text-sm); }
+.update-settings-text.error { color: var(--err); }
+.update-settings-progress { display: flex; flex-direction: column; gap: 5px; margin-bottom: 4px; }
+
+/* Console: Format SQL feedback */
+.format-note { flex: none; max-width: 340px; overflow: hidden; color: var(--muted); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
+.format-note.error { color: var(--err); }

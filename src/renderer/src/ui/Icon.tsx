@@ -22,6 +22,23 @@ export const Icon = ({ id, className = '', style, title }: { id: string; classNa
   return <i className={`codicon codicon-${id} stratum-icon ${className}`} style={style} title={title} aria-hidden />
 }
 
+/**
+ * File-icon theme ids that mean a concept Stratum also draws natively. Without a theme (the
+ * default) the theme id would reach the codicon font and render nothing useful, so it is mapped
+ * to the matching product icon. Theme ids present in APP_ICONS resolve through it as well.
+ */
+const THEME_ICON_FALLBACK: Record<string, string> = {
+  database: 'database',
+  table: 'table',
+  view: 'eye',
+  key: 'key',
+  index: 'list-ordered',
+  folder_database: 'folder',
+  folder_database_open: 'folder-opened',
+  folder_table: 'folder',
+  folder_table_open: 'folder-opened',
+}
+
 /** File-type icon from the active file icon theme; falls back to a product icon when no theme (or no match). */
 export function FileIcon({ name = '', icon, kind = 'file', fallback = 'file', style }: { name?: string; icon?: string; kind?: 'file' | 'folder' | 'folderExpanded'; fallback?: string; style?: React.CSSProperties }) {
   const active = useFileIconTheme()
@@ -33,5 +50,7 @@ export function FileIcon({ name = '', icon, kind = 'file', fallback = 'file', st
     : resolveFileIcon(theme, active.baseUrl, name, kind, light)
   if (r?.kind === 'image') return <img className="file-icon" style={style} src={r.url} alt="" draggable={false} />
   if (r?.kind === 'glyph') return <span className="file-icon glyph" style={{ fontFamily: r.fontFamily, color: r.color, ...style }}>{JSON.parse(`"${r.char.replace(/"/g, '')}"`)}</span>
-  return <Icon id={kind === 'file' ? fallback : kind === 'folder' ? 'folder' : 'folder-opened'} style={style} />
+  const themed = icon ? THEME_ICON_FALLBACK[icon] ?? (icon in APP_ICONS ? icon : undefined) : undefined
+  const id = kind === 'folder' ? 'folder' : kind === 'folderExpanded' ? 'folder-opened' : fallback !== 'file' ? fallback : themed ?? fallback
+  return <Icon id={id} style={style} />
 }
