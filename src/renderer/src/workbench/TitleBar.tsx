@@ -26,12 +26,18 @@ export function TitleBar({ title, light, onCommand }: { title?: string; light: b
     const r = e.currentTarget.getBoundingClientRect()
     void ipc.window.showMenu({ x: Math.round(r.left), y: Math.round(r.bottom) })
   }
+  // Native drag regions normally own this gesture; when the renderer does receive it, never toggle
+  // because the user double-clicked a button or the search field.
+  const maximizeOnDoubleClick = (e: MouseEvent<HTMLElement>) => {
+    if ((e.target as HTMLElement).closest('button, kbd')) return
+    void ipc.window.toggleMaximize()
+  }
   const shortcut = isMac ? '⇧⌘A' : 'Ctrl Shift A'
 
   return (
     <header
       className="titlebar"
-      onDoubleClick={isLinux ? () => void ipc.window.toggleMaximize() : undefined}
+      onDoubleClick={isLinux ? maximizeOnDoubleClick : undefined}
     >
       <div className="titlebar-left">
         {!isMac && (
