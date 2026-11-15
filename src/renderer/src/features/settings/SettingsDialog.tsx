@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { ipc } from '../../ipc/client'
-import { DEFAULT_SETTINGS, mergeSettings, type AppearanceMode, type KeywordCase, type SideBarPosition, type StratumSettings, type UiFont } from '../../../../core/settings'
+import { DEFAULT_SETTINGS, mergeSettings, type AppearanceMode, type AppLocale, type KeywordCase, type SideBarPosition, type StratumSettings, type UiFont } from '../../../../core/settings'
+import { LOCALE_LABEL, LOCALES } from '../../../../core/i18n'
 import type { ThemeManifestEntry } from '../../../../shared/types'
 import { useWorkbench } from '../../store/workbench'
 import { themes } from '../../theme/themeManager'
@@ -36,7 +37,7 @@ const SIDES: { id: SideBarPosition; label: string; hint: string }[] = [
 ]
 
 /** Keys owned by the theme manager (written straight to settings.json); a stale dialog draft must not overwrite them. */
-const MANAGED_KEYS = ['colorTheme', 'fileIconTheme', 'productIconTheme', 'colorScheme', 'windowBackground', 'titleBarBackground', 'titleBarForeground']
+const MANAGED_KEYS = ['colorTheme', 'fileIconTheme', 'productIconTheme', 'colorScheme', 'windowBackground', 'titleBarBackground', 'titleBarForeground', 'extensions.disabled']
 
 /** Appearance values that preview live, restored from a snapshot if the dialog is cancelled. */
 const APPEARANCE_KEYS = ['appearance.mode', 'appearance.uiFont', 'appearance.customFont', 'appearance.fontSize', 'appearance.compact', 'workbench.sideBar.position'] as const
@@ -148,6 +149,14 @@ export function SettingsDialog() {
       <div className="dialog" role="dialog" aria-label="Settings">
         <header><Icon id="settings-gear" /> Settings<button onClick={cancel}><Icon id="close" /></button></header>
         <div className="form settings-form">
+          <h3 className="section">Language</h3>
+          <F label="Language" wide>
+            <select value={draft['app.locale']} onChange={(e) => up({ 'app.locale': e.target.value as AppLocale })}>
+              <option value="system">System ({navigator.language})</option>
+              {LOCALES.map((l) => <option key={l} value={l}>{LOCALE_LABEL[l]}</option>)}
+            </select>
+          </F>
+          <p className="hint"><Icon id="globe" /> Menus and translated dialogs follow this language. English remains the fallback for text not translated yet.</p>
           <h3 className="section">Appearance</h3>
           <div className="field span-2"><span>Theme</span>
             <div className="seg" role="radiogroup" aria-label="Theme">{MODES.map((m) => <button key={m.id} type="button" role="radio" aria-checked={draft['appearance.mode'] === m.id} title={m.hint} className={draft['appearance.mode'] === m.id ? 'toggled' : ''} onClick={() => pickMode(m.id)}>{m.label}</button>)}</div>

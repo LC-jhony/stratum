@@ -5,6 +5,7 @@ import path from 'node:path'
 import { Client, type ConnectConfig } from 'ssh2'
 import { KINDS } from '../../core/kinds'
 import type { ConnectionConfig, DriverKind, SshConfig } from '../../shared/types'
+import { logger } from '../logger'
 import { knownHosts } from './knownHosts'
 
 /**
@@ -265,10 +266,10 @@ async function createTunnel(ssh: SshConfig, target: TunnelTarget, onClose: () =>
   }
   for (const [i, c] of clients.entries()) {
     const name = i === clients.length - 1 ? 'ssh tunnel' : `ssh jump host ${i + 1}`
-    c.on('error', (e) => console.warn(`${name} ${endpoints[i].host}:${endpoints[i].port ?? 22}:`, e.message))
+    c.on('error', (e) => logger.warn(`${name} ${endpoints[i].host}:${endpoints[i].port ?? 22}:`, e.message))
     c.on('close', dropped)
   }
-  server.on('error', (e) => console.warn(`ssh tunnel listener ${localPort}:`, e.message))
+  server.on('error', (e) => logger.warn(`ssh tunnel listener ${localPort}:`, e.message))
   return tunnel
 }
 

@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { safeStorage } from 'electron'
 import type { ConnectionConfig, ConnectionView, SshConfig, SshJumpHost, SshJumpHostView } from '../../shared/types'
+import { logger } from '../logger'
 
 /** Tiny atomic JSON store (write temp file then rename) so a crash never corrupts config. */
 export class JsonStore<T extends object> {
@@ -25,7 +26,7 @@ export class JsonStore<T extends object> {
       // Keep the broken file for inspection before falling back to defaults; never lose user data silently.
       const stamp = new Date().toISOString().replace(/[:.]/g, '-')
       await fs.copyFile(this.file, `${this.file}.corrupt-${stamp}`)
-      console.warn(`[store] ${this.file} is not valid JSON; a backup was saved as ${this.file}.corrupt-${stamp}`)
+      logger.warn(`[store] ${this.file} is not valid JSON; a backup was saved as ${this.file}.corrupt-${stamp}`)
       this.cache = structuredClone(this.defaults)
     }
     return this.cache!
@@ -49,7 +50,7 @@ export const seal = (s?: string) => {
   if (!available) {
     if (!warnedPlaintext) {
       warnedPlaintext = true
-      console.warn('[store] safeStorage is unavailable: passwords will be stored in plain text in the connection file.')
+      logger.warn('[store] safeStorage is unavailable: passwords will be stored in plain text in the connection file.')
     }
     return s
   }

@@ -1,4 +1,5 @@
 import type { DockerContainer, DockerEndpoint } from './docker'
+import type { ExtensionView } from './extensions'
 import type {
   ConnectionConfig, ConnectionView, DatabaseModel, QueryPlan, QueryResult, SavedQuery, SessionInfo,
   SessionStateChange, ThemeFile, ThemeManifestEntry, TransactionState,
@@ -46,6 +47,12 @@ export interface StratumApi {
     /** Insert or update by id; `updatedAt` is stamped in main. */
     save(query: SavedQuery): Promise<void>
     remove(id: string): Promise<void>
+  }
+  extensions: {
+    /** Installed manifests with their persisted enabled state. */
+    list(): Promise<ExtensionView[]>
+    /** Persist a toggle and return the updated list; mandatory extensions reject `false`. */
+    setEnabled(id: string, enabled: boolean): Promise<ExtensionView[]>
   }
   themes: {
     list(): Promise<ThemeManifestEntry[]>

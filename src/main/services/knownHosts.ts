@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
+import { logger } from '../logger'
 
 /**
  * Trust-on-first-use for SSH host keys.
@@ -122,7 +123,7 @@ export class KnownHosts {
       // algorithms); an existing key of the same type with a different value is the mismatch above.
       const now = new Date().toISOString()
       await this.save({ ...file, hosts: { ...file.hosts, [id]: [...keys, { type, fingerprint, addedAt: now, lastSeenAt: now }] } })
-      console.warn(`[ssh] trusting host key ${type} ${fingerprint} for ${id} (first use)`)
+      logger.warn(`[ssh] trusting host key ${type} ${fingerprint} for ${id} (first use)`)
       return { added: true, type, fingerprint }
     })
     this.queue = run.catch(() => undefined)

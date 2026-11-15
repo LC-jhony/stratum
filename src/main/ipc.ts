@@ -5,6 +5,7 @@ import { listDockerContainers } from './services/docker'
 import type { ConnectionManager } from './services/connectionManager'
 import type { ConnectionService } from './services/connectionService'
 import type { DesktopService } from './services/desktopService'
+import type { ExtensionService } from './services/extensionService'
 import type { HistoryService } from './services/historyService'
 import type { QueryLibraryService } from './services/queryLibraryService'
 import type { SettingsService } from './services/settingsService'
@@ -41,6 +42,7 @@ export interface IpcDependencies {
   settings: SettingsService
   history: HistoryService
   library: QueryLibraryService
+  extensions: ExtensionService
   themes: ThemeService
   desktop: DesktopService
   update: UpdateService
@@ -64,7 +66,7 @@ export function registerIpc(d: IpcDependencies) {
     })
   }
 
-  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'library' | 'dialogs' | 'export' | 'docker' | 'update' | 'window'> = {
+  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'library' | 'extensions' | 'dialogs' | 'export' | 'docker' | 'update' | 'window'> = {
     connections: {
       list: () => d.connections.list(),
       save: (c) => d.connections.save(c),
@@ -104,6 +106,10 @@ export function registerIpc(d: IpcDependencies) {
       list: () => d.library.list(),
       save: (query) => d.library.save(query),
       remove: (id) => d.library.remove(id),
+    },
+    extensions: {
+      list: () => d.extensions.list(),
+      setEnabled: (id, enabled) => d.extensions.setEnabled(id, enabled),
     },
     dialogs: {
       pickFile: (filters) => d.desktop.pickFile(filters),
@@ -163,6 +169,9 @@ export function registerIpc(d: IpcDependencies) {
   })
   route('library', api.library as unknown as Record<string, Handler>, {
     list: [], save: [savedQuerySchema], remove: [idSchema],
+  })
+  route('extensions', api.extensions as unknown as Record<string, Handler>, {
+    list: [], setEnabled: [idSchema, z.boolean()],
   })
   route('dialogs', api.dialogs as unknown as Record<string, Handler>, {
     pickFile: [filtersSchema],

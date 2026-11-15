@@ -17,9 +17,11 @@ import { Explorer } from './features/explorer/Explorer'
 import { SessionMonitorDialog } from './features/admin/SessionMonitorDialog'
 import { QueryLibraryDialog } from './features/library/QueryLibraryDialog'
 import { ObjectSearchDialog } from './features/search/ObjectSearchDialog'
+import { ExtensionsDialog } from './features/extensions/ExtensionsDialog'
 import { UpdateStatus } from './features/updates/UpdateStatus'
 import { ErrorBoundary } from './ui/ErrorBoundary'
 import { Icon } from './ui/Icon'
+import { useT } from './i18n/useT'
 import { ParamDialog } from './features/console/ParamDialog'
 import { SettingsDialog } from './features/settings/SettingsDialog'
 import { TableEditor } from './features/table/TableEditor'
@@ -28,6 +30,7 @@ import { TitleBar } from './workbench/TitleBar'
 
 export function App() {
   const wb = useWorkbench()
+  const t = useT()
   const { tabs, activeTab, live, connections, prefs, prefsLoaded, history, set } = wb
   const [width, setWidth] = useState(280)
   const active = tabs.find((t) => t.id === activeTab)
@@ -121,6 +124,7 @@ export function App() {
       case 'view.results': return s.set({ showResults: !s.showResults })
       case 'palette': return s.set({ palette: 'actions' })
       case 'settings': return s.openSettings()
+      case 'extensions.open': return s.set({ extensionsOpen: true })
       case 'theme.color': return s.set({ palette: 'colorTheme' })
       case 'theme.fileIcon': return s.set({ palette: 'fileIconTheme' })
       case 'theme.productIcon': return s.set({ palette: 'productIconTheme' })
@@ -138,9 +142,10 @@ export function App() {
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); void command('palette') }
       else if (mod && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); void command('object.search') }
       else if (mod && e.altKey && e.key.toLowerCase() === 'l') { e.preventDefault(); void command('library.open') }
+      else if (mod && e.shiftKey && e.key.toLowerCase() === 'x') { e.preventDefault(); void command('extensions.open') }
       else if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); void command('view.sideBar') }
       else if (mod && !e.shiftKey && !e.altKey && e.key === '1') { e.preventDefault(); void command('view.explorer') }
-      if (e.key === 'Escape') set({ palette: null, dialog: null, objectSearchOpen: false, libraryOpen: false, sessionMonitor: undefined })
+      if (e.key === 'Escape') set({ palette: null, dialog: null, objectSearchOpen: false, libraryOpen: false, extensionsOpen: false, sessionMonitor: undefined })
     }
     // Capture: Monaco consumes some modified keys before they reach the window bubble phase.
     addEventListener('keydown', h, true); return () => removeEventListener('keydown', h, true)
@@ -170,6 +175,7 @@ export function App() {
       { id: 'fi', label: 'Preferences: File Icon Theme', hint: activeThemes.fileIcon?.entry.label ?? 'none', run: () => void command('theme.fileIcon') },
       { id: 'pi', label: 'Preferences: Product Icon Theme', hint: activeThemes.productIcon?.entry.label ?? 'Codicons', run: () => void command('theme.productIcon') },
       { id: 'updates', label: 'Help: Check for Updates…', run: () => void command('update.check') },
+      { id: 'extensions', label: t('menu.extensions'), hint: ipc.platform === 'darwin' ? '⇧⌘X' : 'Ctrl+Shift+X', run: () => void command('extensions.open') },
       ...recent.map((sql, i) => ({
         id: `recent-${i}`,
         label: `Recent query: ${sql.replace(/\s+/g, ' ').slice(0, 70)}`,
@@ -177,7 +183,7 @@ export function App() {
         run: () => { if (activeConn) useWorkbench.getState().openConsole(activeConn.id, sql) },
       })),
     ]
-  }, [command, activeThemes, activeConn, history])
+  }, [command, activeThemes, activeConn, history, t])
 
   const startResize = (e: React.MouseEvent) => { const x0 = e.clientX, w0 = width, right = sideRight; const mm = (m: MouseEvent) => { const dx = m.clientX - x0; setWidth(Math.min(560, Math.max(200, w0 + (right ? -dx : dx)))) }; const up = () => { removeEventListener('mousemove', mm); removeEventListener('mouseup', up) }; addEventListener('mousemove', mm); addEventListener('mouseup', up) }
 
@@ -200,9 +206,9 @@ export function App() {
           {!tabs.length && (
             <div className="welcome">
               <img className="logo" src={light ? logoLight : logoDark} alt="Stratum" draggable={false} />
-              <p>Connect a data source to browse schemas, run queries, edit data and explore ER diagrams.</p>
-              <div className="actions"><button className="primary" onClick={() => command('datasource.new')}>New Data Source…</button><button onClick={() => command('datasource.openSqlite')}>Open SQLite File…</button></div>
-              <dl><dt>Find Action</dt><dd>{ipc.platform === 'darwin' ? '⇧⌘A' : 'Ctrl+Shift+A'}</dd><dt>Run statement</dt><dd>{ipc.platform === 'darwin' ? '⌘↵' : 'Ctrl+Enter'}</dd></dl>
+              <p>{t('welcome.tagline')}</p>
+              <div className="actions"><button className="primary" onClick={() => command('datasource.new')}>{t('welcome.newDataSource')}</button><button onClick={() => command('datasource.openSqlite')}>{t('welcome.openSqlite')}</button></div>
+              <dl><dt>{t('welcome.findAction')}</dt><dd>{ipc.platform === 'darwin' ? '⇧⌘A' : 'Ctrl+Shift+A'}</dd><dt>{t('welcome.runStatement')}</dt><dd>{ipc.platform === 'darwin' ? '⌘↵' : 'Ctrl+Enter'}</dd></dl>
             </div>
           )}
           {tabs.map((t) => (
@@ -217,7 +223,7 @@ export function App() {
       <footer className="app-status">
         <span className="status-brand">Stratum</span>
         <span className="status-sep" />
-        <span className="conn"><Icon id={activeConn && live[activeConn.id]?.status === 'ready' ? 'pass-filled' : 'circle-slash'} /><span className="conn-name">{activeConn ? `${activeConn.name}${live[activeConn.id]?.version ? ' · ' + live[activeConn.id]!.version : ''}` : 'No data source'}</span></span>
+        <span className="conn"><Icon id={activeConn && live[activeConn.id]?.status === 'ready' ? 'pass-filled' : 'circle-slash'} /><span className="conn-name">{activeConn ? `${activeConn.name}${live[activeConn.id]?.version ? ' · ' + live[activeConn.id]!.version : ''}` : t('status.noDataSource')}</span></span>
         {activeConn && wb.transactions[activeConn.id]?.open && <span className="status-tx" title="Open transaction"><Icon id="circle-check" />TX</span>}
         <span className="grow" />
         <UpdateStatus />
@@ -229,6 +235,7 @@ export function App() {
       <ParamDialog />
       <ObjectSearchDialog />
       <QueryLibraryDialog />
+      <ExtensionsDialog />
       <SessionMonitorDialog />
     </div>
   )

@@ -1359,3 +1359,21 @@ svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
   font-weight: 600;
   letter-spacing: 0.03em;
 }
+
+/* ── Extensions ─────────────────────────────────────────────────────────── */
+.dialog.extensions-dialog { width: 720px; }
+.extensions-dialog .filter { margin: 10px 14px 0; }
+.extension-list { display: flex; flex-direction: column; gap: 4px; min-height: 160px; max-height: 56vh; padding: 8px 10px; overflow: auto; }
+.extension-row { padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--surface-2); }
+.extension-row.off { opacity: .62; }
+.extension-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.extension-name { font-size: var(--text-sm); font-weight: 600; }
+.extension-version { color: var(--muted); font: 11px var(--stratum-mono); }
+.extension-badge { padding: 1px 6px; border-radius: var(--radius-pill); background: var(--surface-3); color: var(--muted); font-size: var(--text-2xs); font-weight: 600; }
+.extension-badge.required { background: color-mix(in srgb, var(--warn, #d18616) 18%, transparent); color: var(--warn-ink, #d18616); }
+.extension-toggle { display: inline-flex; margin-left: auto; }
+.extension-toggle input { width: auto; }
+.extension-desc { margin: 4px 0 6px; color: var(--muted); font-size: var(--text-xs); line-height: 1.45; }
+.extension-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: var(--text-2xs); }
+.extension-meta code { color: var(--ink); font-family: var(--stratum-mono); opacity: .9; }
+.dialog.extensions-dialog footer .hint { margin: 0; }

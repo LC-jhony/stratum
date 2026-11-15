@@ -1,6 +1,9 @@
 /** User-editable application settings stored in <userData>/settings.json and shared by main + renderer. */
+import type { Locale } from './i18n'
 
 export type KeywordCase = 'upper' | 'lower' | 'preserve'
+/** UI language; `system` follows the operating system with English as the fallback. */
+export type AppLocale = 'system' | Locale
 /** Color mode: pin dark/light or follow the OS (System). */
 export type AppearanceMode = 'dark' | 'light' | 'system'
 /** Side of the workbench activity bar + side bar (VS Code's "Side Bar: Position"). */
@@ -9,6 +12,10 @@ export type SideBarPosition = 'left' | 'right'
 export type UiFont = 'system' | 'mono' | 'serif' | 'custom'
 
 export interface StratumSettings {
+  /** UI language: follow the system, or pin English/Spanish. */
+  'app.locale': AppLocale
+  /** Extension ids disabled from the Extensions dialog (mandatory extensions ignore this list). */
+  'extensions.disabled': string[]
   /** Settings reflects the active color mode; dark/light pin a theme kind, system follows the OS. */
   'appearance.mode': AppearanceMode
   /** Interface family (rail, tree, dialogs); the editor keeps `editor.fontFamily`. */
@@ -59,6 +66,8 @@ export interface StratumSettings {
 }
 
 export const DEFAULT_SETTINGS: StratumSettings = {
+  'app.locale': 'system',
+  'extensions.disabled': [],
   'appearance.mode': 'system',
   'appearance.uiFont': 'system',
   'appearance.customFont': '',
@@ -93,6 +102,9 @@ const num = (v: unknown, d: number, min: number, max: number) => (typeof v === '
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d)
 const str = (v: unknown, d: string) => (typeof v === 'string' ? v : d)
 const obj = <T extends object>(v: unknown, d: T): T => (v && typeof v === 'object' && !Array.isArray(v) ? (v as T) : d)
+const strings = (v: unknown, max: number): string[] => Array.isArray(v)
+  ? [...new Set(v.filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean))].slice(0, max)
+  : []
 
 /** Merge raw persisted JSON over the defaults, coercing known keys to safe values; unknown keys pass through. */
 export function mergeSettings(raw?: Record<string, unknown>): StratumSettings {
@@ -100,6 +112,8 @@ export function mergeSettings(raw?: Record<string, unknown>): StratumSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...r,
+    'app.locale': r['app.locale'] === 'en' || r['app.locale'] === 'es' ? r['app.locale'] : 'system',
+    'extensions.disabled': strings(r['extensions.disabled'], 500),
     'appearance.mode': r['appearance.mode'] === 'dark' || r['appearance.mode'] === 'light' ? r['appearance.mode'] : 'system',
     'appearance.uiFont': r['appearance.uiFont'] === 'mono' || r['appearance.uiFont'] === 'serif' || r['appearance.uiFont'] === 'custom' ? r['appearance.uiFont'] : 'system',
     'appearance.customFont': str(r['appearance.customFont'], '').slice(0, 120),

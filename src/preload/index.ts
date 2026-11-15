@@ -18,6 +18,7 @@ const api: StratumApi = {
   settings: group('settings', ['get', 'set']) as StratumApi['settings'],
   history: group('history', ['get', 'add']) as StratumApi['history'],
   library: group('library', ['list', 'save', 'remove']) as StratumApi['library'],
+  extensions: group('extensions', ['list', 'setEnabled']) as StratumApi['extensions'],
   dialogs: group('dialogs', ['pickFile', 'openText']) as StratumApi['dialogs'],
   docker: group('docker', ['list']) as StratumApi['docker'],
   export: group('export', ['save', 'saveBinary', 'pdf']) as StratumApi['export'],

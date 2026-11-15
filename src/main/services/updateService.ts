@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { normalizeReleaseNotes } from '../../core/update'
 import type { UpdateOrigin, UpdatePackageKind, UpdateProgress, UpdateState } from '../../shared/update'
+import { logger } from '../logger'
 import type { SettingsService } from './settingsService'
 
 const RELEASES_URL = 'https://github.com/LC-jhony/stratum/releases'
@@ -91,10 +92,10 @@ export class UpdateService {
     autoUpdater.allowPrerelease = false
     autoUpdater.allowDowngrade = false
     autoUpdater.logger = {
-      info: (message?: unknown) => console.info('[updates]', message),
-      warn: (message?: unknown) => console.warn('[updates]', message),
-      error: (message?: unknown) => console.error('[updates]', message),
-      debug: (message: string) => console.debug('[updates]', message),
+      info: (message?: unknown) => logger.info('[updates]', message),
+      warn: (message?: unknown) => logger.warn('[updates]', message),
+      error: (message?: unknown) => logger.error('[updates]', message),
+      debug: (message) => logger.debug('[updates]', message),
     }
     autoUpdater.on('checking-for-update', () => this.set({ phase: 'checking' }))
     autoUpdater.on('update-available', (info) => this.available(info))

@@ -1,5 +1,6 @@
 import { Client } from 'pg'
 import type { ConnectionConfig, RawResult } from '../../../shared/types'
+import { logger } from '../../logger'
 import { sslMaterial } from '../ssl'
 import type { Transport } from '../types'
 import { isConnectionError, transactionState } from './tx'
@@ -37,7 +38,7 @@ export class PostgresTransport implements Transport {
   private attach(client: Client) {
     client.on('error', (e: Error) => {
       this.broken = true
-      console.warn('postgres connection lost:', e.message)
+      logger.warn('postgres connection lost', e.message)
     })
   }
 

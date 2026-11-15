@@ -1,5 +1,6 @@
 import { createConnection, type Connection, type ConnectionOptions } from 'mysql2/promise'
 import type { ConnectionConfig, RawResult } from '../../../shared/types'
+import { logger } from '../../logger'
 import { sslMaterial } from '../ssl'
 import type { Transport } from '../types'
 import { isConnectionError, transactionState } from './tx'
@@ -35,7 +36,7 @@ export class MysqlTransport implements Transport {
   private attach(conn: Connection) {
     conn.on('error', (e: Error) => {
       this.broken = true
-      console.warn('mysql connection lost:', e.message)
+      logger.warn('mysql connection lost', e.message)
     })
   }
 

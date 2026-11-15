@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "lint:arch": "depcruise src --config .dependency-cruiser.cjs",
+    "verify": "npm run typecheck && npm run lint:arch && npm test && npm run build",
     "fetch:jdbc": "node scripts/fetch-jdbc-adapter.mjs",
     "sync:icons": "node scripts/sync-file-icons.mjs",
     "pack": "npm run build && electron-builder --dir",

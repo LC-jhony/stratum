@@ -2,12 +2,15 @@ import { app, BrowserWindow, Menu, nativeTheme, net, protocol, shell, Tray } fro
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { resolveLocale } from '../core/i18n'
 import { brandPath } from './brand'
+import { configureLogger, logger } from './logger'
 import { registerIpc } from './ipc'
 import { buildMenu } from './menu'
 import { ConnectionManager } from './services/connectionManager'
 import { ConnectionService } from './services/connectionService'
 import { DesktopService } from './services/desktopService'
+import { ExtensionService } from './services/extensionService'
 import { HistoryService } from './services/historyService'
 import { JdbcSidecar, type JdbcRuntime } from './services/jdbcSidecar'
 import { configureKnownHosts } from './services/knownHosts'
@@ -21,9 +24,9 @@ import { UpdateService } from './services/updateService'
 protocol.registerSchemesAsPrivileged([{ scheme: 'stratum-asset', privileges: { standard: true, secure: true, supportFetchAPI: true } }])
 
 // A transport socket that errors after the UI moved on must never take the whole app down. Log it and
-// let the session recover on its next query; the error is also visible in the devtools console.
-process.on('uncaughtException', (e) => console.error('[main] uncaughtException:', e))
-process.on('unhandledRejection', (e) => console.error('[main] unhandledRejection:', e))
+// let the session recover on its next query; the same line goes to <userData>/logs/stratum.log.
+process.on('uncaughtException', (e) => logger.error('[main] uncaughtException', e))
+process.on('unhandledRejection', (e) => logger.error('[main] unhandledRejection', e))
 
 // Linux global menu (DBusMenu / appmenu) is exported automatically from Menu.setApplicationMenu.
 app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
@@ -53,6 +56,8 @@ const titleBarOptions = (prefs: Record<string, unknown>) => process.platform ===
 
 async function main() {
   await app.whenReady()
+  configureLogger({ file: path.join(app.getPath('userData'), 'logs', 'stratum.log') })
+  logger.info('Stratum starting', { version: app.getVersion(), platform: process.platform, packaged: app.isPackaged })
   // Windows taskbar grouping, notifications and jump lists use this stable application id.
   if (process.platform === 'win32') app.setAppUserModelId('dev.stratum.app')
   if (process.platform !== 'win32') app.setAboutPanelOptions({ applicationName: 'Stratum', applicationVersion: app.getVersion(), iconPath: brandPath('png/stratum-512.png') })
@@ -91,6 +96,7 @@ async function main() {
   const desktop = new DesktopService(() => win)
   const history = new HistoryService(new JsonStore(path.join(data, 'history.json'), { queries: {} }))
   const library = new QueryLibraryService(new JsonStore(path.join(data, 'library.json'), { queries: [] }))
+  const extensions = new ExtensionService(settings)
   const themes = new ThemeService(resourcePath('themes'), path.join(data, 'themes'))
   const updates = new UpdateService({ settings, getWindow: () => win })
   // Settings used to hold console history; move it once, then drop the old key.
@@ -104,6 +110,7 @@ async function main() {
 
   settings.onChange((patch) => {
     if (applyJdbcSettings(patch)) sidecar.stop()
+    if ('app.locale' in patch) buildMenu(resolveLocale(patch['app.locale'], app.getLocale()))
     if (patch.colorScheme === 'light' || patch.colorScheme === 'dark' || patch.colorScheme === 'system') nativeTheme.themeSource = patch.colorScheme
     if (typeof patch.windowBackground === 'string' && patch.windowBackground && win && !win.isDestroyed()) win.setBackgroundColor(patch.windowBackground)
     if (typeof patch.titleBarBackground === 'string' || (typeof patch.windowBackground === 'string' && patch.windowBackground)) {
@@ -122,11 +129,12 @@ async function main() {
     settings,
     history,
     library,
+    extensions,
     desktop,
     update: updates,
     window: () => win,
   })
-  buildMenu()
+  buildMenu(resolveLocale(initial['app.locale'], app.getLocale()))
 
   const create = async () => {
     const prefs = await settings.get()
@@ -180,7 +188,7 @@ async function main() {
     syncTray()
   }
   // A tray host (libappindicator / StatusNotifier) is not guaranteed, so never fail startup over it.
-  try { createTray() } catch (e) { console.warn('tray unavailable:', e) }
+  try { createTray() } catch (e) { logger.warn('tray unavailable', e) }
   if (process.env.STRATUM_SMOKE) { // CI hook: run steps (separated by //--- ) inside the renderer, screenshot after each, exit
     const errors: string[] = [], results: unknown[] = []
     win!.webContents.on('console-message', (_e, level, msg) => { if (level >= 2) errors.push(msg) })
@@ -208,7 +216,7 @@ async function main() {
     closing = true
     e.preventDefault()
     const timeout = new Promise<void>((resolve) => setTimeout(resolve, 3000))
-    void Promise.race([manager.closeAll().catch((err) => console.warn('closing sessions:', err)), timeout])
+    void Promise.race([manager.closeAll().catch((err) => logger.warn('closing sessions', err)), timeout])
       .finally(() => { manager.stop(); sidecar.stop(); app.quit() })
   })
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })

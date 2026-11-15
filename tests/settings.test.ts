@@ -25,6 +25,24 @@ describe('editor.fontFamily coercion', () => {
   it('caps runaway values', () => expect(mergeSettings({ 'editor.fontFamily': 'x'.repeat(300) })['editor.fontFamily']).toHaveLength(200))
 })
 
+describe('language and extension settings', () => {
+  it('defaults to the system language with no disabled extensions', () => {
+    expect(mergeSettings(undefined)['app.locale']).toBe('system')
+    expect(mergeSettings(undefined)['extensions.disabled']).toEqual([])
+  })
+  it('keeps pinned locales and rejects stale values', () => {
+    expect(mergeSettings({ 'app.locale': 'es' })['app.locale']).toBe('es')
+    expect(mergeSettings({ 'app.locale': 'en' })['app.locale']).toBe('en')
+    expect(mergeSettings({ 'app.locale': 'fr' })['app.locale']).toBe('system')
+    expect(mergeSettings({ 'app.locale': 7 })['app.locale']).toBe('system')
+  })
+  it('deduplicates, trims and ignores non-strings in the disabled list', () => {
+    expect(mergeSettings({ 'extensions.disabled': [' stratum.example ', 'stratum.example', '', 7, null, 'stratum.erd'] })['extensions.disabled'])
+      .toEqual(['stratum.example', 'stratum.erd'])
+    expect(mergeSettings({ 'extensions.disabled': 'stratum.example' })['extensions.disabled']).toEqual([])
+  })
+})
+
 describe('workspace and update preferences', () => {
   it('defaults to restoring consoles and checking for updates', () => {
     expect(mergeSettings(undefined)['workbench.restoreTabs']).toBe(true)
