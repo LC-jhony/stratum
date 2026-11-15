@@ -55,6 +55,8 @@ export interface StratumSettings {
   'query.parameters.values': Record<string, string>
   /** Prefix CSV/TSV cells that a spreadsheet would run as a formula (=, +, -, @). */
   'export.neutralizeFormulas': boolean
+  /** SQL variables available to every console (`${name}` / `$(name)`); connection values win. */
+  'variables.global': Record<string, string>
   'jdbc.jarPath': string
   'jdbc.javaHome': string
   /** Check GitHub Releases shortly after launch and every four hours. */
@@ -92,6 +94,7 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   'query.parameters.enabled': true,
   'query.parameters.values': {},
   'export.neutralizeFormulas': true,
+  'variables.global': {},
   'jdbc.jarPath': '',
   'jdbc.javaHome': '',
   'update.autoCheck': true,
@@ -105,6 +108,15 @@ const obj = <T extends object>(v: unknown, d: T): T => (v && typeof v === 'objec
 const strings = (v: unknown, max: number): string[] => Array.isArray(v)
   ? [...new Set(v.filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean))].slice(0, max)
   : []
+const stringMap = (v: unknown, max: number): Record<string, string> => {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
+  const out: Record<string, string> = {}
+  for (const [key, value] of Object.entries(v as Record<string, unknown>).slice(0, max)) {
+    const name = key.trim().slice(0, 200)
+    if (name && typeof value === 'string') out[name] = value.slice(0, 100_000)
+  }
+  return out
+}
 
 /** Merge raw persisted JSON over the defaults, coercing known keys to safe values; unknown keys pass through. */
 export function mergeSettings(raw?: Record<string, unknown>): StratumSettings {
@@ -138,6 +150,7 @@ export function mergeSettings(raw?: Record<string, unknown>): StratumSettings {
     'query.parameters.enabled': bool(r['query.parameters.enabled'], DEFAULT_SETTINGS['query.parameters.enabled']),
     'query.parameters.values': obj(r['query.parameters.values'], {}),
     'export.neutralizeFormulas': bool(r['export.neutralizeFormulas'], DEFAULT_SETTINGS['export.neutralizeFormulas']),
+    'variables.global': stringMap(r['variables.global'], 500),
     'jdbc.jarPath': str(r['jdbc.jarPath'], ''),
     'jdbc.javaHome': str(r['jdbc.javaHome'], ''),
     'update.autoCheck': bool(r['update.autoCheck'], DEFAULT_SETTINGS['update.autoCheck']),

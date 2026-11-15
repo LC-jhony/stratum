@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import { readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { SaveFilter } from '../../shared/ipc'
@@ -15,6 +15,20 @@ export class DesktopService {
     if (!win) return undefined
     return (await dialog.showOpenDialog(win, { properties: ['openFile'], filters })).filePaths[0]
   }
+
+  /** Multi-selection open dialog (driver JARs); an empty array means the user cancelled. */
+  async pickFiles(filters?: SaveFilter[]): Promise<string[]> {
+    const win = this.window()
+    if (!win) return []
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters })
+    return canceled ? [] : filePaths
+  }
+
+  /** Show a file in the OS file manager (Driver Manager's "Reveal"). */
+  reveal(path: string): void { shell.showItemInFolder(path) }
+
+  /** Open a folder in the OS file manager. */
+  async openFolder(dir: string): Promise<void> { await shell.openPath(dir) }
 
   async openText(filters?: SaveFilter[]): Promise<{ path: string; name: string; content: string } | null> {
     const win = this.window()

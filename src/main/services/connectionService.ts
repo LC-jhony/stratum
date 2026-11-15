@@ -1,15 +1,39 @@
 import type { ConnectionConfig, ConnectionView } from '../../shared/types'
+import type { ConnectionExportResult, ConnectionImportResult } from '../../shared/ipc'
+import { exportConnections, parseConnections, prepareImport } from '../../core/connectionTransfer'
 import type { ConnectionManager } from './connectionManager'
-import type { ConnectionStore } from './store'
+import type { DesktopService } from './desktopService'
+import { connectionView, type ConnectionStore } from './store'
 
 /**
  * Application service for data-source metadata and lifecycle. IPC delegates here instead of
  * coordinating the connection store and the live session map itself.
  */
 export class ConnectionService {
-  constructor(private store: ConnectionStore, private sessions: ConnectionManager) {}
+  constructor(private store: ConnectionStore, private sessions: ConnectionManager, private desktop: DesktopService) {}
 
   list(): Promise<ConnectionView[]> { return this.store.list() }
+
+  /** Portable JSON in a file the user picks: every data source, no passwords or passphrases. */
+  async exportFile(): Promise<ConnectionExportResult | null> {
+    const existing = await this.store.list()
+    if (!existing.length) throw new Error('There are no data sources to export.')
+    const file = await this.desktop.saveFile('stratum-connections.json', exportConnections(existing), [
+      { name: 'Connection settings', extensions: ['json'] },
+    ])
+    return file ? { path: file, count: existing.length } : null
+  }
+
+  /** Import validates and strips secrets, then assigns fresh ids so nothing is overwritten. */
+  async importFile(): Promise<ConnectionImportResult | null> {
+    const file = await this.desktop.openText([{ name: 'Connection settings', extensions: ['json'] }])
+    if (!file) return null
+    const { connections, warnings } = parseConnections(file.content)
+    const existing = await this.store.list()
+    const prepared = prepareImport(connections, existing.map((c) => c.name))
+    await this.store.saveMany(prepared)
+    return { path: file.path, imported: prepared.map(connectionView), warnings }
+  }
 
   async save(config: ConnectionConfig): Promise<void> {
     await this.sessions.close(config.id)

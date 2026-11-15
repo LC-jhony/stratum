@@ -26,6 +26,9 @@ export function buildMenu(locale: Locale = 'en') {
       { label: t('menu.saveQuery'), click: send('library.save') },
       { label: t('menu.openSqlite'), click: send('datasource.openSqlite') },
       { type: 'separator' },
+      { label: t('menu.importConnections'), click: send('datasource.import') },
+      { label: t('menu.exportConnections'), click: send('datasource.export') },
+      { type: 'separator' },
       ...(isMac ? [{ role: 'close' } as MenuItemConstructorOptions] : [{ label: t('menu.settings'), accelerator: 'Ctrl+Alt+S', click: send('settings') } as MenuItemConstructorOptions, { role: 'quit', label: t('menu.quit') } as MenuItemConstructorOptions]),
     ] },
     { label: t('menu.edit'), submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }, { type: 'separator' }, { label: t('menu.findAction'), accelerator: 'CmdOrCtrl+Shift+A', click: send('palette') }, { label: t('menu.searchObjects'), accelerator: 'CmdOrCtrl+Shift+O', click: send('object.search') }, { label: t('menu.formatSql'), accelerator: 'CmdOrCtrl+Shift+F', click: send('sql.format') }] },
@@ -49,6 +52,7 @@ export function buildMenu(locale: Locale = 'en') {
     { label: t('menu.database'), submenu: [
       { label: t('menu.reconnect'), accelerator: 'CmdOrCtrl+Alt+R', click: send('datasource.reconnect') },
       { label: t('menu.sessions'), click: send('session.monitor') },
+      { label: t('menu.driverManager'), click: send('drivers.open') },
       { type: 'separator' },
       { label: t('menu.refresh'), accelerator: 'CmdOrCtrl+Alt+Y', click: send('explorer.refresh') },
       { label: t('menu.diagram'), accelerator: 'CmdOrCtrl+Alt+U', click: send('erd.open') },

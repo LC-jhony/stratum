@@ -68,3 +68,15 @@ export function substituteParams(sql: string, params: SqlParam[], values: Record
   }
   return out
 }
+
+/**
+ * Expand named SQL variables (`${name}` and `$(name)`) before parameter detection. Unknown names
+ * stay in place, so `findParams` can still prompt for them like any other parameter.
+ */
+export function applyVariables(sql: string, variables: Record<string, string>): string {
+  if (!Object.keys(variables).length) return sql
+  return sql.replace(/\$\{([^{}]+)\}|\$\(([^()]+)\)/g, (match, braced?: string, parenthesized?: string) => {
+    const name = braced ?? parenthesized ?? ''
+    return Object.prototype.hasOwnProperty.call(variables, name) ? variables[name] : match
+  })
+}

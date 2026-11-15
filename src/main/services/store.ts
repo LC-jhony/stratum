@@ -122,6 +122,19 @@ export class ConnectionStore {
 
   async remove(id: string) { const s = await this.store.read(); s.connections = s.connections.filter((c) => c.id !== id); await this.store.write(s) }
 
+  /** Insert several data sources with one write, so a failed import never leaves a partial result. */
+  async saveMany(configs: readonly ConnectionConfig[]) {
+    if (!configs.length) return
+    const s = await this.store.read()
+    for (const c of configs) {
+      const i = s.connections.findIndex((x) => x.id === c.id)
+      const sealed = mergeSecrets(c, i >= 0 ? s.connections[i] : undefined)
+      if (i >= 0) s.connections[i] = sealed
+      else s.connections.push(sealed)
+    }
+    await this.store.write(s)
+  }
+
   /** Full config with decrypted secrets. Main-process use only (session open/test). */
   async get(id: string): Promise<ConnectionConfig | undefined> {
     const c = (await this.store.read()).connections.find((x) => x.id === id)

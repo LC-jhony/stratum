@@ -104,6 +104,8 @@ export interface ConnectionConfig {
   filePath?: string
   /** Generic JDBC (via jdbc-adapter-server). */
   jdbc?: { url: string; driverClass?: string; driverPath: string; dialect: DialectId }
+  /** SQL variables expanded in `${name}` / `$(name)` before execution; override the global values. */
+  variables?: Record<string, string>
   /** Connection URI for providers that take one (mongodb://…); overrides host/port/user/password when set. */
   uri?: string
   /** MongoDB auth database (defaults to `database`, then the driver default). */

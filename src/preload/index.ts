@@ -6,7 +6,7 @@ const group = (g: string, names: string[]) => Object.fromEntries(names.map((n) =
 
 const api: StratumApi = {
   connections: {
-    ...group('connections', ['list', 'save', 'remove', 'test', 'open', 'close', 'reconnect']) as Omit<StratumApi['connections'], 'onState'>,
+    ...group('connections', ['list', 'save', 'remove', 'test', 'open', 'close', 'reconnect', 'exportFile', 'importFile']) as Omit<StratumApi['connections'], 'onState'>,
     onState(cb) {
       const l = (_: unknown, state: Parameters<typeof cb>[0]) => cb(state)
       ipcRenderer.on('connections:state', l)
@@ -19,6 +19,7 @@ const api: StratumApi = {
   history: group('history', ['get', 'add']) as StratumApi['history'],
   library: group('library', ['list', 'save', 'remove']) as StratumApi['library'],
   extensions: group('extensions', ['list', 'setEnabled']) as StratumApi['extensions'],
+  drivers: group('drivers', ['list', 'add', 'remove', 'reveal', 'openFolder']) as StratumApi['drivers'],
   dialogs: group('dialogs', ['pickFile', 'openText']) as StratumApi['dialogs'],
   docker: group('docker', ['list']) as StratumApi['docker'],
   export: group('export', ['save', 'saveBinary', 'pdf']) as StratumApi['export'],

@@ -16,6 +16,9 @@ export const en = {
   'menu.savedQueries': 'Saved Queries…',
   'menu.saveQuery': 'Save Query to Library…',
   'menu.openSqlite': 'Open SQLite File…',
+  'menu.importConnections': 'Import Data Sources…',
+  'menu.exportConnections': 'Export Data Sources…',
+  'menu.driverManager': 'Driver Manager…',
   'menu.quit': 'Quit',
   'menu.findAction': 'Find Action…',
   'menu.searchObjects': 'Search Database Objects…',
@@ -62,6 +65,21 @@ export const en = {
   'welcome.findAction': 'Find Action',
   'welcome.runStatement': 'Run statement',
   'status.noDataSource': 'No data source',
+  'connections.imported': 'Imported {count} data source(s).',
+  'connections.exported': 'Exported {count} data source(s) to {path}.',
+  'connections.warnings': 'Warnings:',
+
+  // Driver Manager
+  'drivers.title': 'JDBC Drivers',
+  'drivers.hint': 'Stratum copies the selected JARs into its user-data folder, so cleaning the download folder never breaks a connection. A JDBC data source points at one of these files.',
+  'drivers.empty': 'No managed drivers yet. Add the JAR for your database vendor.',
+  'drivers.add': 'Add JARs…',
+  'drivers.adding': 'Copying…',
+  'drivers.folder': 'Open Folder',
+  'drivers.reveal': 'Show in file manager',
+  'drivers.remove': 'Remove driver',
+  'drivers.removeConfirm': 'Remove {name} from the managed drivers?',
+  'drivers.count': '{count} managed JAR(s)',
 
   // Settings
   'settings.language': 'Language',

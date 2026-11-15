@@ -105,9 +105,10 @@ export interface UiSlice {
   objectSearchOpen: boolean
   libraryOpen: boolean
   extensionsOpen: boolean
+  driverManagerOpen: boolean
   /** Connection whose server sessions/locks are being inspected. */
   sessionMonitor?: string
-  set(p: Partial<Pick<WorkbenchState, 'dialog' | 'importRequest' | 'palette' | 'showResults' | 'objectSearchOpen' | 'libraryOpen' | 'extensionsOpen' | 'sessionMonitor'>>): void
+  set(p: Partial<Pick<WorkbenchState, 'dialog' | 'importRequest' | 'palette' | 'showResults' | 'objectSearchOpen' | 'libraryOpen' | 'extensionsOpen' | 'driverManagerOpen' | 'sessionMonitor'>>): void
 }
 
 export interface UpdateSlice {

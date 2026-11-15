@@ -18,6 +18,7 @@ import { SessionMonitorDialog } from './features/admin/SessionMonitorDialog'
 import { QueryLibraryDialog } from './features/library/QueryLibraryDialog'
 import { ObjectSearchDialog } from './features/search/ObjectSearchDialog'
 import { ExtensionsDialog } from './features/extensions/ExtensionsDialog'
+import { DriverManagerDialog } from './features/drivers/DriverManagerDialog'
 import { UpdateStatus } from './features/updates/UpdateStatus'
 import { ErrorBoundary } from './ui/ErrorBoundary'
 import { Icon } from './ui/Icon'
@@ -27,6 +28,9 @@ import { SettingsDialog } from './features/settings/SettingsDialog'
 import { TableEditor } from './features/table/TableEditor'
 import { Tabs } from './workbench/Tabs'
 import { TitleBar } from './workbench/TitleBar'
+
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+  .replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, '')
 
 export function App() {
   const wb = useWorkbench()
@@ -102,6 +106,24 @@ export function App() {
     switch (cmd) {
       case 'datasource.new': return s.set({ dialog: {} })
       case 'datasource.openSqlite': { const f = await ipc.dialogs.pickFile([{ name: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3', 'db3'] }]); if (!f) return; const c = { id: crypto.randomUUID(), name: f.split(/[\\/]/).pop()!, kind: 'sqlite' as const, filePath: f }; await s.saveConnection(c); void s.connect(c.id); return s.openConsole(c.id) }
+      case 'datasource.import': {
+        try {
+          const result = await ipc.connections.importFile()
+          if (!result) return
+          await s.load()
+          const lines = [t('connections.imported', { count: result.imported.length })]
+          if (result.warnings.length) lines.push('', t('connections.warnings'), ...result.warnings.map((w) => `• ${w}`))
+          window.alert(lines.join('\n'))
+        } catch (e) { window.alert(errorText(e)) }
+        return
+      }
+      case 'datasource.export': {
+        try {
+          const result = await ipc.connections.exportFile()
+          if (result) window.alert(t('connections.exported', { count: result.count, path: result.path }))
+        } catch (e) { window.alert(errorText(e)) }
+        return
+      }
       case 'console.new': return void s.openConsole(cur?.connectionId)
       case 'object.search': return s.set({ objectSearchOpen: true })
       case 'library.open': return s.set({ libraryOpen: true })
@@ -125,6 +147,7 @@ export function App() {
       case 'palette': return s.set({ palette: 'actions' })
       case 'settings': return s.openSettings()
       case 'extensions.open': return s.set({ extensionsOpen: true })
+      case 'drivers.open': return s.set({ driverManagerOpen: true })
       case 'theme.color': return s.set({ palette: 'colorTheme' })
       case 'theme.fileIcon': return s.set({ palette: 'fileIconTheme' })
       case 'theme.productIcon': return s.set({ palette: 'productIconTheme' })
@@ -145,7 +168,7 @@ export function App() {
       else if (mod && e.shiftKey && e.key.toLowerCase() === 'x') { e.preventDefault(); void command('extensions.open') }
       else if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); void command('view.sideBar') }
       else if (mod && !e.shiftKey && !e.altKey && e.key === '1') { e.preventDefault(); void command('view.explorer') }
-      if (e.key === 'Escape') set({ palette: null, dialog: null, objectSearchOpen: false, libraryOpen: false, extensionsOpen: false, sessionMonitor: undefined })
+      if (e.key === 'Escape') set({ palette: null, dialog: null, objectSearchOpen: false, libraryOpen: false, extensionsOpen: false, driverManagerOpen: false, sessionMonitor: undefined })
     }
     // Capture: Monaco consumes some modified keys before they reach the window bubble phase.
     addEventListener('keydown', h, true); return () => removeEventListener('keydown', h, true)
@@ -158,6 +181,9 @@ export function App() {
     return [
       { id: 'ds', label: 'New Data Source…', run: () => void command('datasource.new') },
       { id: 'sqlite', label: 'Open SQLite File…', run: () => void command('datasource.openSqlite') },
+      { id: 'import-connections', label: t('menu.importConnections'), run: () => void command('datasource.import') },
+      { id: 'export-connections', label: t('menu.exportConnections'), run: () => void command('datasource.export') },
+      { id: 'drivers', label: t('menu.driverManager'), run: () => void command('drivers.open') },
       { id: 'console', label: 'New Query Console', run: () => void command('console.new') },
       { id: 'search-objects', label: 'Search Database Objects…', hint: ipc.platform === 'darwin' ? '⇧⌘O' : 'Ctrl+Shift+O', run: () => void command('object.search') },
       { id: 'library', label: 'Open Saved Queries…', hint: ipc.platform === 'darwin' ? '⌥⌘L' : 'Ctrl+Alt+L', run: () => void command('library.open') },
@@ -236,6 +262,7 @@ export function App() {
       <ObjectSearchDialog />
       <QueryLibraryDialog />
       <ExtensionsDialog />
+      <DriverManagerDialog />
       <SessionMonitorDialog />
     </div>
   )

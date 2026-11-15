@@ -10,6 +10,7 @@ import { buildMenu } from './menu'
 import { ConnectionManager } from './services/connectionManager'
 import { ConnectionService } from './services/connectionService'
 import { DesktopService } from './services/desktopService'
+import { DriverService } from './services/driverService'
 import { ExtensionService } from './services/extensionService'
 import { HistoryService } from './services/historyService'
 import { JdbcSidecar, type JdbcRuntime } from './services/jdbcSidecar'
@@ -92,8 +93,9 @@ async function main() {
     // A session that dies outside a renderer action still has to leave the Explorer's live state.
     onSessionState: (state) => win?.webContents.send('connections:state', state),
   })
-  const connectionService = new ConnectionService(connections, manager)
   const desktop = new DesktopService(() => win)
+  const connectionService = new ConnectionService(connections, manager, desktop)
+  const drivers = new DriverService(path.join(data, 'drivers'), desktop)
   const history = new HistoryService(new JsonStore(path.join(data, 'history.json'), { queries: {} }))
   const library = new QueryLibraryService(new JsonStore(path.join(data, 'library.json'), { queries: [] }))
   const extensions = new ExtensionService(settings)
@@ -130,6 +132,7 @@ async function main() {
     history,
     library,
     extensions,
+    drivers,
     desktop,
     update: updates,
     window: () => win,

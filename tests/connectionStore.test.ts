@@ -153,4 +153,15 @@ describe('ConnectionStore: TLS and jump-host secrets', () => {
     expect(full?.ssh?.jumpHosts?.[0]).toMatchObject({ id: 'new-host', password: 'fresh' })
     expect(full?.ssh?.jumpHosts?.[0].passphrase).toBeUndefined()
   })
+
+  it('saves an imported batch with one write and no secrets', async () => {
+    await store.saveMany([
+      config({ id: 'a', name: 'a', password: undefined, ssh: undefined }),
+      config({ id: 'b', name: 'b', password: undefined, ssh: undefined }),
+    ])
+    const views = await store.list()
+    expect(views.map((v) => v.id)).toEqual(['a', 'b'])
+    expect(views.every((v) => !v.hasPassword)).toBe(true)
+    expect(await store.get('a')).toMatchObject({ name: 'a', password: undefined })
+  })
 })

@@ -5,6 +5,7 @@ import { listDockerContainers } from './services/docker'
 import type { ConnectionManager } from './services/connectionManager'
 import type { ConnectionService } from './services/connectionService'
 import type { DesktopService } from './services/desktopService'
+import type { DriverService } from './services/driverService'
 import type { ExtensionService } from './services/extensionService'
 import type { HistoryService } from './services/historyService'
 import type { QueryLibraryService } from './services/queryLibraryService'
@@ -25,8 +26,8 @@ import {
   sqlSchema,
   statementsSchema,
   themePathSchema,
+  driverPathSchema,
 } from './ipc/schemas'
-
 type Handlers = { [G in keyof StratumApi]: StratumApi[G] extends Record<string, (...a: any[]) => any> ? StratumApi[G] : never }
 /** Main-process side of the API: renderer-bound callbacks such as onState live in preload only. */
 type IpcHandlers = Omit<Handlers, 'update' | 'window' | 'connections'> & {
@@ -43,6 +44,7 @@ export interface IpcDependencies {
   history: HistoryService
   library: QueryLibraryService
   extensions: ExtensionService
+  drivers: DriverService
   themes: ThemeService
   desktop: DesktopService
   update: UpdateService
@@ -66,7 +68,7 @@ export function registerIpc(d: IpcDependencies) {
     })
   }
 
-  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'library' | 'extensions' | 'dialogs' | 'export' | 'docker' | 'update' | 'window'> = {
+  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'library' | 'extensions' | 'drivers' | 'dialogs' | 'export' | 'docker' | 'update' | 'window'> = {
     connections: {
       list: () => d.connections.list(),
       save: (c) => d.connections.save(c),
@@ -75,6 +77,8 @@ export function registerIpc(d: IpcDependencies) {
       open: (id) => d.connections.open(id),
       close: (id) => d.connections.close(id),
       reconnect: (id) => d.connections.reconnect(id),
+      exportFile: () => d.connections.exportFile(),
+      importFile: () => d.connections.importFile(),
     },
     db: {
       introspect: (id) => d.sessions.require(id).introspect(),
@@ -110,6 +114,13 @@ export function registerIpc(d: IpcDependencies) {
     extensions: {
       list: () => d.extensions.list(),
       setEnabled: (id, enabled) => d.extensions.setEnabled(id, enabled),
+    },
+    drivers: {
+      list: () => d.drivers.list(),
+      add: () => d.drivers.add(),
+      remove: (path) => d.drivers.remove(path),
+      reveal: async (path) => { d.drivers.reveal(path) },
+      openFolder: () => d.drivers.openFolder(),
     },
     dialogs: {
       pickFile: (filters) => d.desktop.pickFile(filters),
@@ -151,7 +162,7 @@ export function registerIpc(d: IpcDependencies) {
 
   route('connections', api.connections as unknown as Record<string, Handler>, {
     list: [], save: [connectionSchema], remove: [idSchema], test: [connectionSchema], open: [idSchema], close: [idSchema],
-    reconnect: [idSchema],
+    reconnect: [idSchema], exportFile: [], importFile: [],
   })
   route('db', api.db as unknown as Record<string, Handler>, {
     introspect: [idSchema], execute: [idSchema, sqlSchema, queryOptionsSchema], cancel: [idSchema], submit: [idSchema, statementsSchema],
@@ -172,6 +183,9 @@ export function registerIpc(d: IpcDependencies) {
   })
   route('extensions', api.extensions as unknown as Record<string, Handler>, {
     list: [], setEnabled: [idSchema, z.boolean()],
+  })
+  route('drivers', api.drivers as unknown as Record<string, Handler>, {
+    list: [], add: [], remove: [driverPathSchema], reveal: [driverPathSchema], openFolder: [],
   })
   route('dialogs', api.dialogs as unknown as Record<string, Handler>, {
     pickFile: [filtersSchema],

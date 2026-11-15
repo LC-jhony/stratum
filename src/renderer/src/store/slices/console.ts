@@ -2,7 +2,7 @@ import { ipc } from '../../ipc/client'
 import { connectionDialect } from '../../../../core/dialects'
 import { isSqlKind } from '../../../../core/kinds'
 import { confirmsWrites, writeKind, writeLabel } from '../../../../core/profiles'
-import { findParams, substituteParams } from '../../../../core/sqlParams'
+import { applyVariables, findParams, substituteParams } from '../../../../core/sqlParams'
 import { fetchStop, holdParams, releaseParams, resolveParams, uid } from '../internal'
 import type { ConsoleSlice, ResultEntry, WorkbenchSlice } from '../types'
 
@@ -23,10 +23,11 @@ export const createConsoleSlice: WorkbenchSlice<ConsoleSlice> = (set, get) => ({
     const conn = get().connections.find((c) => c.id === tab.connectionId)
     const dialect = connectionDialect(conn, get().live[tab.connectionId]?.model)
     const sqlKind = isSqlKind(conn?.kind)
+    const variables = { ...(prefs['variables.global'] ?? {}), ...(conn?.variables ?? {}) }
     const results: ResultEntry[] = []
     let aborted = false
     for (const statement of statements) {
-      let sql = statement
+      let sql = applyVariables(statement, variables)
       if (sqlKind && prefs['query.parameters.enabled']) {
         const params = findParams(sql, dialect)
         if (params.length) {
@@ -105,14 +106,16 @@ export const createConsoleSlice: WorkbenchSlice<ConsoleSlice> = (set, get) => ({
   async plan(tabId, sql) {
     const tab = get().tabs.find((t) => t.id === tabId)
     if (tab?.type !== 'console') return
-    const dialect = connectionDialect(get().connections.find((c) => c.id === tab.connectionId), get().live[tab.connectionId]?.model)
+    const conn = get().connections.find((c) => c.id === tab.connectionId)
+    const dialect = connectionDialect(conn, get().live[tab.connectionId]?.model)
+    const expanded = applyVariables(sql, { ...(get().prefs['variables.global'] ?? {}), ...(conn?.variables ?? {}) })
     get().patchTab(tabId, { planning: true })
     try {
       await get().connect(tab.connectionId)
-      const plan = await ipc.db.plan(tab.connectionId, sql)
+      const plan = await ipc.db.plan(tab.connectionId, expanded)
       get().patchTab(tabId, { plan, planning: false })
     } catch (e) {
-      get().patchTab(tabId, { plan: { dialect, format: 'text', sql, durationMs: 0, root: { label: 'Execution plan' }, error: cleanIpcError(e) }, planning: false })
+      get().patchTab(tabId, { plan: { dialect, format: 'text', sql: expanded, durationMs: 0, root: { label: 'Execution plan' }, error: cleanIpcError(e) }, planning: false })
     }
   },
 

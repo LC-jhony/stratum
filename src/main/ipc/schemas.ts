@@ -65,6 +65,8 @@ export const connectionSchema = z.object({
   }).passthrough().optional(),
   uri: z.string().max(20_000).optional(),
   authSource: z.string().max(2000).optional(),
+  /** SQL variables expanded before execution; connection values override the globals. */
+  variables: z.record(z.string().min(1).max(200), z.string().max(100_000)).optional(),
   ssh: ssh.optional(),
   readonly: z.boolean().optional(),
   group: z.string().max(500).optional(),
@@ -97,6 +99,8 @@ export const dockerEndpointSchema = z.object({
   ssl: z.boolean().optional(),
 }).strict()
 export const themePathSchema = z.string().min(1).max(4000)
+/** Managed JDBC driver JAR; the service additionally checks that it lives in <userData>/drivers. */
+export const driverPathSchema = z.string().min(1).max(4000)
 export const menuPositionSchema = z.object({
   x: z.number().int().min(0).max(100_000),
   y: z.number().int().min(0).max(100_000),

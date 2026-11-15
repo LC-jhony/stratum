@@ -1377,3 +1377,49 @@ svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
 .extension-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: var(--text-2xs); }
 .extension-meta code { color: var(--ink); font-family: var(--stratum-mono); opacity: .9; }
 .dialog.extensions-dialog footer .hint { margin: 0; }
+
+/* ── SQL variables ──────────────────────────────────────────────────────── */
+.var-editor { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.var-row { display: flex; align-items: center; gap: 6px; }
+.var-row input {
+  flex: 1;
+  min-width: 0;
+  height: var(--h-control);
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: var(--surface-3);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+.var-row input:first-child { flex: 0 1 38%; font-family: var(--stratum-mono); font-size: 12px; }
+.var-row button { width: var(--h-compact); height: var(--h-compact); flex: none; padding: 0; color: var(--muted); }
+.var-row button:hover { background: var(--hover); color: var(--ink); }
+.var-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  height: var(--h-compact);
+  padding: 0 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.var-add:hover { border-color: var(--accent); color: var(--ink); }
+
+/* ── Driver Manager ─────────────────────────────────────────────────────── */
+.dialog.drivers-dialog { width: 720px; }
+.drivers-hint { margin: 12px 16px 0; }
+.drivers-dialog .hint.error { margin: 8px 16px 0; }
+.driver-list { display: flex; flex-direction: column; gap: 4px; min-height: 140px; max-height: 52vh; padding: 10px 12px; overflow: auto; }
+.driver-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--surface-2); }
+.driver-icon { flex: none; color: var(--muted); }
+.driver-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.driver-name { font-size: var(--text-sm); font-weight: 600; }
+.driver-detail { overflow: hidden; color: var(--muted); font-size: var(--text-2xs); text-overflow: ellipsis; white-space: nowrap; }
+.driver-detail code { font-family: var(--stratum-mono); }
+.driver-row button { width: var(--h-compact); height: var(--h-compact); flex: none; padding: 0; color: var(--muted); }
+.driver-row button:hover:not(:disabled) { background: var(--hover); color: var(--ink); }

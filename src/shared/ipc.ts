@@ -1,4 +1,5 @@
 import type { DockerContainer, DockerEndpoint } from './docker'
+import type { DriverJar } from './drivers'
 import type { ExtensionView } from './extensions'
 import type {
   ConnectionConfig, ConnectionView, DatabaseModel, QueryPlan, QueryResult, SavedQuery, SessionInfo,
@@ -8,6 +9,11 @@ import type { UpdateState } from './update'
 
 /** Native save-dialog filter (matches Electron's FileFilter). */
 export interface SaveFilter { name: string; extensions: string[] }
+
+/** Where a connection export went and how many data sources it contains. */
+export interface ConnectionExportResult { path: string; count: number }
+/** Imported data sources (safe metadata), the file they came from and entries that were repaired or skipped. */
+export interface ConnectionImportResult { path: string; imported: ConnectionView[]; warnings: string[] }
 
 /** Single typed contract between renderer and main. Every channel is request/response. */
 export interface StratumApi {
@@ -22,6 +28,10 @@ export interface StratumApi {
     close(id: string): Promise<void>
     /** Close and open again, applying edited settings, init SQL and a fresh tunnel. */
     reconnect(id: string): Promise<{ version?: string }>
+    /** Save every data source as portable JSON. Passwords never leave the machine; null when cancelled. */
+    exportFile(): Promise<ConnectionExportResult | null>
+    /** Import portable JSON with fresh ids and non-colliding names; null when cancelled. */
+    importFile(): Promise<ConnectionImportResult | null>
     /** Main -> renderer session loss (idle timeout or a broken keep-alive). Returns an unsubscribe function. */
     onState(cb: (state: SessionStateChange) => void): () => void
   }
@@ -53,6 +63,17 @@ export interface StratumApi {
     list(): Promise<ExtensionView[]>
     /** Persist a toggle and return the updated list; mandatory extensions reject `false`. */
     setEnabled(id: string, enabled: boolean): Promise<ExtensionView[]>
+  }
+  drivers: {
+    /** JARs managed inside <userData>/drivers. */
+    list(): Promise<DriverJar[]>
+    /** Copy one or more JARs chosen in a native dialog into the managed folder. */
+    add(): Promise<DriverJar[]>
+    remove(path: string): Promise<DriverJar[]>
+    /** Show a managed JAR in the OS file manager. */
+    reveal(path: string): Promise<void>
+    /** Open the managed drivers folder. */
+    openFolder(): Promise<void>
   }
   themes: {
     list(): Promise<ThemeManifestEntry[]>

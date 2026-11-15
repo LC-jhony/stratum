@@ -1,6 +1,7 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { ipc } from '../../ipc/client'
 import type { CSSProperties, ReactNode } from 'react'
+import type { DriverJar } from '../../../../shared/drivers'
 import type { ConnectionColor, ConnectionConfig, ConnectionProfile, ConnectionView, DialectId, DriverKind, SessionConfig, SshConfig, SshJumpHost } from '../../../../shared/types'
 import { DIALECTS } from '../../../../core/dialects'
 import { inferDockerKind, publishedPorts, type DockerContainer, type DockerPort } from '../../../../core/docker'
@@ -8,6 +9,7 @@ import { isSqlKind } from '../../../../core/kinds'
 import { COLOR_LABEL, CONNECTION_COLORS, colorVar, confirmsWrites, PROFILE_ORDER, PROFILE_PRESETS } from '../../../../core/profiles'
 import { useWorkbench } from '../../store/workbench'
 import { Icon } from '../../ui/Icon'
+import { VariableEditor } from '../../ui/VariableEditor'
 import { DbIcon, DbLogo } from './dbIcons'
 
 /**
@@ -170,6 +172,13 @@ export function DatasourceDialog() {
   const [note, setNote] = useState<Note | null>(null)
   const [busy, setBusy] = useState(false)
   const [dockerHelper, setDockerHelper] = useState<DockerHelper | null>(null)
+  const [driverJars, setDriverJars] = useState<DriverJar[]>([])
+  useEffect(() => {
+    if (!dialog) return
+    let live = true
+    void ipc.drivers.list().then((jars) => { if (live) setDriverJars(jars) }).catch(() => undefined)
+    return () => { live = false }
+  }, [dialog])
   if (!dialog) return null
   const storedPassword = !!dialog.editing?.hasPassword
   const storedSshPassword = !!dialog.editing?.ssh?.hasPassword
@@ -624,8 +633,9 @@ export function DatasourceDialog() {
 
       <Lbl className="ds-c1" req>Driver file</Lbl>
       <div className="ds-with-btn ds-c2">
-        <input className="ds-field" value={c.jdbc?.driverPath ?? ''} placeholder="ojdbc11.jar (file, folder or archive)" onChange={(e) => up({ jdbc: { url: c.jdbc?.url ?? '', driverPath: e.target.value, driverClass: c.jdbc?.driverClass, dialect: c.jdbc?.dialect ?? 'generic' } })} />
+        <input className="ds-field" list="stratum-driver-jars" value={c.jdbc?.driverPath ?? ''} placeholder="ojdbc11.jar (file, folder or archive)" onChange={(e) => up({ jdbc: { url: c.jdbc?.url ?? '', driverPath: e.target.value, driverClass: c.jdbc?.driverClass, dialect: c.jdbc?.dialect ?? 'generic' } })} />
         <button className="ds-btn ds-icon-btn" type="button" aria-label="Browse driver file" title="Choose driver" onClick={() => void pick((f) => up({ jdbc: { url: c.jdbc?.url ?? '', driverPath: f, driverClass: c.jdbc?.driverClass, dialect: c.jdbc?.dialect ?? 'generic' } }), ['jar', 'zip'])}>…</button>
+        <datalist id="stratum-driver-jars">{driverJars.map((j) => <option key={j.path} value={j.path}>{j.name}</option>)}</datalist>
       </div>
       <Lbl className="ds-c4">Driver class</Lbl>
       <input className="ds-field ds-c5" placeholder="optional" value={c.jdbc?.driverClass ?? ''} onChange={(e) => up({ jdbc: { url: c.jdbc?.url ?? '', driverPath: c.jdbc?.driverPath ?? '', driverClass: e.target.value, dialect: c.jdbc?.dialect ?? 'generic' } })} />
@@ -751,6 +761,10 @@ export function DatasourceDialog() {
         <Fragment>
           <Lbl className="ds-c1">Init SQL</Lbl>
           <textarea className="ds-field ds-wide ds-textarea" rows={4} placeholder="Statements executed right after connecting, separated by ;" value={sessionCfg.initSql ?? ''} onChange={(e) => setSession({ initSql: e.target.value })} />
+
+          <Lbl className="ds-c1">Variables</Lbl>
+          <div className="ds-wide"><VariableEditor values={c.variables ?? {}} onChange={(variables) => up({ variables })} addLabel="Add variable" /></div>
+          <p className="ds-note ds-wide">Expanded in <code>{'${name}'}</code> / <code>{'$(name)'}</code> before a console statement runs. These values override the global variables.</p>
 
           <Lbl className="ds-c1">Default schema</Lbl>
           <input className="ds-field ds-c2" placeholder="public (search_path on PostgreSQL)" value={sessionCfg.defaultSchema ?? ''} onChange={(e) => setSession({ defaultSchema: e.target.value })} />

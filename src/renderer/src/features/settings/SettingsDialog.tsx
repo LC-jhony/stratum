@@ -11,6 +11,7 @@ import { clampUiFontSize, MAX_UI_FONT_SIZE, MIN_UI_FONT_SIZE } from '../../theme
 import { MONO_FONTS, systemFonts } from '../../theme/fonts'
 import { formatBytes, formatSpeed, packageKindLabel, updatePhaseLabel, updateProgress } from '../../../../core/update'
 import { Icon } from '../../ui/Icon'
+import { VariableEditor } from '../../ui/VariableEditor'
 
 const KEYWORD_CASES: { id: KeywordCase; label: string }[] = [
   { id: 'upper', label: 'UPPERCASE (SELECT)' },
@@ -211,6 +212,12 @@ export function SettingsDialog() {
           <F label="Rows per page"><input type="number" min={10} max={10000} value={draft['query.pageSize']} onChange={(e) => up({ 'query.pageSize': Number(e.target.value) })} /></F>
           <Check label="Confirm UPDATE / DELETE without WHERE" k="query.confirmDestructive" />
           <Check label="Prompt for SQL parameters (:name, :'name', ${name}, #name#)" k="query.parameters.enabled" />
+
+          <h3 className="section">SQL variables</h3>
+          <div className="field span-2"><span>Global variables</span>
+            <VariableEditor values={draft['variables.global']} onChange={(values) => up({ 'variables.global': values })} addLabel="Add global variable" />
+          </div>
+          <p className="hint"><Icon id="symbol-parameter" /> ${'{name}'} and $({'{name}'}) are expanded before execution. A data source can override these values; names that are still undefined prompt like any parameter.</p>
 
           <h3 className="section">Data export</h3>
           <Check label="Protect CSV and other delimited exports from spreadsheet formulas" k="export.neutralizeFormulas" />

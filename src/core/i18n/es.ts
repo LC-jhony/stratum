@@ -18,6 +18,9 @@ export const es: Record<MessageKey, string> = {
   'menu.savedQueries': 'Consultas guardadas…',
   'menu.saveQuery': 'Guardar consulta en la biblioteca…',
   'menu.openSqlite': 'Abrir archivo SQLite…',
+  'menu.importConnections': 'Importar fuentes de datos…',
+  'menu.exportConnections': 'Exportar fuentes de datos…',
+  'menu.driverManager': 'Gestor de controladores…',
   'menu.quit': 'Salir',
   'menu.findAction': 'Buscar acción…',
   'menu.searchObjects': 'Buscar objetos de la base de datos…',
@@ -64,6 +67,21 @@ export const es: Record<MessageKey, string> = {
   'welcome.findAction': 'Buscar acción',
   'welcome.runStatement': 'Ejecutar sentencia',
   'status.noDataSource': 'Sin fuente de datos',
+  'connections.imported': 'Se importaron {count} fuentes de datos.',
+  'connections.exported': 'Se exportaron {count} fuentes de datos a {path}.',
+  'connections.warnings': 'Avisos:',
+
+  // Driver Manager
+  'drivers.title': 'Controladores JDBC',
+  'drivers.hint': 'Stratum copia los JAR seleccionados a su carpeta de datos, así que limpiar la carpeta de descargas nunca rompe una conexión. Una fuente JDBC apunta a uno de estos archivos.',
+  'drivers.empty': 'Todavía no hay controladores gestionados. Añade el JAR de tu proveedor de base de datos.',
+  'drivers.add': 'Añadir JAR…',
+  'drivers.adding': 'Copiando…',
+  'drivers.folder': 'Abrir carpeta',
+  'drivers.reveal': 'Mostrar en el gestor de archivos',
+  'drivers.remove': 'Quitar controlador',
+  'drivers.removeConfirm': '¿Quitar {name} de los controladores gestionados?',
+  'drivers.count': '{count} JAR gestionado(s)',
 
   // Settings
   'settings.language': 'Idioma',
