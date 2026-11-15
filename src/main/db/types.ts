@@ -8,6 +8,10 @@ export interface Transport {
   close(): Promise<void>
   /** Server-side connection id, when the driver exposes one (cancel and live diagnostics). */
   processId?(): number | undefined
+  /** Driver-level transaction flag, after the last statement. */
+  inTransaction?(): boolean
+  /** Lightweight round trip used by keep-alive. */
+  ping?(): Promise<void>
 }
 export type Run = (sql: string) => Promise<RawResult>
 

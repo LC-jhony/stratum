@@ -227,3 +227,74 @@ describe('engine-specific introspection', () => {
     expect(calls.every((c) => !c.includes('region-asia-east1'))).toBe(true)
   })
 })
+
+describe('transactions and plans', () => {
+  /** Fresh file-backed session with an `items` table, so each test observes its own rows. */
+  const openSession = async (session?: ConnectionConfig['session']) => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'stratum-tx-'))
+    const cfg: ConnectionConfig = { id: 'tx', name: 'tx', kind: 'sqlite', filePath: path.join(dir, 'tx.db'), session }
+    const tx = new DbSession(cfg, new SqliteTransport(cfg), dialects.sqlite)
+    await tx.open()
+    expect((await tx.execute('create table items (id integer primary key, name text)')).error).toBeUndefined()
+    // With auto-commit off even DDL opens the implicit transaction; the fixture starts clean.
+    if (session?.autoCommit === false) await tx.commit()
+    return { tx, cfg, dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) }
+  }
+
+  it('explicit begin, rollback and commit move the reported state', async () => {
+    const { tx, cleanup } = await openSession()
+    try {
+      expect(tx.transaction()).toMatchObject({ open: false, autoCommit: true })
+      expect((await tx.execute(`insert into items (name) values ('a')`)).error).toBeUndefined()
+      expect(tx.transaction().open).toBe(false) // auto-commit keeps no transaction open
+      expect((await tx.begin()).open).toBe(true)
+      expect(tx.transaction().since).toBeTypeOf('number')
+      expect((await tx.execute(`insert into items (name) values ('b')`)).error).toBeUndefined()
+      expect((await tx.rollback()).open).toBe(false)
+      expect((await tx.execute('select name from items order by id')).rows).toEqual([['a']])
+      await tx.begin()
+      await tx.execute(`insert into items (name) values ('c')`)
+      expect((await tx.commit()).open).toBe(false)
+      expect((await tx.execute('select name from items order by id')).rows).toEqual([['a'], ['c']])
+    } finally {
+      await tx.close()
+      cleanup()
+    }
+  })
+
+  it('with auto-commit off the first statement opens the transaction, and close rolls it back', async () => {
+    const { tx, cfg, dir } = await openSession({ autoCommit: false })
+    try {
+      expect(tx.transaction()).toMatchObject({ open: false, autoCommit: false })
+      await tx.execute(`insert into items (name) values ('uncommitted')`)
+      expect(tx.transaction().open).toBe(true)
+      await tx.rollback()
+      expect((await tx.execute('select count(*) from items')).rows[0][0]).toBe(0)
+      await tx.execute(`insert into items (name) values ('persisted')`)
+      await tx.commit()
+      expect((await tx.execute('select name from items')).rows).toEqual([['persisted']])
+    } finally {
+      await tx.close()
+    }
+    // A new session on the same file sees only committed rows.
+    const check = new DbSession(cfg, new SqliteTransport(cfg), dialects.sqlite)
+    await check.open()
+    expect((await check.execute('select name from items')).rows).toEqual([['persisted']])
+    await check.close()
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('parses SQLite EXPLAIN QUERY PLAN into a plan tree', async () => {
+    const plan = await s.plan(`select * from customers where email = 'c1@x.io'`)
+    expect(plan.error).toBeUndefined()
+    expect(plan).toMatchObject({ dialect: 'sqlite', format: 'json', sql: expect.stringContaining('select') })
+    expect(plan.root.label).toBeTruthy()
+    expect(plan.durationMs).toBeTypeOf('number')
+  })
+
+  it('reports a failed plan inside the plan object instead of throwing', async () => {
+    const plan = await s.plan('select * from no_such_table')
+    expect(plan.error).toMatch(/no such table/i)
+    expect(plan.root).toMatchObject({ label: 'Execution plan' })
+  })
+})

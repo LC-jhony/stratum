@@ -1,6 +1,16 @@
 import { z } from 'zod'
 
 const port = z.number().int().min(1).max(65535)
+const jumpHost = z.object({
+  id: z.string().min(1).max(200),
+  host: z.string().min(1).max(2000),
+  port: port.optional(),
+  user: z.string().min(1).max(2000),
+  authType: z.enum(['auto', 'password', 'privateKey', 'agent']).optional(),
+  password: z.string().max(100_000).optional(),
+  privateKeyPath: z.string().max(4000).optional(),
+  passphrase: z.string().max(100_000).optional(),
+}).passthrough()
 const ssh = z.object({
   enabled: z.boolean(),
   host: z.string().optional(),
@@ -11,6 +21,17 @@ const ssh = z.object({
   privateKeyPath: z.string().optional(),
   passphrase: z.string().optional(),
   connectTimeoutMs: z.number().int().min(1).max(120_000).optional(),
+  /** DataGrip MAX_JUMP_SERVERS: up to five intermediate hosts, traversed in order. */
+  jumpHosts: z.array(jumpHost).max(5).optional(),
+}).passthrough()
+const session = z.object({
+  initSql: z.string().max(100_000).optional(),
+  defaultSchema: z.string().max(2000).optional(),
+  defaultCatalog: z.string().max(2000).optional(),
+  autoCommit: z.boolean().optional(),
+  isolation: z.enum(['default', 'read uncommitted', 'read committed', 'repeatable read', 'serializable']).optional(),
+  keepAliveSeconds: z.number().int().min(0).max(86_400).optional(),
+  idleTimeoutSeconds: z.number().int().min(0).max(604_800).optional(),
 }).passthrough()
 
 export const connectionSchema = z.object({
@@ -24,6 +45,14 @@ export const connectionSchema = z.object({
   database: z.string().max(2000).optional(),
   ssl: z.boolean().optional(),
   sslVerify: z.boolean().optional(),
+  sslCaPath: z.string().max(4000).optional(),
+  sslClientCertPath: z.string().max(4000).optional(),
+  sslClientKeyPath: z.string().max(4000).optional(),
+  sslKeyPassphrase: z.string().max(100_000).optional(),
+  profile: z.enum(['dev', 'test', 'prod']).optional(),
+  color: z.enum(['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gray']).optional(),
+  confirmWrites: z.boolean().optional(),
+  session: session.optional(),
   dataCenter: z.string().max(200).optional(),
   region: z.string().max(200).optional(),
   socketPath: z.string().max(4000).optional(),
@@ -49,6 +78,15 @@ export const queryOptionsSchema = z.object({
   full: z.boolean().optional(),
 }).strict().optional()
 export const statementsSchema = z.array(sqlSchema).max(10_000)
+export const sessionIdSchema = z.union([z.number().int().positive(), z.string().min(1).max(64)])
+export const savedQuerySchema = z.object({
+  id: z.string().min(1).max(200),
+  name: z.string().min(1).max(500),
+  sql: sqlSchema,
+  connectionId: z.string().min(1).max(200).optional(),
+  createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+}).strict()
 export const settingsPatchSchema = z.record(z.string(), z.unknown())
 export const saveFilterSchema = z.object({ name: z.string(), extensions: z.array(z.string()) })
 export const filtersSchema = z.array(saveFilterSchema).optional()

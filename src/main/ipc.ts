@@ -6,6 +6,7 @@ import type { ConnectionManager } from './services/connectionManager'
 import type { ConnectionService } from './services/connectionService'
 import type { DesktopService } from './services/desktopService'
 import type { HistoryService } from './services/historyService'
+import type { QueryLibraryService } from './services/queryLibraryService'
 import type { SettingsService } from './services/settingsService'
 import type { ThemeService } from './services/themeService'
 import type { UpdateService } from './services/updateService'
@@ -17,6 +18,8 @@ import {
   idSchema,
   menuPositionSchema,
   queryOptionsSchema,
+  savedQuerySchema,
+  sessionIdSchema,
   settingsPatchSchema,
   sqlSchema,
   statementsSchema,
@@ -25,7 +28,8 @@ import {
 
 type Handlers = { [G in keyof StratumApi]: StratumApi[G] extends Record<string, (...a: any[]) => any> ? StratumApi[G] : never }
 /** Main-process side of the API: renderer-bound callbacks such as onState live in preload only. */
-type IpcHandlers = Omit<Handlers, 'update' | 'window'> & {
+type IpcHandlers = Omit<Handlers, 'update' | 'window' | 'connections'> & {
+  connections: Omit<StratumApi['connections'], 'onState'>
   update: Omit<StratumApi['update'], 'onState'>
   window: Omit<StratumApi['window'], 'onMaximized'>
 }
@@ -36,6 +40,7 @@ export interface IpcDependencies {
   sessions: ConnectionManager
   settings: SettingsService
   history: HistoryService
+  library: QueryLibraryService
   themes: ThemeService
   desktop: DesktopService
   update: UpdateService
@@ -59,7 +64,7 @@ export function registerIpc(d: IpcDependencies) {
     })
   }
 
-  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'dialogs' | 'export' | 'docker' | 'update' | 'window'> = {
+  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'library' | 'dialogs' | 'export' | 'docker' | 'update' | 'window'> = {
     connections: {
       list: () => d.connections.list(),
       save: (c) => d.connections.save(c),
@@ -67,12 +72,20 @@ export function registerIpc(d: IpcDependencies) {
       test: (c) => d.connections.test(c),
       open: (id) => d.connections.open(id),
       close: (id) => d.connections.close(id),
+      reconnect: (id) => d.connections.reconnect(id),
     },
     db: {
       introspect: (id) => d.sessions.require(id).introspect(),
       execute: (id, sql, opts) => d.sessions.require(id).execute(sql, opts),
       cancel: (id) => d.sessions.require(id).cancel(),
       submit: (id, statements) => d.sessions.require(id).submit(statements),
+      plan: (id, sql) => d.sessions.require(id).plan(sql),
+      transaction: async (id) => d.sessions.require(id).transaction(),
+      begin: (id) => d.sessions.require(id).begin(),
+      commit: (id) => d.sessions.require(id).commit(),
+      rollback: (id) => d.sessions.require(id).rollback(),
+      sessions: (id) => d.sessions.require(id).sessions(),
+      killSession: (id, pid) => d.sessions.require(id).killSession(pid),
     },
     themes: {
       list: () => d.themes.list(),
@@ -86,6 +99,11 @@ export function registerIpc(d: IpcDependencies) {
     history: {
       get: () => d.history.get(),
       add: (connectionId, statements) => d.history.add(connectionId, statements),
+    },
+    library: {
+      list: () => d.library.list(),
+      save: (query) => d.library.save(query),
+      remove: (id) => d.library.remove(id),
     },
     dialogs: {
       pickFile: (filters) => d.desktop.pickFile(filters),
@@ -127,9 +145,12 @@ export function registerIpc(d: IpcDependencies) {
 
   route('connections', api.connections as unknown as Record<string, Handler>, {
     list: [], save: [connectionSchema], remove: [idSchema], test: [connectionSchema], open: [idSchema], close: [idSchema],
+    reconnect: [idSchema],
   })
   route('db', api.db as unknown as Record<string, Handler>, {
     introspect: [idSchema], execute: [idSchema, sqlSchema, queryOptionsSchema], cancel: [idSchema], submit: [idSchema, statementsSchema],
+    plan: [idSchema, sqlSchema], transaction: [idSchema], begin: [idSchema], commit: [idSchema], rollback: [idSchema],
+    sessions: [idSchema], killSession: [idSchema, sessionIdSchema],
   })
   route('themes', api.themes as unknown as Record<string, Handler>, {
     list: [], read: [themePathSchema], importVsCodeExtensions: [],
@@ -139,6 +160,9 @@ export function registerIpc(d: IpcDependencies) {
   })
   route('history', api.history as unknown as Record<string, Handler>, {
     get: [], add: [idSchema, statementsSchema],
+  })
+  route('library', api.library as unknown as Record<string, Handler>, {
+    list: [], save: [savedQuerySchema], remove: [idSchema],
   })
   route('dialogs', api.dialogs as unknown as Record<string, Handler>, {
     pickFile: [filtersSchema],

@@ -25,21 +25,32 @@ export class ConnectionService {
   async test(config: ConnectionConfig) {
     const stored = await this.store.get(config.id)
     if (!stored) return this.sessions.test(config)
+    const storedJumps = new Map((stored.ssh?.jumpHosts ?? []).map((j) => [j.id, j]))
     const ssh = config.ssh
       ? {
           ...stored.ssh,
           ...config.ssh,
           password: config.ssh.password === undefined ? stored.ssh?.password : config.ssh.password,
           passphrase: config.ssh.passphrase === undefined ? stored.ssh?.passphrase : config.ssh.passphrase,
+          jumpHosts: config.ssh.jumpHosts?.map((j) => {
+            const prev = storedJumps.get(j.id)
+            return {
+              ...j,
+              password: j.password === undefined ? prev?.password : j.password,
+              passphrase: j.passphrase === undefined ? prev?.passphrase : j.passphrase,
+            }
+          }),
         }
       : stored.ssh
     return this.sessions.test({
       ...stored,
       ...config,
       password: config.password === undefined ? stored.password : config.password,
+      sslKeyPassphrase: config.sslKeyPassphrase === undefined ? stored.sslKeyPassphrase : config.sslKeyPassphrase,
       ssh,
     })
   }
   open(id: string) { return this.sessions.open(id) }
+  reconnect(id: string) { return this.sessions.reconnect(id) }
   close(id: string) { return this.sessions.close(id) }
 }

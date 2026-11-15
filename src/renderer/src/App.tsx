@@ -14,6 +14,9 @@ import { ConsoleEditor } from './features/console/ConsoleEditor'
 import { DatasourceDialog } from './features/connections/DatasourceDialog'
 import { ErdView } from './features/erd/ErdView'
 import { Explorer } from './features/explorer/Explorer'
+import { SessionMonitorDialog } from './features/admin/SessionMonitorDialog'
+import { QueryLibraryDialog } from './features/library/QueryLibraryDialog'
+import { ObjectSearchDialog } from './features/search/ObjectSearchDialog'
 import { UpdateStatus } from './features/updates/UpdateStatus'
 import { ErrorBoundary } from './ui/ErrorBoundary'
 import { Icon } from './ui/Icon'
@@ -82,6 +85,8 @@ export function App() {
     void wb.initUpdates().then((f) => { if (live) off = f; else f() })
     return () => { live = false; off?.() }
   }, [])
+  // Sessions closed by the idle sweep or lost keep-alive must disappear from the Explorer.
+  useEffect(() => ipc.connections.onState((state) => useWorkbench.getState().sessionState(state)), [])
   useEffect(() => { setCompletionPrefs({ enabled: prefs['completion.enabled'], suggestOnSpace: prefs['completion.suggestOnSpace'], autoAlias: prefs['completion.autoAlias'], snippets: prefs['completion.snippets'], joinByForeignKey: prefs['completion.joinByForeignKey'], keywordCase: prefs['completion.keywordCase'] }) }, [prefs])
   useEffect(() => { applyFontPrefs(prefs) }, [prefs['editor.fontFamily']]) // Settings may change after mount; reapply the mono family live.
   // UI scale and family: Settings previews them through previewPrefs, so this also drives the live preview.
@@ -95,8 +100,17 @@ export function App() {
       case 'datasource.new': return s.set({ dialog: {} })
       case 'datasource.openSqlite': { const f = await ipc.dialogs.pickFile([{ name: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3', 'db3'] }]); if (!f) return; const c = { id: crypto.randomUUID(), name: f.split(/[\\/]/).pop()!, kind: 'sqlite' as const, filePath: f }; await s.saveConnection(c); void s.connect(c.id); return s.openConsole(c.id) }
       case 'console.new': return void s.openConsole(cur?.connectionId)
+      case 'object.search': return s.set({ objectSearchOpen: true })
+      case 'library.open': return s.set({ libraryOpen: true })
+      case 'session.monitor': {
+        const kind = s.connections.find((c) => c.id === cur?.connectionId)?.kind
+        if (cur && (kind === 'postgres' || kind === 'mysql')) s.set({ sessionMonitor: cur.connectionId })
+        else window.alert('The session monitor is available for PostgreSQL and MySQL data sources.')
+        return
+      }
       case 'erd.open': return cur && isSqlKind(s.connections.find((c) => c.id === cur.connectionId)?.kind) ? s.openDiagram(cur.connectionId) : undefined
       case 'explorer.refresh': return void (cur && s.refresh(cur.connectionId))
+      case 'datasource.reconnect': return void (cur && s.reconnect(cur.connectionId))
       case 'view.explorer': {
         // VS Code's Cmd/Ctrl+1: reveal the side bar and put the caret in the tree filter.
         if (!s.prefs['workbench.sideBar.visible']) void s.savePrefs({ 'workbench.sideBar.visible': true })
@@ -113,6 +127,8 @@ export function App() {
       case 'update.check': return void (s.showUpdates(), s.checkUpdates(false))
       case 'update.open': return s.showUpdates()
       case 'sql.format': { dispatchEvent(new Event('stratum:format')); return }
+      case 'run.explain': { dispatchEvent(new Event('stratum:explain')); return }
+      case 'library.save': { dispatchEvent(new Event('stratum:saveQuery')); return }
     }
   }, [])
   useEffect(() => ipc.onCommand((c) => void command(c)), [command])
@@ -120,9 +136,11 @@ export function App() {
     const h = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); void command('palette') }
+      else if (mod && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); void command('object.search') }
+      else if (mod && e.altKey && e.key.toLowerCase() === 'l') { e.preventDefault(); void command('library.open') }
       else if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); void command('view.sideBar') }
       else if (mod && !e.shiftKey && !e.altKey && e.key === '1') { e.preventDefault(); void command('view.explorer') }
-      if (e.key === 'Escape') set({ palette: null, dialog: null })
+      if (e.key === 'Escape') set({ palette: null, dialog: null, objectSearchOpen: false, libraryOpen: false, sessionMonitor: undefined })
     }
     // Capture: Monaco consumes some modified keys before they reach the window bubble phase.
     addEventListener('keydown', h, true); return () => removeEventListener('keydown', h, true)
@@ -136,9 +154,14 @@ export function App() {
       { id: 'ds', label: 'New Data Source…', run: () => void command('datasource.new') },
       { id: 'sqlite', label: 'Open SQLite File…', run: () => void command('datasource.openSqlite') },
       { id: 'console', label: 'New Query Console', run: () => void command('console.new') },
+      { id: 'search-objects', label: 'Search Database Objects…', hint: ipc.platform === 'darwin' ? '⇧⌘O' : 'Ctrl+Shift+O', run: () => void command('object.search') },
+      { id: 'library', label: 'Open Saved Queries…', hint: ipc.platform === 'darwin' ? '⌥⌘L' : 'Ctrl+Alt+L', run: () => void command('library.open') },
+      { id: 'sessions', label: 'Sessions & Locks…', run: () => void command('session.monitor') },
       { id: 'erd', label: 'Show Diagram for Current Data Source', run: () => void command('erd.open') },
       { id: 'refresh', label: 'Refresh Database Explorer', run: () => void command('explorer.refresh') },
       { id: 'format', label: 'Format SQL', hint: ipc.platform === 'darwin' ? '⇧⌘F' : 'Ctrl+Shift+F', run: () => void command('sql.format') },
+      { id: 'explain', label: 'Explain Execution Plan', hint: ipc.platform === 'darwin' ? '⇧⌘E' : 'Ctrl+Shift+E', run: () => void command('run.explain') },
+      { id: 'save-query', label: 'Save Query to Library…', run: () => void command('library.save') },
       { id: 'side', label: 'View: Toggle Side Bar', hint: ipc.platform === 'darwin' ? '⌘B' : 'Ctrl+B', run: () => void command('view.sideBar') },
       { id: 'explorer', label: 'View: Focus Database Explorer', hint: ipc.platform === 'darwin' ? '⌘1' : 'Ctrl+1', run: () => void command('view.explorer') },
       { id: 'results', label: 'Toggle Results Panel', run: () => void command('view.results') },
@@ -195,6 +218,7 @@ export function App() {
         <span className="status-brand">Stratum</span>
         <span className="status-sep" />
         <span className="conn"><Icon id={activeConn && live[activeConn.id]?.status === 'ready' ? 'pass-filled' : 'circle-slash'} /><span className="conn-name">{activeConn ? `${activeConn.name}${live[activeConn.id]?.version ? ' · ' + live[activeConn.id]!.version : ''}` : 'No data source'}</span></span>
+        {activeConn && wb.transactions[activeConn.id]?.open && <span className="status-tx" title="Open transaction"><Icon id="circle-check" />TX</span>}
         <span className="grow" />
         <UpdateStatus />
         <button onClick={() => command('theme.color')} title="Select color theme"><Icon id="symbol-color" /> <span className="theme-label">{activeThemes.color?.entry.label}</span></button>
@@ -203,6 +227,9 @@ export function App() {
       {wb.dialog && <DatasourceDialog key={wb.dialog.editing?.id ?? 'new'} />}
       {wb.settingsOpen && <SettingsDialog />}
       <ParamDialog />
+      <ObjectSearchDialog />
+      <QueryLibraryDialog />
+      <SessionMonitorDialog />
     </div>
   )
 }

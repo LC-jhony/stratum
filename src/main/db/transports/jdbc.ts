@@ -1,5 +1,6 @@
 import type { ConnectionConfig, RawResult } from '../../../shared/types'
 import type { Transport } from '../types'
+import { transactionState } from './tx'
 import { JdbcSidecar } from '../../services/jdbcSidecar'
 
 interface ExecuteResponse { affectedRows?: number; err?: string; rows?: unknown[][]; columns?: { name: string; type?: string; orgTable?: string }[] }
@@ -7,6 +8,7 @@ interface ConnectResponse { success: boolean; err?: string; fullErr?: string; ve
 
 /** Talks to database-client/jdbc-adapter-server (MIT) over its HTTP API. */
 export class JdbcTransport implements Transport {
+  private inTx = false
   constructor(private cfg: ConnectionConfig, private sidecar: JdbcSidecar) {}
   private post<T>(endpoint: string, body: unknown): Promise<T> { return this.sidecar.post<T>(endpoint, body) }
   async open() {
@@ -23,8 +25,11 @@ export class JdbcTransport implements Transport {
   async query(sql: string): Promise<RawResult> {
     const r = await this.post<ExecuteResponse>('execute', { id: this.cfg.id, sql })
     if (r.err) throw new Error(r.err)
+    this.inTx = transactionState(sql, this.inTx)
     return { columns: (r.columns ?? []).map((c) => ({ name: c.name, type: c.type, table: c.orgTable })), rows: r.rows ?? [], affectedRows: r.affectedRows }
   }
   async cancel() { await this.post('cancel', { id: this.cfg.id }) }
-  async close() { await this.post('close', { id: this.cfg.id }).catch(() => {}) }
+  inTransaction(): boolean { return this.inTx }
+  async ping() { await this.query('select 1') }
+  async close() { this.inTx = false; await this.post('close', { id: this.cfg.id }).catch(() => {}) }
 }

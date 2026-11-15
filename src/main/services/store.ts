@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { safeStorage } from 'electron'
-import type { ConnectionConfig, ConnectionView, SshConfig } from '../../shared/types'
+import type { ConnectionConfig, ConnectionView, SshConfig, SshJumpHost, SshJumpHostView } from '../../shared/types'
 
 /** Tiny atomic JSON store (write temp file then rename) so a crash never corrupts config. */
 export class JsonStore<T extends object> {
@@ -59,36 +59,49 @@ export const unseal = (s?: string) => (s?.startsWith(PREFIX) ? safeStorage.decry
 
 /** Strip secrets from a persisted connection; the renderer only needs to know whether they exist. */
 export function connectionView(c: ConnectionConfig): ConnectionView {
-  const { password, ssh, ...rest } = c
-  return {
-    ...rest,
-    hasPassword: !!password,
-    ssh: ssh
-      ? {
-          ...ssh,
-          password: undefined,
-          passphrase: undefined,
+  const { password, ssh, sslKeyPassphrase, ...rest } = c
+  const sshView = ssh
+    ? (() => {
+        const { password: _password, passphrase: _passphrase, jumpHosts, ...sshRest } = ssh
+        return {
+          ...sshRest,
           hasPassword: !!ssh.password,
           hasPassphrase: !!ssh.passphrase,
+          jumpHosts: jumpHosts?.map((j): SshJumpHostView => {
+            const { password: _jp, passphrase: _jpp, ...jumpRest } = j
+            return { ...jumpRest, hasPassword: !!j.password, hasPassphrase: !!j.passphrase }
+          }),
         }
-      : undefined,
-  }
+      })()
+    : undefined
+  return { ...rest, hasPassword: !!password, hasSslKeyPassphrase: !!sslKeyPassphrase, ssh: sshView }
 }
 
+const unsealJump = (j: SshJumpHost): SshJumpHost => ({ ...j, password: unseal(j.password), passphrase: unseal(j.passphrase) })
 const unsealSsh = (ssh?: SshConfig): SshConfig | undefined =>
-  ssh ? { ...ssh, password: unseal(ssh.password), passphrase: unseal(ssh.passphrase) } : undefined
+  ssh ? { ...ssh, password: unseal(ssh.password), passphrase: unseal(ssh.passphrase), jumpHosts: ssh.jumpHosts?.map(unsealJump) } : undefined
 
 /** Keep an existing secret when the renderer omitted it (blank field means "unchanged"). */
 const mergeSecrets = (next: ConnectionConfig, previous?: ConnectionConfig): ConnectionConfig => {
   const password = next.password === undefined ? previous?.password : seal(next.password)
+  const prevJumps = new Map((previous?.ssh?.jumpHosts ?? []).map((j) => [j.id, j]))
   const ssh = next.ssh
     ? {
         ...next.ssh,
         password: next.ssh.password === undefined ? previous?.ssh?.password : seal(next.ssh.password),
         passphrase: next.ssh.passphrase === undefined ? previous?.ssh?.passphrase : seal(next.ssh.passphrase),
+        jumpHosts: next.ssh.jumpHosts?.map((j) => {
+          const prev = prevJumps.get(j.id)
+          return {
+            ...j,
+            password: j.password === undefined ? prev?.password : seal(j.password),
+            passphrase: j.passphrase === undefined ? prev?.passphrase : seal(j.passphrase),
+          }
+        }),
       }
     : undefined
-  return { ...next, password, ssh }
+  const sslKeyPassphrase = next.sslKeyPassphrase === undefined ? previous?.sslKeyPassphrase : seal(next.sslKeyPassphrase)
+  return { ...next, password, ssh, sslKeyPassphrase }
 }
 
 export class ConnectionStore {
@@ -111,6 +124,6 @@ export class ConnectionStore {
   /** Full config with decrypted secrets. Main-process use only (session open/test). */
   async get(id: string): Promise<ConnectionConfig | undefined> {
     const c = (await this.store.read()).connections.find((x) => x.id === id)
-    return c ? { ...c, password: unseal(c.password), ssh: unsealSsh(c.ssh) } : undefined
+    return c ? { ...c, password: unseal(c.password), sslKeyPassphrase: unseal(c.sslKeyPassphrase), ssh: unsealSsh(c.ssh) } : undefined
   }
 }

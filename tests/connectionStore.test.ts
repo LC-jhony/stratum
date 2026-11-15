@@ -82,3 +82,75 @@ describe('ConnectionStore secret handling', () => {
     expect(full?.ssh?.password).toBe('new-ssh')
   })
 })
+
+describe('ConnectionStore: TLS and jump-host secrets', () => {
+  const withSecrets = (over: Partial<ConnectionConfig> = {}): ConnectionConfig => config({
+    sslKeyPassphrase: 'ssl-secret',
+    ssh: {
+      enabled: true, host: 'jump', user: 'root', authType: 'password', password: 'ssh-secret', passphrase: 'key-secret',
+      jumpHosts: [
+        { id: 'j1', host: 'bastion-a', port: 22, user: 'root', authType: 'password', password: 'jump-secret', passphrase: 'jump-pass' },
+        { id: 'j2', host: 'bastion-b', port: 22, user: 'root', authType: 'agent' },
+      ],
+    },
+    ...over,
+  })
+
+  it('never exposes TLS passphrases or jump-host secrets in list()', async () => {
+    await store.save(withSecrets())
+    const [view] = await store.list()
+    expect(view.hasSslKeyPassphrase).toBe(true)
+    expect(view.sslKeyPassphrase).toBeUndefined()
+    expect(view.ssh?.jumpHosts?.map((j) => ({ id: j.id, hasPassword: j.hasPassword, password: j.password }))).toEqual([
+      { id: 'j1', hasPassword: true, password: undefined },
+      { id: 'j2', hasPassword: false, password: undefined },
+    ])
+    expect(view.ssh?.jumpHosts?.[0].hasPassphrase).toBe(true)
+    expect(view.ssh?.jumpHosts?.[0].passphrase).toBeUndefined()
+  })
+
+  it('decrypts TLS and jump-host secrets for main-process consumers', async () => {
+    await store.save(withSecrets())
+    const full = await store.get('c1')
+    expect(full?.sslKeyPassphrase).toBe('ssl-secret')
+    expect(full?.ssh?.jumpHosts?.[0]).toMatchObject({ password: 'jump-secret', passphrase: 'jump-pass' })
+  })
+
+  it('keeps omitted jump-host secrets by id and drops removed hosts', async () => {
+    await store.save(withSecrets())
+    const view = (await store.list())[0]
+    const edited: ConnectionConfig = {
+      ...view,
+      sslKeyPassphrase: undefined,
+      ssh: view.ssh ? {
+        ...view.ssh,
+        password: undefined,
+        passphrase: undefined,
+        jumpHosts: [
+          { id: 'j1', host: 'renamed-bastion', port: 22, user: 'root', authType: 'password', password: undefined, passphrase: undefined },
+        ],
+      } : undefined,
+    }
+    await store.save(edited)
+    const full = await store.get('c1')
+    expect(full?.sslKeyPassphrase).toBe('ssl-secret')
+    expect(full?.ssh?.password).toBe('ssh-secret')
+    expect(full?.ssh?.jumpHosts).toHaveLength(1)
+    expect(full?.ssh?.jumpHosts?.[0]).toMatchObject({ id: 'j1', host: 'renamed-bastion', password: 'jump-secret', passphrase: 'jump-pass' })
+  })
+
+  it('does not copy a secret from a different jump host', async () => {
+    await store.save(withSecrets())
+    const view = (await store.list())[0]
+    await store.save({
+      ...view,
+      ssh: view.ssh ? {
+        ...view.ssh,
+        jumpHosts: [{ id: 'new-host', host: 'new', port: 22, user: 'root', authType: 'password', password: 'fresh' }],
+      } : undefined,
+    })
+    const full = await store.get('c1')
+    expect(full?.ssh?.jumpHosts?.[0]).toMatchObject({ id: 'new-host', password: 'fresh' })
+    expect(full?.ssh?.jumpHosts?.[0].passphrase).toBeUndefined()
+  })
+})

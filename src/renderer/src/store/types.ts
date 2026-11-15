@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand'
 import type { StratumSettings } from '../../../core/settings'
 import type { WorkspaceSnapshot } from '../../../core/workspace'
-import type { ConnectionConfig, ConnectionView, DatabaseModel, ErdOptions, QueryResult } from '../../../shared/types'
+import type { ConnectionConfig, ConnectionView, DatabaseModel, ErdOptions, QueryPlan, QueryResult, SessionStateChange, TransactionState } from '../../../shared/types'
 import type { UpdateState } from '../../../shared/update'
 
 export interface ResultEntry {
@@ -13,7 +13,7 @@ export interface ResultEntry {
 }
 
 interface TabBase { id: string; title: string; connectionId: string }
-export interface ConsoleTab extends TabBase { type: 'console'; sql: string; results: ResultEntry[]; activeResult: number; running: boolean }
+export interface ConsoleTab extends TabBase { type: 'console'; sql: string; results: ResultEntry[]; activeResult: number; running: boolean; /** Last EXPLAIN for this tab. */ plan?: QueryPlan; planning?: boolean }
 export interface TableTab extends TabBase { type: 'table'; schema?: string; table: string }
 export interface DiagramTab extends TabBase { type: 'diagram'; options: ErdOptions }
 /** DataGrip's "New Table" designer; the table is created when Run is pressed. */
@@ -41,8 +41,12 @@ export interface ConnectionsSlice {
   saveConnection(c: ConnectionConfig): Promise<void>
   removeConnection(id: string): Promise<void>
   connect(id: string): Promise<void>
+  /** Close and re-open with the stored settings (applies edits and init SQL). */
+  reconnect(id: string): Promise<void>
   disconnect(id: string): Promise<void>
   refresh(id: string): Promise<void>
+  /** A main-process session change (idle close, lost socket). */
+  sessionState(state: SessionStateChange): void
 }
 
 export interface TabsSlice {
@@ -62,12 +66,20 @@ export interface TabsSlice {
 export interface ConsoleSlice {
   /** Executed statements per connection, newest first. */
   history: Record<string, string[]>
+  /** Live transaction state per connection (toolbar and status). */
+  transactions: Record<string, TransactionState>
   paramRequest?: ParamRequest
   run(tabId: string, statements: string[]): Promise<void>
   cancel(tabId: string): Promise<void>
   fetchMore(tabId: string, index: number): Promise<void>
   fetchAll(tabId: string, index: number): Promise<void>
   respondParams(values: Record<string, string> | null): void
+  refreshTransaction(connectionId: string): Promise<void>
+  beginTransaction(connectionId: string): Promise<void>
+  commitTransaction(connectionId: string): Promise<void>
+  rollbackTransaction(connectionId: string): Promise<void>
+  /** Ask the database for the plan of one statement; keeps errors inside the plan. */
+  plan(tabId: string, sql: string): Promise<void>
 }
 
 export interface PrefsSlice {
@@ -90,7 +102,11 @@ export interface UiSlice {
   importRequest?: ImportRequest
   palette?: null | 'actions' | 'colorTheme' | 'fileIconTheme' | 'productIconTheme'
   showResults: boolean
-  set(p: Partial<Pick<WorkbenchState, 'dialog' | 'importRequest' | 'palette' | 'showResults'>>): void
+  objectSearchOpen: boolean
+  libraryOpen: boolean
+  /** Connection whose server sessions/locks are being inspected. */
+  sessionMonitor?: string
+  set(p: Partial<Pick<WorkbenchState, 'dialog' | 'importRequest' | 'palette' | 'showResults' | 'objectSearchOpen' | 'libraryOpen' | 'sessionMonitor'>>): void
 }
 
 export interface UpdateSlice {

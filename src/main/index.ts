@@ -11,6 +11,7 @@ import { DesktopService } from './services/desktopService'
 import { HistoryService } from './services/historyService'
 import { JdbcSidecar, type JdbcRuntime } from './services/jdbcSidecar'
 import { configureKnownHosts } from './services/knownHosts'
+import { QueryLibraryService } from './services/queryLibraryService'
 import { SessionFactory } from './services/sessionFactory'
 import { SettingsService } from './services/settingsService'
 import { ConnectionStore, JsonStore } from './services/store'
@@ -82,10 +83,14 @@ async function main() {
   }
   const sidecar = new JdbcSidecar(() => ({ ...jdbc, jar: jdbc.jar ?? process.env.STRATUM_JDBC_JAR ?? resourcePath('jdbc-adapter', 'jdbc-adapter-server.jar') }))
   const sessionFactory = new SessionFactory(sidecar)
-  const manager = new ConnectionManager(connections, sessionFactory)
+  const manager = new ConnectionManager(connections, sessionFactory, {
+    // A session that dies outside a renderer action still has to leave the Explorer's live state.
+    onSessionState: (state) => win?.webContents.send('connections:state', state),
+  })
   const connectionService = new ConnectionService(connections, manager)
   const desktop = new DesktopService(() => win)
   const history = new HistoryService(new JsonStore(path.join(data, 'history.json'), { queries: {} }))
+  const library = new QueryLibraryService(new JsonStore(path.join(data, 'library.json'), { queries: [] }))
   const themes = new ThemeService(resourcePath('themes'), path.join(data, 'themes'))
   const updates = new UpdateService({ settings, getWindow: () => win })
   // Settings used to hold console history; move it once, then drop the old key.
@@ -116,6 +121,7 @@ async function main() {
     themes,
     settings,
     history,
+    library,
     desktop,
     update: updates,
     window: () => win,
@@ -197,13 +203,13 @@ async function main() {
     // electron-updater already installed the downloaded build and spawned the new process. Exit at
     // once so that process can take the single-instance lock; the normal graceful close would keep
     // this one alive for up to 3 s and the relaunched build would quit instead.
-    if (updates.isQuittingForUpdate()) { sidecar.stop(); app.exit(0); return }
+    if (updates.isQuittingForUpdate()) { manager.stop(); sidecar.stop(); app.exit(0); return }
     if (closing) return
     closing = true
     e.preventDefault()
     const timeout = new Promise<void>((resolve) => setTimeout(resolve, 3000))
     void Promise.race([manager.closeAll().catch((err) => console.warn('closing sessions:', err)), timeout])
-      .finally(() => { sidecar.stop(); app.quit() })
+      .finally(() => { manager.stop(); sidecar.stop(); app.quit() })
   })
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
 }

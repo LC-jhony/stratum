@@ -49,6 +49,26 @@ export const createConnectionsSlice: WorkbenchSlice<ConnectionsSlice> = (set, ge
     })
   },
 
+  async reconnect(id) {
+    set((s) => ({ live: { ...s.live, [id]: { ...s.live[id], status: 'connecting', error: undefined } } }))
+    try {
+      const { version } = await ipc.connections.reconnect(id)
+      set((s) => ({ live: { ...s.live, [id]: { status: 'ready', version, loadingModel: true } } }))
+      await get().refresh(id)
+    } catch (e) {
+      set((s) => ({ live: { ...s.live, [id]: { status: 'error', error: cleanIpcError(e) } } }))
+    }
+  },
+
+  sessionState(state) {
+    set((s) => {
+      const live = { ...s.live }
+      if (state.status === 'closed') delete live[state.id]
+      else live[state.id] = { status: 'error', error: state.reason ? `Connection lost: ${state.reason}` : 'Connection lost.' }
+      return { live }
+    })
+  },
+
   async refresh(id) {
     set((s) => ({ live: { ...s.live, [id]: { ...s.live[id], status: 'ready', loadingModel: true } } }))
     try {

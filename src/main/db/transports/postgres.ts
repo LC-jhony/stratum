@@ -1,5 +1,6 @@
 import { Client } from 'pg'
 import type { ConnectionConfig, RawResult } from '../../../shared/types'
+import { sslMaterial } from '../ssl'
 import type { Transport } from '../types'
 import { isConnectionError, transactionState } from './tx'
 
@@ -17,8 +18,9 @@ export class PostgresTransport implements Transport {
 
   constructor(private cfg: ConnectionConfig) {}
 
-  private options() {
+  private async options() {
     const c = this.cfg
+    const tls = await sslMaterial(c)
     return {
       host: c.socketPath?.trim() || c.host || 'localhost',
       port: c.port ?? 5432,
@@ -26,7 +28,7 @@ export class PostgresTransport implements Transport {
       password: c.password,
       database: c.database,
       // Certificate verification is opt-in: existing profiles that only enable SSL keep working.
-      ssl: c.ssl ? { rejectUnauthorized: c.sslVerify === true } : undefined,
+      ssl: c.ssl ? { rejectUnauthorized: c.sslVerify === true, ...tls } : undefined,
       connectionTimeoutMillis: 10_000,
     }
   }
@@ -44,7 +46,7 @@ export class PostgresTransport implements Transport {
       const previous = this.client
       this.client = undefined
       if (previous) await previous.end().catch(() => {})
-      const client = new Client(this.options())
+      const client = new Client(await this.options())
       this.attach(client)
       try {
         await client.connect()
@@ -112,9 +114,13 @@ export class PostgresTransport implements Transport {
   async cancel() {
     const pid = this.processId()
     if (!pid || this.broken) return
-    const side = new Client(this.options())
+    const side = new Client(await this.options())
     try { await side.connect(); await side.query('select pg_cancel_backend($1)', [pid]) } finally { await side.end().catch(() => {}) }
   }
+
+  inTransaction(): boolean { return this.inTx }
+
+  async ping() { await this.query('select 1') }
 
   async close() {
     await this.opening?.catch(() => undefined)

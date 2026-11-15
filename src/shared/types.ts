@@ -10,10 +10,23 @@ export type DialectId =
   | 'sybase' | 'vertica' | 'exasol' | 'greenplum' | 'redshift' | 'cockroach' | 'snowflake' | 'clickhouse'
   | 'bigquery' | 'hive' | 'spark' | 'cassandra' | 'generic'
 
+/** One intermediate SSH server in a jump chain. Credentials live only in the main process. */
+export interface SshJumpHost {
+  id: string
+  host: string
+  port?: number
+  user: string
+  authType?: 'auto' | 'password' | 'privateKey' | 'agent'
+  password?: string
+  privateKeyPath?: string
+  passphrase?: string
+}
+
 /**
  * SSH tunnel helper ("connection helper" in DataGrip terms): Stratum opens one SSH connection to
  * this host and forwards a random local port to the data source's address, so every transport can
- * reach a server that is only visible from the SSH machine.
+ * reach a server that is only visible from the SSH machine. `jumpHosts` are traversed in order
+ * before the final host, like DataGrip's multi-hop connection helpers.
  */
 export interface SshConfig {
   enabled: boolean
@@ -28,6 +41,30 @@ export interface SshConfig {
   passphrase?: string
   /** Milliseconds allowed for the SSH handshake (default 10000). */
   connectTimeoutMs?: number
+  /** Up to five intermediate hosts, traversed in order (DataGrip MAX_JUMP_SERVERS). */
+  jumpHosts?: SshJumpHost[]
+}
+
+/** Color-coded safety profile, after DBeaver/DataGrip connection types. */
+export type ConnectionProfile = 'dev' | 'test' | 'prod'
+export type ConnectionColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'gray'
+export type TransactionIsolation = 'default' | 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable'
+
+/** Per-session behaviour applied every time the connection is opened (or re-opened). */
+export interface SessionConfig {
+  /** Statements executed right after connecting, separated by `;` (DataGrip's "keep-alive/init SQL"). */
+  initSql?: string
+  /** Default schema (search_path on PostgreSQL, current schema elsewhere). */
+  defaultSchema?: string
+  /** Default catalog/database (USE on MySQL, setCatalog where the driver supports it). */
+  defaultCatalog?: string
+  /** When false the first statement opens a transaction that must be committed explicitly. */
+  autoCommit?: boolean
+  isolation?: TransactionIsolation
+  /** Ping an idle session after this many seconds (0 disables it). */
+  keepAliveSeconds?: number
+  /** Close an idle session after this many seconds (0 keeps it open). Never closes an open transaction. */
+  idleTimeoutSeconds?: number
 }
 
 export interface ConnectionConfig {
@@ -42,6 +79,21 @@ export interface ConnectionConfig {
   ssl?: boolean
   /** Verify the server certificate and hostname (opt-in; off keeps the legacy "encrypt only" behaviour). */
   sslVerify?: boolean
+  /** PEM CA bundle; empty uses the OS trust store. */
+  sslCaPath?: string
+  /** Client certificate and private key for mutual TLS. */
+  sslClientCertPath?: string
+  sslClientKeyPath?: string
+  /** Passphrase protecting the client key (sealed in the connection store). */
+  sslKeyPassphrase?: string
+  /** Safety profile (color + confirmation defaults) shown in the explorer. */
+  profile?: ConnectionProfile
+  /** Override the profile color with an explicit swatch. */
+  color?: ConnectionColor
+  /** Ask before every write statement, including grid Submit. */
+  confirmWrites?: boolean
+  /** Session lifecycle: init SQL, defaults, auto-commit, isolation, keep-alive and idle close. */
+  session?: SessionConfig
   /** Cassandra local data center (driver `localDataCenter`); defaults to `datacenter1`. */
   dataCenter?: string
   /** Cloud region (S3 and other regional services); defaults to `us-east-1`. */
@@ -63,19 +115,30 @@ export interface ConnectionConfig {
   group?: string
 }
 
+/** SSH jump host metadata safe for the renderer. */
+export interface SshJumpHostView extends Omit<SshJumpHost, 'password' | 'passphrase'> {
+  password?: undefined
+  passphrase?: undefined
+  hasPassword: boolean
+  hasPassphrase: boolean
+}
+
 /**
  * Connection metadata safe to send to the renderer. Secrets never cross the process boundary:
  * the UI only learns whether one is stored, and saving without a password preserves the old one.
  */
-export interface ConnectionView extends Omit<ConnectionConfig, 'password' | 'ssh'> {
+export interface ConnectionView extends Omit<ConnectionConfig, 'password' | 'ssh' | 'sslKeyPassphrase'> {
   password?: undefined
-  ssh?: Omit<SshConfig, 'password' | 'passphrase'> & {
+  sslKeyPassphrase?: undefined
+  ssh?: Omit<SshConfig, 'password' | 'passphrase' | 'jumpHosts'> & {
     password?: undefined
     passphrase?: undefined
     hasPassword: boolean
     hasPassphrase: boolean
+    jumpHosts?: SshJumpHostView[]
   }
   hasPassword: boolean
+  hasSslKeyPassphrase: boolean
 }
 
 export interface ColumnMeta { name: string; type?: string; table?: string }
@@ -122,6 +185,75 @@ export interface TableInfo {
 }
 export interface SchemaInfo { name: string; tables: TableInfo[] }
 export interface DatabaseModel { dialect: DialectId; version?: string; /** Provider the model came from; absent on older models (SQL assumed). */ kind?: DriverKind; schemas: SchemaInfo[] }
+
+/** Live transaction state pushed to the console after every statement. */
+export interface TransactionState {
+  open: boolean
+  /** Effective setting for this session (false means statements accumulate until commit). */
+  autoCommit: boolean
+  /** Epoch milliseconds when the current transaction started. */
+  since?: number
+  /** True when the driver reported that the transaction can only be rolled back. */
+  failed?: boolean
+}
+
+/** One node of an execution plan, normalized across PostgreSQL, MySQL and SQLite. */
+export interface PlanNode {
+  label: string
+  detail?: string
+  /** Estimated rows / cost, when the database exposes them. */
+  rows?: number
+  cost?: number
+  actualRows?: number
+  actualTimeMs?: number
+  /** Actionable warning, e.g. a sequential scan or a filesort. */
+  warning?: string
+  children?: PlanNode[]
+}
+
+export interface QueryPlan {
+  dialect: DialectId
+  format: 'json' | 'text'
+  sql: string
+  root: PlanNode
+  raw?: string
+  durationMs: number
+  error?: string
+}
+
+/** One row of the server session/lock monitor. */
+export interface SessionInfo {
+  pid: number | string
+  user?: string
+  database?: string
+  client?: string
+  state?: string
+  query?: string
+  startedAt?: string
+  /** Seconds the session has been in its current state (MySQL `time`). */
+  seconds?: number
+  wait?: string
+  /** Other server PIDs blocking this one (PostgreSQL). */
+  blockedBy?: number[]
+  current?: boolean
+}
+
+/** A live session changed outside a renderer action (idle close or a failed keep-alive). */
+export interface SessionStateChange {
+  id: string
+  status: 'closed' | 'lost'
+  reason?: string
+}
+
+/** A named SQL statement from the saved-query library. */
+export interface SavedQuery {
+  id: string
+  name: string
+  sql: string
+  connectionId?: string
+  createdAt: number
+  updatedAt: number
+}
 
 /** Selection passed to the ERD builder; part of the renderer-to-store contract. */
 export interface ErdOptions {

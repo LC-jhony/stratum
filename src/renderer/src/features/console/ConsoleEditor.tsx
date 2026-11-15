@@ -11,6 +11,7 @@ import { themes } from '../../theme/themeManager'
 import { monoFontStack } from '../../theme/fonts'
 import { useWorkbench, type ConsoleTab } from '../../store/workbench'
 import { Icon } from '../../ui/Icon'
+import { PlanView } from './PlanView'
 import { ResultsPane } from './ResultsPane'
 import type * as Monaco from 'monaco-editor/editor/editor.api'
 
@@ -19,10 +20,11 @@ const EMPTY_HISTORY: string[] = []
 export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: boolean }) {
   const host = useRef<HTMLDivElement>(null)
   const ed = useRef<Monaco.editor.IStandaloneCodeEditor | undefined>(undefined)
-  const { run, cancel, patchTab, live, connections, showResults, set } = useWorkbench()
+  const { run, cancel, patchTab, live, connections, showResults, set, plan, refreshTransaction, beginTransaction, commitTransaction, rollbackTransaction } = useWorkbench()
   const prefs = useWorkbench((s) => s.prefs)
   const model = live[tab.connectionId]?.model
   const conn = connections.find((c) => c.id === tab.connectionId)
+  const tx = useWorkbench((s) => s.transactions[tab.connectionId])
   const dialect = connectionDialect(conn, model)
   const sqlKind = isSqlKind(conn?.kind)
   const redis = conn?.kind === 'redis'
@@ -48,6 +50,40 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
     if (st) void run(tab.id, [st.text])
   }
   const execRef = useRef(exec); execRef.current = exec
+
+  /** Statement under the cursor, or the selection when there is one (Explain/Save). */
+  const currentSql = (): string | undefined => {
+    const e = ed.current, m = e?.getModel()
+    if (!e || !m) return undefined
+    const sel = e.getSelection()
+    if (sel && !sel.isEmpty()) return m.getValueInRange(sel)
+    return at(e.getValue(), m.getOffsetAt(e.getPosition()!))?.text
+  }
+
+  const explain = () => {
+    const sql = currentSql()
+    if (!sql?.trim()) { note('Put the cursor on a statement first.', true); return }
+    void plan(tab.id, sql)
+  }
+
+  const saveQuery = async () => {
+    const e = ed.current, m = e?.getModel()
+    if (!e || !m) return
+    const sel = e.getSelection()
+    const sql = sel && !sel.isEmpty() ? m.getValueInRange(sel) : e.getValue()
+    if (!sql.trim()) { note('Nothing to save.', true); return }
+    const name = window.prompt('Name for the saved query', sql.replace(/\s+/g, ' ').slice(0, 48))
+    if (!name?.trim()) return
+    try {
+      await ipc.library.save({ id: crypto.randomUUID(), name: name.trim(), sql, connectionId: tab.connectionId, createdAt: Date.now(), updatedAt: Date.now() })
+      note('Saved to the query library')
+    } catch (error) {
+      note(error instanceof Error ? error.message : String(error), true)
+    }
+  }
+
+  const explainRef = useRef(explain); explainRef.current = explain
+  const saveRef = useRef(saveQuery); saveRef.current = saveQuery
 
   /** Transient toolbar feedback for actions that can fail (formatting) without opening a dialog. */
   const note = (text: string, error = false) => {
@@ -95,6 +131,7 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
     return () => { off(); e.dispose() }
   }, [])
   useEffect(() => { if (visible) { setCompletionModel(sqlKind ? model : undefined); ed.current?.layout(); ed.current?.focus() } }, [visible, model, sqlKind])
+  useEffect(() => { if (visible && sqlKind) void refreshTransaction(tab.connectionId) }, [visible, sqlKind, tab.connectionId])
   useEffect(() => { // Settings dialog: apply editor preferences live.
     const e = ed.current; if (!e) return
     e.updateOptions({ fontSize: prefs['editor.fontSize'], fontFamily: monoFontStack(prefs['editor.fontFamily']), wordWrap: prefs['editor.wordWrap'], minimap: { enabled: prefs['editor.minimap'] }, quickSuggestions: { other: sqlKind && prefs['completion.enabled'], strings: false, comments: false } })
@@ -102,9 +139,18 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
   }, [prefs, sqlKind])
   useEffect(() => ipc.onCommand((c) => { if (!visible) return; if (c === 'run.statement') execRef.current(false); if (c === 'run.script') execRef.current(true); if (c === 'run.cancel') void cancel(tab.id) }), [visible])
   useEffect(() => {
-    const onFormat = () => { if (visible) formatRef.current() }
+    const onFormat = () => { if (visible) void formatRef.current() }
+    const onExplain = () => { if (visible) explainRef.current() }
+    const onSave = () => { if (visible) void saveRef.current() }
     addEventListener('stratum:format', onFormat)
-    return () => { removeEventListener('stratum:format', onFormat); if (noteTimer.current) clearTimeout(noteTimer.current) }
+    addEventListener('stratum:explain', onExplain)
+    addEventListener('stratum:saveQuery', onSave)
+    return () => {
+      removeEventListener('stratum:format', onFormat)
+      removeEventListener('stratum:explain', onExplain)
+      removeEventListener('stratum:saveQuery', onSave)
+      if (noteTimer.current) clearTimeout(noteTimer.current)
+    }
   }, [visible])
 
   return (
@@ -115,6 +161,8 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
             <button className="run" title="Execute (Ctrl/⌘+Enter)" disabled={tab.running} onClick={() => exec(false)}><Icon id="play" /></button>
             <button title="Execute script (Ctrl/⌘+Shift+Enter)" disabled={tab.running} onClick={() => exec(true)}><Icon id="run-all" /></button>
             <button title="Format SQL (Ctrl/⌘+Shift+F)" disabled={!sqlKind} onClick={format}><Icon id="list-ordered" /></button>
+            <button title="Explain execution plan" disabled={!sqlKind || tab.planning} onClick={explain}><Icon id="type-hierarchy" /></button>
+            <button title="Save to query library" onClick={() => void saveQuery()}><Icon id="file-down" /></button>
             <button title="Cancel (Ctrl/⌘+F2)" disabled={!tab.running} onClick={() => void cancel(tab.id)}><Icon id="debug-stop" /></button>
             <div className="menu-host">
               <button title="Query history" disabled={!history.length} onClick={() => setHistOpen((o) => !o)}><Icon id="history" /></button>
@@ -134,8 +182,23 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
             <span className="grow" />
             <button title="Toggle results" onClick={() => set({ showResults: !showResults })}><Icon id={showResults ? 'layout-panel' : 'layout-panel-off'} /></button>
           </div>
+          {sqlKind && (
+            <div className={`tx-bar${tx?.open ? ' open' : ''}`}>
+              <span className={`tx-dot${tx?.open ? ' on' : ''}`} aria-hidden="true" />
+              <span className="tx-label">
+                {tab.planning ? 'Explaining…' : tx?.open ? 'Transaction open' : tx?.autoCommit === false ? 'Auto-commit off' : 'Auto-commit'}
+              </span>
+              {tx?.open && tx.since && <span className="tx-since">since {new Date(tx.since).toLocaleTimeString()}</span>}
+              {tx?.failed && <span className="tx-failed">Rollback required</span>}
+              <span className="grow" />
+              <button type="button" disabled={!!tx?.open} onClick={() => void beginTransaction(tab.connectionId)}>Begin</button>
+              <button type="button" disabled={!tx?.open} onClick={() => void commitTransaction(tab.connectionId)}>Commit</button>
+              <button type="button" disabled={!tx?.open} onClick={() => void rollbackTransaction(tab.connectionId)}>Rollback</button>
+            </div>
+          )}
           <div className="editor-host" ref={host} />
         </div>
+        {tab.plan && <PlanView plan={tab.plan} onClose={() => patchTab(tab.id, { plan: undefined })} />}
         {showResults && <ResultsPane tabId={tab.id} results={tab.results} active={tab.activeResult} onActive={(i) => patchTab(tab.id, { activeResult: i })} running={tab.running} dialect={dialect} />}
       </div>
     </div>

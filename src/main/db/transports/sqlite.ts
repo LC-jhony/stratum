@@ -78,5 +78,7 @@ export class SqliteTransport implements Transport {
   }
 
   async cancel() { /* sql.js executes synchronously; nothing to interrupt */ }
+  inTransaction(): boolean { return this.inTx }
+  async ping() { this.db?.exec('select 1') }
   async close() { this.db?.close(); this.db = undefined }
 }

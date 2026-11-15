@@ -1,12 +1,18 @@
 import { ipc } from '../../ipc/client'
 import { connectionDialect } from '../../../../core/dialects'
 import { isSqlKind } from '../../../../core/kinds'
+import { confirmsWrites, writeKind, writeLabel } from '../../../../core/profiles'
 import { findParams, substituteParams } from '../../../../core/sqlParams'
 import { fetchStop, holdParams, releaseParams, resolveParams, uid } from '../internal'
 import type { ConsoleSlice, ResultEntry, WorkbenchSlice } from '../types'
 
+const cleanIpcError = (e: unknown) => e instanceof Error
+  ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+  : String(e)
+
 export const createConsoleSlice: WorkbenchSlice<ConsoleSlice> = (set, get) => ({
   history: {},
+  transactions: {},
   async run(tabId, statements) {
     const tab = get().tabs.find((t) => t.id === tabId)
     if (tab?.type !== 'console' || !statements.length) return
@@ -39,6 +45,12 @@ export const createConsoleSlice: WorkbenchSlice<ConsoleSlice> = (set, get) => ({
       }
       if (sqlKind && prefs['query.confirmDestructive'] && /^\s*(update|delete)\b/i.test(sql) && !/\bwhere\b/i.test(sql)) {
         if (!window.confirm(`Run this statement without WHERE?\n\n${sql.replace(/\s+/g, ' ').slice(0, 200)}`)) continue
+      } else if (sqlKind) {
+        const kind = writeKind(sql)
+        if (kind && confirmsWrites(conn)) {
+          const label = writeLabel(kind)
+          if (!window.confirm(`${conn?.name ?? 'This data source'} is protected: run this ${label}?\n\n${sql.replace(/\s+/g, ' ').slice(0, 300)}`)) continue
+        }
       }
       const result = await ipc.db.execute(tab.connectionId, sql, { limit: prefs['query.pageSize'] })
       results.push({ id: uid('r'), title: sql.replace(/\s+/g, ' ').slice(0, 40), result })
@@ -46,6 +58,7 @@ export const createConsoleSlice: WorkbenchSlice<ConsoleSlice> = (set, get) => ({
     }
     get().patchTab(tabId, { running: false, results, activeResult: results.length - 1 })
     set({ showResults: true })
+    void get().refreshTransaction(tab.connectionId)
     if (!aborted && results.length) { // DataGrip-style console history, newest first, per connection.
       set((s) => ({ history: { ...s.history, [tab.connectionId]: [...new Set([...statements, ...(s.history[tab.connectionId] ?? [])])].slice(0, 100) } }))
       void ipc.history.add(tab.connectionId, statements)
@@ -54,6 +67,54 @@ export const createConsoleSlice: WorkbenchSlice<ConsoleSlice> = (set, get) => ({
   },
 
   respondParams: (values) => resolveParams(values),
+
+  async refreshTransaction(connectionId) {
+    try {
+      const state = await ipc.db.transaction(connectionId)
+      set((s) => ({ transactions: { ...s.transactions, [connectionId]: state } }))
+    } catch { /* not connected: the toolbar keeps its last known state */ }
+  },
+
+  async beginTransaction(connectionId) {
+    try {
+      const state = await ipc.db.begin(connectionId)
+      set((s) => ({ transactions: { ...s.transactions, [connectionId]: state } }))
+    } catch (e) {
+      window.alert(cleanIpcError(e))
+    }
+  },
+
+  async commitTransaction(connectionId) {
+    try {
+      const state = await ipc.db.commit(connectionId)
+      set((s) => ({ transactions: { ...s.transactions, [connectionId]: state } }))
+    } catch (e) {
+      window.alert(cleanIpcError(e))
+    }
+  },
+
+  async rollbackTransaction(connectionId) {
+    try {
+      const state = await ipc.db.rollback(connectionId)
+      set((s) => ({ transactions: { ...s.transactions, [connectionId]: state } }))
+    } catch (e) {
+      window.alert(cleanIpcError(e))
+    }
+  },
+
+  async plan(tabId, sql) {
+    const tab = get().tabs.find((t) => t.id === tabId)
+    if (tab?.type !== 'console') return
+    const dialect = connectionDialect(get().connections.find((c) => c.id === tab.connectionId), get().live[tab.connectionId]?.model)
+    get().patchTab(tabId, { planning: true })
+    try {
+      await get().connect(tab.connectionId)
+      const plan = await ipc.db.plan(tab.connectionId, sql)
+      get().patchTab(tabId, { plan, planning: false })
+    } catch (e) {
+      get().patchTab(tabId, { plan: { dialect, format: 'text', sql, durationMs: 0, root: { label: 'Execution plan' }, error: cleanIpcError(e) }, planning: false })
+    }
+  },
 
   async fetchMore(tabId, index) {
     const tab = get().tabs.find((t) => t.id === tabId)

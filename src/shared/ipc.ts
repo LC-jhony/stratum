@@ -1,5 +1,8 @@
 import type { DockerContainer, DockerEndpoint } from './docker'
-import type { ConnectionConfig, ConnectionView, DatabaseModel, QueryResult, ThemeFile, ThemeManifestEntry } from './types'
+import type {
+  ConnectionConfig, ConnectionView, DatabaseModel, QueryPlan, QueryResult, SavedQuery, SessionInfo,
+  SessionStateChange, ThemeFile, ThemeManifestEntry, TransactionState,
+} from './types'
 import type { UpdateState } from './update'
 
 /** Native save-dialog filter (matches Electron's FileFilter). */
@@ -16,6 +19,10 @@ export interface StratumApi {
     test(c: ConnectionConfig): Promise<{ ok: boolean; version?: string; error?: string }>
     open(id: string): Promise<{ version?: string }>
     close(id: string): Promise<void>
+    /** Close and open again, applying edited settings, init SQL and a fresh tunnel. */
+    reconnect(id: string): Promise<{ version?: string }>
+    /** Main -> renderer session loss (idle timeout or a broken keep-alive). Returns an unsubscribe function. */
+    onState(cb: (state: SessionStateChange) => void): () => void
   }
   db: {
     introspect(id: string): Promise<DatabaseModel>
@@ -23,6 +30,22 @@ export interface StratumApi {
     cancel(id: string): Promise<void>
     /** Apply edits from the data grid (DataGrip "Submit"). Runs inside one transaction. */
     submit(id: string, statements: string[]): Promise<{ ok: boolean; error?: string }>
+    /** Normalized execution plan for one statement (PostgreSQL/MySQL/SQLite JSON, textual fallback). */
+    plan(id: string, sql: string): Promise<QueryPlan>
+    transaction(id: string): Promise<TransactionState>
+    begin(id: string): Promise<TransactionState>
+    commit(id: string): Promise<TransactionState>
+    rollback(id: string): Promise<TransactionState>
+    /** Server sessions/locks (PostgreSQL, MySQL). */
+    sessions(id: string): Promise<SessionInfo[]>
+    killSession(id: string, pid: number | string): Promise<void>
+  }
+  library: {
+    /** Named SQL statements, newest edit first. */
+    list(): Promise<SavedQuery[]>
+    /** Insert or update by id; `updatedAt` is stamped in main. */
+    save(query: SavedQuery): Promise<void>
+    remove(id: string): Promise<void>
   }
   themes: {
     list(): Promise<ThemeManifestEntry[]>

@@ -28,12 +28,28 @@ export interface TunnelTarget { host: string; port: number }
 export interface TunnelHandle { config: ConnectionConfig; release: () => void }
 
 interface Tunnel {
-  client: Client
+  /** One client per hop: the jump hosts in order, then the final helper. */
+  clients: Client[]
   server: net.Server
   localPort: number
   /** Live handles; the tunnel is destroyed when the last one releases. */
   refs: number
 }
+
+/** Fields shared by the final SSH host and every jump host. */
+export interface SshEndpoint {
+  host?: string
+  port?: number
+  user?: string
+  authType?: 'auto' | 'password' | 'privateKey' | 'agent'
+  password?: string
+  privateKeyPath?: string
+  passphrase?: string
+  connectTimeoutMs?: number
+}
+
+/** DataGrip's SSHConstants.MAX_JUMP_SERVERS: more hops than this is a configuration mistake. */
+export const MAX_JUMP_HOSTS = 5
 
 /** Keyed by data source id, so the tunnel survives session re-opens and test runs stay separate. */
 const tunnels = new Map<string, Promise<Tunnel>>()
@@ -44,7 +60,7 @@ const schemeOf = (uri: string): string => (uri.match(/^([a-z][a-z0-9+.-]*):/i)?.
 const authorityOf = (uri: string): string => uri.match(/^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i)?.[1] ?? ''
 
 /** Prepares the SSH configuration for ssh2, resolving keys/agent from the chosen auth mode. */
-export async function sshConnectConfig(ssh: SshConfig): Promise<ConnectConfig> {
+export async function sshConnectConfig(ssh: SshEndpoint): Promise<ConnectConfig> {
   const host = ssh.host?.trim()
   const user = ssh.user?.trim()
   if (!host) throw new Error('SSH host is required.')
@@ -169,6 +185,7 @@ export function rewriteForTunnel(cfg: ConnectionConfig, localPort: number): Conn
 export async function acquireTunnel(cfg: ConnectionConfig): Promise<TunnelHandle> {
   const ssh = cfg.ssh
   if (!ssh?.enabled) return { config: cfg, release: () => undefined }
+  if ((ssh.jumpHosts?.length ?? 0) > MAX_JUMP_HOSTS) throw new Error(`A connection supports at most ${MAX_JUMP_HOSTS} SSH jump hosts.`)
   const target = tunnelTarget(cfg)
   const tunnel = await getTunnel(cfg.id, ssh, target)
   tunnel.refs++
@@ -200,38 +217,90 @@ function getTunnel(key: string, ssh: SshConfig, target: TunnelTarget): Promise<T
   return created
 }
 
+/**
+ * Opens the hop chain: jump hosts in order, then the final helper. Each hop after the first tunnels
+ * its TCP connection through the previous client, so a server reachable only from an internal
+ * bastion behaves like a direct neighbour of the helper.
+ */
 async function createTunnel(ssh: SshConfig, target: TunnelTarget, onClose: () => void): Promise<Tunnel> {
+  const endpoints: SshEndpoint[] = [...(ssh.jumpHosts ?? []), ssh]
+  const clients: Client[] = []
+  const abort = () => {
+    for (const c of [...clients].reverse()) { try { c.end() } catch { /* already gone */ } }
+  }
+  try {
+    for (const [i, endpoint] of endpoints.entries()) {
+      const conf = await sshConnectConfig(endpoint)
+      const host = conf.host ?? ''
+      const port = typeof conf.port === 'number' ? conf.port : 22
+      // Hop i is reachable from the client of hop i-1, not from this machine.
+      if (i > 0) conf.sock = await forwardStream(clients[i - 1], { host, port })
+      const label = i === endpoints.length - 1 ? 'SSH tunnel to' : `SSH jump host ${i + 1} to`
+      clients.push(await openClient(conf, label, host, port))
+    }
+  } catch (e) {
+    abort()
+    throw e
+  }
+  const final = clients[clients.length - 1]
+  const server = net.createServer((socket) => forward(final, socket, target))
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+  } catch (e) {
+    abort()
+    throw e
+  }
+  const localPort = (server.address() as net.AddressInfo).port
+  const tunnel: Tunnel = { clients, server, localPort, refs: 0 }
+  // A dropped hop invalidates every forward: stop accepting and surface the state once.
+  let closed = false
+  const dropped = () => {
+    if (closed) return
+    closed = true
+    server.close()
+    onClose()
+  }
+  for (const [i, c] of clients.entries()) {
+    const name = i === clients.length - 1 ? 'ssh tunnel' : `ssh jump host ${i + 1}`
+    c.on('error', (e) => console.warn(`${name} ${endpoints[i].host}:${endpoints[i].port ?? 22}:`, e.message))
+    c.on('close', dropped)
+  }
+  server.on('error', (e) => console.warn(`ssh tunnel listener ${localPort}:`, e.message))
+  return tunnel
+}
+
+/** Verifies the host key on first use and resolves once the SSH handshake is ready. */
+function openClient(conf: ConnectConfig, label: string, host: string, port: number): Promise<Client> {
   const client = new Client()
-  const conf = await sshConnectConfig(ssh)
   /** Set by the verifier and preferred over ssh2's generic "host denied" error. */
   let hostKeyError: Error | undefined
-  const sshHost = conf.host ?? ''
-  const sshPort = typeof conf.port === 'number' ? conf.port : 22
   conf.hostVerifier = (key: Buffer, verify: (valid: boolean) => void) => {
     void knownHosts()
-      .verify(sshHost, sshPort, key)
+      .verify(host, port, key)
       .then(() => verify(true), (e: unknown) => { hostKeyError = e instanceof Error ? e : new Error(String(e)); verify(false) })
   }
-  await new Promise<void>((resolve, reject) => {
-    const onReady = () => { cleanup(); resolve() }
-    const onError = (e: Error) => { cleanup(); reject(new Error(`SSH tunnel to ${conf.host}:${conf.port} failed: ${hostKeyError?.message ?? e.message}`)) }
+  return new Promise<Client>((resolve, reject) => {
+    const onReady = () => { cleanup(); resolve(client) }
+    const onError = (e: Error) => {
+      cleanup()
+      try { client.end() } catch { /* handshake already torn down */ }
+      reject(new Error(`${label} ${host}:${port} failed: ${hostKeyError?.message ?? e.message}`))
+    }
     const cleanup = () => { client.removeListener('ready', onReady); client.removeListener('error', onError) }
     client.once('ready', onReady)
     client.once('error', onError)
     client.connect(conf)
   })
-  const server = net.createServer((socket) => forward(client, socket, target))
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => resolve())
+}
+
+/** One TCP stream to `target`, opened from inside an already-connected client. */
+function forwardStream(client: Client, target: TunnelTarget): Promise<import('node:stream').Readable> {
+  return new Promise((resolve, reject) => {
+    client.forwardOut('127.0.0.1', 0, target.host, target.port, (err, stream) => (err ? reject(err) : resolve(stream)))
   })
-  const localPort = (server.address() as net.AddressInfo).port
-  const tunnel: Tunnel = { client, server, localPort, refs: 0 }
-  // A dropped SSH connection invalidates every forward: stop accepting and surface the state.
-  client.on('error', (e) => console.warn(`ssh tunnel ${target.host}:${target.port}:`, e.message))
-  client.on('close', () => { server.close(); onClose() })
-  server.on('error', (e) => console.warn(`ssh tunnel listener ${localPort}:`, e.message))
-  return tunnel
 }
 
 /** One database socket, one SSH channel: bytes flow both ways until either side closes. */
@@ -247,7 +316,8 @@ function forward(client: Client, socket: net.Socket, target: TunnelTarget) {
 
 function destroy(t: Tunnel) {
   t.server.close()
-  t.client.end()
+  // Close from the far end back so every jump channel closes before its parent.
+  for (const c of [...t.clients].reverse()) { try { c.end() } catch { /* already closed */ } }
 }
 
 /** Test/quit hook: closes every tunnel regardless of outstanding references. */

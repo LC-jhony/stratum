@@ -1,9 +1,11 @@
 import { Fragment, useState } from 'react'
 import { ipc } from '../../ipc/client'
 import type { CSSProperties, ReactNode } from 'react'
-import type { ConnectionConfig, ConnectionView, DialectId, DriverKind, SshConfig } from '../../../../shared/types'
+import type { ConnectionColor, ConnectionConfig, ConnectionProfile, ConnectionView, DialectId, DriverKind, SessionConfig, SshConfig, SshJumpHost } from '../../../../shared/types'
 import { DIALECTS } from '../../../../core/dialects'
 import { inferDockerKind, publishedPorts, type DockerContainer, type DockerPort } from '../../../../core/docker'
+import { isSqlKind } from '../../../../core/kinds'
+import { COLOR_LABEL, CONNECTION_COLORS, colorVar, confirmsWrites, PROFILE_ORDER, PROFILE_PRESETS } from '../../../../core/profiles'
 import { useWorkbench } from '../../store/workbench'
 import { Icon } from '../../ui/Icon'
 import { DbIcon, DbLogo } from './dbIcons'
@@ -142,21 +144,28 @@ export function DatasourceDialog() {
   const [c, setC] = useState<ConnectionConfig>(() => {
     const view = dialog?.editing
     if (!view) return blank()
-    const { hasPassword: _hasPassword, ssh, ...rest } = view
+    const { hasPassword: _hasPassword, hasSslKeyPassphrase: _hasSslKeyPassphrase, ssh, ...rest } = view
     const sshRest = ssh
       ? (() => {
-          const { hasPassword: _sshHasPassword, hasPassphrase: _sshHasPassphrase, ...rest } = ssh
-          return rest
+          const { hasPassword: _sshHasPassword, hasPassphrase: _sshHasPassphrase, jumpHosts, ...rest } = ssh
+          return {
+            ...rest,
+            jumpHosts: jumpHosts?.map((j): SshJumpHost => {
+              const { hasPassword: _jp, hasPassphrase: _jpp, ...jumpRest } = j
+              return { ...jumpRest, password: undefined, passphrase: undefined }
+            }),
+          }
         })()
       : undefined
     return {
       ...rest,
       password: undefined,
+      sslKeyPassphrase: undefined,
       ssh: sshRest ? { ...sshRest, password: undefined, passphrase: undefined } : undefined,
     }
   })
   const [type, setType] = useState(() => typeOf(c))
-  const [tab, setTab] = useState<'main' | 'ssh' | 'socks' | 'http'>('main')
+  const [tab, setTab] = useState<'main' | 'session' | 'ssh' | 'socks' | 'http'>('main')
   const [draft, setDraft] = useState<Draft>(DRAFT)
   const [note, setNote] = useState<Note | null>(null)
   const [busy, setBusy] = useState(false)
@@ -165,11 +174,14 @@ export function DatasourceDialog() {
   const storedPassword = !!dialog.editing?.hasPassword
   const storedSshPassword = !!dialog.editing?.ssh?.hasPassword
   const storedSshPassphrase = !!dialog.editing?.ssh?.hasPassphrase
+  const storedSslPassphrase = !!dialog.editing?.hasSslKeyPassphrase
   const passwordPlaceholder = storedPassword ? 'Stored password — leave blank to keep' : 'Password'
   const sshPasswordPlaceholder = storedSshPassword ? 'Stored password — leave blank to keep' : 'Password'
   const passphrasePlaceholder = storedSshPassphrase ? 'Stored passphrase — leave blank to keep' : 'Key passphrase'
+  const sslPassphrasePlaceholder = storedSslPassphrase ? 'Stored passphrase — leave blank to keep' : 'Key passphrase (optional)'
 
   const up = (p: Partial<ConnectionConfig>) => { setC((x) => ({ ...x, ...p })); setNote(null) }
+  const setSession = (p: Partial<SessionConfig>) => up({ session: { ...c.session, ...p } })
   const d = (p: Partial<Draft>) => setDraft((x) => ({ ...x, ...p }))
   const soon = (what: string) => setNote({ tone: 'info', text: `${what} is not available in this build yet.` })
   const sql = c.kind === 'sqlite'
@@ -345,11 +357,30 @@ export function DatasourceDialog() {
       </div>
 
       {!!c.ssl && (
-        <div className="ds-row-full">
-          <Lbl style={{ width: 190 }}>Verify certificate</Lbl>
-          <Switch label="Verify certificate" checked={!!c.sslVerify} onChange={(sslVerify) => up({ sslVerify })} />
-          <span className="ds-hint">Rejects self-signed certificates and host-name mismatches.</span>
-        </div>
+        <Fragment>
+          <div className="ds-row-full">
+            <Lbl style={{ width: 190 }}>Verify certificate</Lbl>
+            <Switch label="Verify certificate" checked={!!c.sslVerify} onChange={(sslVerify) => up({ sslVerify })} />
+            <span className="ds-hint">Rejects self-signed certificates and host-name mismatches.</span>
+          </div>
+          <Lbl className="ds-c1">CA certificate</Lbl>
+          <div className="ds-with-btn ds-wide">
+            <input className="ds-field" value={c.sslCaPath ?? ''} placeholder="PEM bundle (blank = OS trust store)" onChange={(e) => up({ sslCaPath: e.target.value })} />
+            <button className="ds-btn ds-icon-btn" type="button" aria-label="Browse CA certificate" title="Choose CA certificate" onClick={() => void pick((f) => up({ sslCaPath: f }), ['pem', 'crt', 'cer'])}>…</button>
+          </div>
+          <Lbl className="ds-c1">Client certificate</Lbl>
+          <div className="ds-with-btn ds-c2">
+            <input className="ds-field" value={c.sslClientCertPath ?? ''} placeholder="client.crt (mutual TLS)" onChange={(e) => up({ sslClientCertPath: e.target.value })} />
+            <button className="ds-btn ds-icon-btn" type="button" aria-label="Browse client certificate" title="Choose client certificate" onClick={() => void pick((f) => up({ sslClientCertPath: f }), ['pem', 'crt', 'cer'])}>…</button>
+          </div>
+          <Lbl className="ds-c4">Client key</Lbl>
+          <div className="ds-with-btn ds-c5">
+            <input className="ds-field" value={c.sslClientKeyPath ?? ''} placeholder="client.key" onChange={(e) => up({ sslClientKeyPath: e.target.value })} />
+            <button className="ds-btn ds-icon-btn" type="button" aria-label="Browse client key" title="Choose client key" onClick={() => void pick((f) => up({ sslClientKeyPath: f }), ['pem', 'key'])}>…</button>
+          </div>
+          <Lbl className="ds-c1">Key passphrase</Lbl>
+          <input className="ds-field ds-c2" type="password" placeholder={sslPassphrasePlaceholder} value={c.sslKeyPassphrase ?? ''} onChange={(e) => up({ sslKeyPassphrase: e.target.value })} />
+        </Fragment>
       )}
     </Fragment>
   )
@@ -619,6 +650,10 @@ export function DatasourceDialog() {
 
   /* --- SSH connection helper (real: main opens the tunnel before the transport) --- */
   const setSsh = (p: Partial<SshConfig>) => up({ ssh: { ...sshCfg, ...p } })
+  const jumpHosts = sshCfg.jumpHosts ?? []
+  const setJump = (id: string, p: Partial<SshJumpHost>) => setSsh({ jumpHosts: jumpHosts.map((j) => (j.id === id ? { ...j, ...p } : j)) })
+  const addJump = () => setSsh({ jumpHosts: [...jumpHosts, { id: crypto.randomUUID(), host: '', port: 22, user: '', authType: 'auto' }] })
+  const removeJump = (id: string) => setSsh({ jumpHosts: jumpHosts.filter((j) => j.id !== id) })
   const sshFields = sql ? (
     <p className="ds-note">SQLite opens local files; an SSH tunnel does not apply. Pick a network server type to use this helper.</p>
   ) : (
@@ -656,16 +691,98 @@ export function DatasourceDialog() {
       <Lbl className="ds-c4" dim={!sshOn}>Passphrase</Lbl>
       <input className="ds-field ds-c5" type="password" placeholder={passphrasePlaceholder} value={sshCfg.passphrase ?? ''} disabled={!sshOn} onChange={(e) => setSsh({ passphrase: e.target.value })} />
 
+      <div className="ds-row-full ds-jump-head">
+        <Lbl style={{ width: 190 }}>Jump hosts</Lbl>
+        <button className="ds-btn ds-btn-sm" type="button" disabled={!sshOn || jumpHosts.length >= 5} onClick={addJump}><Icon id="add" />Add host</button>
+        <span className="ds-hint">Traversed in order before {sshCfg.host || 'the final host'} (max 5).</span>
+      </div>
+      {jumpHosts.map((jump, index) => {
+        const stored = dialog.editing?.ssh?.jumpHosts?.find((j) => j.id === jump.id)
+        const jumpAuth = jump.authType ?? 'auto'
+        return (
+          <div className="ds-jump" key={jump.id}>
+            <div className="ds-jump-title">
+              <span>Jump host {index + 1}</span>
+              <button className="ds-btn ds-btn-sm" type="button" disabled={!sshOn} onClick={() => removeJump(jump.id)}><Icon id="close" />Remove</button>
+            </div>
+            <Lbl className="ds-c1" req dim={!sshOn}>Host</Lbl>
+            <input className="ds-field ds-c2" value={jump.host} placeholder="bastion.internal" disabled={!sshOn} onChange={(e) => setJump(jump.id, { host: e.target.value })} />
+            <Lbl className="ds-c4" req dim={!sshOn}>Port</Lbl>
+            <div className="ds-c5"><Stepper label={`Jump host ${index + 1} port`} value={jump.port ?? 22} disabled={!sshOn} onChange={(port) => setJump(jump.id, { port })} /></div>
+
+            <Lbl className="ds-c1" req dim={!sshOn}>Username</Lbl>
+            <input className="ds-field ds-c2" value={jump.user} placeholder="root" disabled={!sshOn} onChange={(e) => setJump(jump.id, { user: e.target.value })} />
+            <Lbl className="ds-c4" dim={!sshOn}>Auth</Lbl>
+            <div className="ds-c5"><Seg tight value={jumpAuth} onChange={(v) => setJump(jump.id, { authType: v as SshConfig['authType'] })} options={[
+              { id: 'auto', label: 'Auto', disabled: !sshOn },
+              { id: 'password', label: 'Password', disabled: !sshOn },
+              { id: 'privateKey', label: 'Key', disabled: !sshOn },
+              { id: 'agent', label: 'Agent', disabled: !sshOn },
+            ]} /></div>
+
+            <Lbl className="ds-c1" dim={!sshOn}>Password</Lbl>
+            <input className="ds-field ds-c2" type="password" placeholder={stored?.hasPassword ? 'Stored password — leave blank to keep' : 'Password'} value={jump.password ?? ''} disabled={!sshOn} onChange={(e) => setJump(jump.id, { password: e.target.value })} />
+            <Lbl className="ds-c4" dim={!sshOn}>Private key</Lbl>
+            <div className="ds-with-btn ds-c5">
+              <input className="ds-field" value={jump.privateKeyPath ?? ''} placeholder="~/.ssh/id_rsa" disabled={!sshOn} onChange={(e) => setJump(jump.id, { privateKeyPath: e.target.value })} />
+              <button className="ds-btn ds-icon-btn" type="button" disabled={!sshOn} aria-label={`Browse jump host ${index + 1} key`} title="Choose private key" onClick={() => void pick((f) => setJump(jump.id, { privateKeyPath: f }))}>…</button>
+            </div>
+
+            <Lbl className="ds-c1" dim={!sshOn}>Passphrase</Lbl>
+            <input className="ds-field ds-c2" type="password" placeholder={stored?.hasPassphrase ? 'Stored passphrase — leave blank to keep' : 'Key passphrase'} value={jump.passphrase ?? ''} disabled={!sshOn} onChange={(e) => setJump(jump.id, { passphrase: e.target.value })} />
+          </div>
+        )
+      })}
+
       <div className="ds-row-full">
         <p className="ds-note">The tunnel binds a random local port and forwards it to {c.kind === 'jdbc' ? 'the JDBC URL host' : c.kind === 'mongodb' && uriSet ? 'the connection string host' : `${c.host || 'the server'}${c.port ? `:${c.port}` : ''}`}.<br />
-          Host keys are accepted as presented in this build — verify your SSH host independently.</p>
+          Host keys are verified on first use and remembered in known_hosts.json; a changed key aborts the connection.</p>
       </div>
+    </Fragment>
+  )
+
+  /* --- Session tab: what runs when the data source opens (DataGrip's Options tab) --- */
+  const sessionCfg = c.session ?? {}
+  const sessionFields = (
+    <Fragment>
+      {!isSqlKind(c.kind) ? (
+        <p className="ds-note">Session options apply to SQL data sources. This provider has no SQL session to configure.</p>
+      ) : (
+        <Fragment>
+          <Lbl className="ds-c1">Init SQL</Lbl>
+          <textarea className="ds-field ds-wide ds-textarea" rows={4} placeholder="Statements executed right after connecting, separated by ;" value={sessionCfg.initSql ?? ''} onChange={(e) => setSession({ initSql: e.target.value })} />
+
+          <Lbl className="ds-c1">Default schema</Lbl>
+          <input className="ds-field ds-c2" placeholder="public (search_path on PostgreSQL)" value={sessionCfg.defaultSchema ?? ''} onChange={(e) => setSession({ defaultSchema: e.target.value })} />
+          <Lbl className="ds-c4">Default catalog</Lbl>
+          <input className="ds-field ds-c5" placeholder="database (USE on MySQL)" value={sessionCfg.defaultCatalog ?? ''} onChange={(e) => setSession({ defaultCatalog: e.target.value })} />
+
+          <Lbl className="ds-c1">Auto-commit</Lbl>
+          <div className="ds-c2 ds-start"><Switch label="Auto-commit" checked={sessionCfg.autoCommit !== false} onChange={(autoCommit) => setSession({ autoCommit })} /></div>
+          <Lbl className="ds-c4">Isolation</Lbl>
+          <select className="ds-field ds-c5" value={sessionCfg.isolation ?? 'default'} onChange={(e) => setSession({ isolation: e.target.value as SessionConfig['isolation'] })}>
+            <option value="default">Server default</option>
+            <option value="read uncommitted">Read uncommitted</option>
+            <option value="read committed">Read committed</option>
+            <option value="repeatable read">Repeatable read</option>
+            <option value="serializable">Serializable</option>
+          </select>
+
+          <Lbl className="ds-c1">Keep-alive (s)</Lbl>
+          <input className="ds-field ds-c2" type="number" min={0} placeholder="0 = off" value={sessionCfg.keepAliveSeconds ?? ''} onChange={(e) => setSession({ keepAliveSeconds: e.target.value === '' ? undefined : Number(e.target.value) })} />
+          <Lbl className="ds-c4">Close when idle (s)</Lbl>
+          <input className="ds-field ds-c5" type="number" min={0} placeholder="0 = keep open" value={sessionCfg.idleTimeoutSeconds ?? ''} onChange={(e) => setSession({ idleTimeoutSeconds: e.target.value === '' ? undefined : Number(e.target.value) })} />
+
+          <div className="ds-row-full">
+            <p className="ds-note">With auto-commit off, the first statement opens a transaction that stays open until Commit or Rollback. An idle close never discards an open transaction.</p>
+          </div>
+        </Fragment>
+      )}
     </Fragment>
   )
 
   const proxy = (label: string, port: number) => (
     <Fragment>
-      <Lbl className="ds-c1">Enable</Lbl>
       <div className="ds-c2 ds-start"><span className="ds-badge-host"><Switch label={`Enable ${label}`} checked={false} disabled onChange={() => undefined} /><Premium /></span></div>
 
       <Lbl className="ds-c1" req dim>Host</Lbl>
@@ -788,6 +905,25 @@ export function DatasourceDialog() {
               ]} />
             </div> */}
           </div>
+          <div className="ds-row-full ds-profile-row">
+            <Lbl style={{ width: 190 }}>Profile</Lbl>
+            <Seg tight value={c.profile ?? 'none'} onChange={(v) => up({ profile: v === 'none' ? undefined : (v as ConnectionProfile), confirmWrites: undefined })} options={[
+              { id: 'none', label: 'None' },
+              ...PROFILE_ORDER.map((id) => ({ id, label: PROFILE_PRESETS[id].label })),
+            ]} />
+            <span className="ds-hint ds-profile-hint">{c.profile ? PROFILE_PRESETS[c.profile].description : 'Colors and write guards follow the profile; override them below.'}</span>
+          </div>
+          <div className="ds-row-full ds-profile-row">
+            <Lbl style={{ width: 190 }}>Color</Lbl>
+            <div className="ds-swatches" role="radiogroup" aria-label="Connection color">
+              <button type="button" role="radio" aria-checked={!c.color} className={`ds-swatch auto${!c.color ? ' on' : ''}`} title="Use the profile color" onClick={() => up({ color: undefined })}>A</button>
+              {CONNECTION_COLORS.map((color: ConnectionColor) => (
+                <button key={color} type="button" role="radio" aria-checked={c.color === color} className={`ds-swatch${c.color === color ? ' on' : ''}`} style={{ background: colorVar(color) }} title={COLOR_LABEL[color]} aria-label={COLOR_LABEL[color]} onClick={() => up({ color })} />
+              ))}
+            </div>
+            <Check checked={confirmsWrites(c)} onChange={(confirmWrites) => up({ confirmWrites })} label="Confirm writes" />
+            <Lbl>Confirm writes</Lbl>
+          </div>
 
           {/* <p className="ds-note">Note: Requires a <button type="button" className="ds-link" onClick={() => soon('Premium licensing')}>Premium License</button> to unlock all features. Database 0/3 , Other 0/3</p>
           <hr className="ds-rule" /> */}
@@ -799,6 +935,7 @@ export function DatasourceDialog() {
             <span className="ds-sec">Config</span>
             <div className="ds-tabs" role="tablist" aria-label="Config">
               <button type="button" role="tab" aria-selected={tab === 'main'} className={`ds-tab${tab === 'main' ? ' on' : ''}`} onClick={() => goTab('main')}><Icon id="settings-gear" />Main</button>
+              <button type="button" role="tab" aria-selected={tab === 'session'} className={`ds-tab${tab === 'session' ? ' on' : ''}`} onClick={() => goTab('session')}><Icon id="history" />Session</button>
               <button type="button" role="tab" aria-selected={tab === 'ssh'} className={`ds-tab${tab === 'ssh' ? ' on' : ''}`} onClick={() => goTab('ssh')}><Icon id="terminal" />SSH Tunnel</button>
               <button type="button" role="tab" aria-selected={tab === 'socks'} className={`ds-tab${tab === 'socks' ? ' on' : ''}`} onClick={() => goTab('socks')}><DbIcon name="socks" size={18} />Socks Proxy</button>
               <button type="button" role="tab" aria-selected={tab === 'http'} className={`ds-tab${tab === 'http' ? ' on' : ''}`} onClick={() => goTab('http')}><DbIcon name="http" size={18} />HTTP Proxy</button>
@@ -806,6 +943,7 @@ export function DatasourceDialog() {
           </div>
 
           {tab === 'main' && <section className="ds-pane" role="tabpanel" aria-label="Main">{dockerFields ?? (sql ? sqliteFields : c.kind === 'jdbc' ? jdbcFields : c.kind === 'mongodb' ? mongoFields : c.kind === 'redis' ? redisFields : c.kind === 'elastic' ? elasticFields : c.kind === 'cassandra' ? cassandraFields : c.kind === 's3' ? s3Fields : c.kind === 'ftp' ? ftpFields : c.kind === 'kafka' ? kafkaFields : c.kind === 'rabbitmq' ? rabbitmqFields : netFields)}</section>}
+          {tab === 'session' && <section className="ds-pane" role="tabpanel" aria-label="Session">{sessionFields}</section>}
           {tab === 'ssh' && <section className="ds-pane" role="tabpanel" aria-label="SSH Tunnel">{sshFields}</section>}
           {tab === 'socks' && <section className="ds-pane" role="tabpanel" aria-label="Socks Proxy">{proxy('Socks proxy', 1080)}</section>}
           {tab === 'http' && <section className="ds-pane" role="tabpanel" aria-label="HTTP Proxy">{proxy('HTTP proxy', 3128)}</section>}

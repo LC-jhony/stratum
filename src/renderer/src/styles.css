@@ -1150,3 +1150,212 @@ svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
 /* Console: Format SQL feedback */
 .format-note { flex: none; max-width: 340px; overflow: hidden; color: var(--muted); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
 .format-note.error { color: var(--err); }
+
+/* ── Transactions ───────────────────────────────────────────────────────── */
+.tx-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: calc(var(--h-compact) + 2px);
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.tx-bar.open { background: color-mix(in srgb, var(--warn) 8%, var(--surface-3)); color: var(--ink); }
+.tx-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--line-strong); }
+.tx-dot.on { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 18%, transparent); }
+.tx-since { color: var(--muted); font-variant-numeric: tabular-nums; }
+.tx-failed { color: var(--err); font-weight: 600; }
+.tx-bar button {
+  height: calc(var(--h-compact) - 6px);
+  padding: 0 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--text-xs);
+}
+.tx-bar button:hover:not(:disabled) { background: var(--hover); }
+.tx-bar button:disabled { opacity: 0.45; cursor: default; }
+
+/* ── Execution plan ─────────────────────────────────────────────────────── */
+.plan-pane {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--vscode-panel-background, var(--surface-3));
+}
+.plan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: var(--h-toolbar);
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: var(--text-sm);
+}
+.plan-sql {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--stratum-mono);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plan-close { width: var(--h-compact); height: var(--h-compact); flex: none; padding: 0; color: var(--muted); }
+.plan-close:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.plan-tree { flex: 1; min-height: 0; padding: 8px 10px; overflow: auto; }
+.plan-node { padding: 1px 0; font-size: var(--text-sm); }
+.plan-node-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.plan-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--accent); }
+.plan-label { font-weight: 600; }
+.plan-metric { color: var(--muted); font-size: var(--text-2xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plan-detail { margin: 1px 0 2px 14px; color: var(--muted); overflow-wrap: anywhere; font: 11.5px/1.45 var(--stratum-mono); }
+.plan-warning { display: flex; align-items: center; gap: 6px; margin: 2px 0 2px 14px; color: var(--warn); font-size: var(--text-xs); }
+.plan-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--err) 10%, transparent);
+  color: var(--err);
+  font-size: var(--text-sm);
+}
+.plan-raw { flex: 1; min-height: 0; margin: 0; padding: 10px; overflow: auto; color: var(--fg); font: 11.5px/1.5 var(--stratum-mono); white-space: pre; }
+/* The split normally holds editor + results; a plan adds a third pane. */
+.split:has(.plan-pane):has(.results) { grid-template-rows: minmax(120px, 1fr) minmax(100px, 24%) minmax(140px, 34%); }
+.split:has(.plan-pane):not(:has(.results)) { grid-template-rows: minmax(120px, 1fr) minmax(120px, 40%); }
+
+/* ── Cross-connection object search ─────────────────────────────────────── */
+.dialog.object-search { width: 680px; max-height: 74vh; align-self: flex-start; margin-top: 9vh; }
+.object-search header { padding: 10px 12px; font-size: var(--text-md); font-weight: 500; }
+.object-search header input { flex: 1; min-width: 0; height: var(--h-control); border: 0; background: none; font-size: var(--text-md); }
+.object-search header button { margin-left: 0; }
+.object-list { display: flex; flex-direction: column; gap: 2px; min-height: 90px; max-height: 54vh; padding: 6px; overflow: auto; }
+.object-list .hint { margin: 6px 4px; }
+.object-hit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: auto;
+  min-height: var(--h-control);
+  padding: 5px 8px;
+  border-radius: var(--radius-xs);
+  color: var(--ink);
+  text-align: left;
+}
+.object-hit:hover, .object-hit.active { background: var(--sel); color: var(--vscode-list-activeSelectionForeground, var(--ink)); }
+.object-name { min-width: 0; overflow: hidden; font-family: var(--stratum-mono); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
+.object-column { color: var(--muted); }
+.object-where { flex: none; margin-left: auto; color: var(--muted); font-size: var(--text-2xs); white-space: nowrap; }
+
+/* ── Saved queries ──────────────────────────────────────────────────────── */
+.dialog.library-dialog { width: 700px; }
+.library-dialog .filter { margin: 10px 14px 0; }
+.library-list { display: flex; flex-direction: column; gap: 2px; min-height: 120px; max-height: 56vh; padding: 8px 10px; overflow: auto; }
+.library-list .hint { margin: 6px 4px; }
+.library-row { display: flex; align-items: center; gap: 2px; border-radius: var(--radius-xs); }
+.library-row:hover { background: var(--hover); }
+.library-main { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; height: auto; padding: 6px 8px; text-align: left; }
+.library-name { font-size: var(--text-sm); font-weight: 600; }
+.library-sql { max-width: 100%; overflow: hidden; color: var(--muted); font: 11.5px/1.4 var(--stratum-mono); text-overflow: ellipsis; white-space: nowrap; }
+.library-meta { color: var(--muted); font-size: var(--text-2xs); }
+.library-row > button:not(.library-main) { width: var(--h-compact); height: var(--h-compact); flex: none; padding: 0; color: var(--muted); }
+.library-row > button:not(.library-main):hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+
+/* ── Server sessions ────────────────────────────────────────────────────── */
+.dialog.session-dialog { width: min(1080px, 94vw); }
+.session-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
+.session-tools .filter { flex: 1; min-width: 240px; margin: 0; }
+.session-auto { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--text-xs); white-space: nowrap; }
+.session-tools .hint { margin: 0; }
+.session-scroll { flex: 1; min-height: 120px; max-height: 58vh; margin: 0 14px 10px; overflow: auto; border: 1px solid var(--line-soft); border-radius: var(--radius-xs); }
+.session-table { width: 100%; border-collapse: collapse; font-size: var(--text-xs); }
+.session-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+.session-table td { padding: 5px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.session-table tr.current { background: var(--active-bg); }
+.session-table td.blocked { color: var(--warn-ink); }
+.session-wait { display: block; color: var(--muted); font-size: var(--text-2xs); }
+.session-client { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-sql { max-width: 420px; overflow: hidden; color: var(--muted); font-family: var(--stratum-mono); text-overflow: ellipsis; white-space: nowrap; }
+.session-table button.danger { height: var(--h-compact); padding: 0 8px; color: var(--err); }
+.session-dialog footer .hint { margin: 0; }
+
+/* ── Data source profile / color / jump hosts ───────────────────────────── */
+.ds-profile-row { flex-wrap: wrap; gap: 14px; height: auto; min-height: 38px; }
+.ds-profile-hint { flex: 1; min-width: 220px; margin-left: 0; }
+.ds-swatches { display: flex; align-items: center; gap: 6px; }
+.ds-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--ds-field-border);
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ds-swatch.auto { background: var(--ds-field-bg); }
+.ds-swatch:not(.auto) { border-color: transparent; }
+.ds-swatch.on { outline: 2px solid var(--ds-focus); outline-offset: 1px; }
+.ds-jump-head { gap: 12px; height: 34px; }
+.ds-jump {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 176px 268px 51px 175px 268px;
+  row-gap: 14px;
+  align-items: center;
+  margin: 4px 0 2px;
+  padding: 10px 12px 14px;
+  border: 1px solid var(--ds-field-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ds-field-bg) 55%, transparent);
+}
+.ds-jump-title { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; color: var(--muted); font-size: 13.5px; }
+.ds-textarea { height: auto; min-height: 88px; padding: 8px 10px; line-height: 1.45; resize: vertical; font-family: var(--stratum-mono); }
+
+/* ── Explorer + status ──────────────────────────────────────────────────── */
+.conn-color { width: 8px; height: 8px; flex: none; border-radius: 50%; box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 22%, transparent); }
+.app-status .status-tx {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: calc(var(--status-h) - 6px);
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--warn, #d18616) 20%, transparent);
+  color: var(--warn-ink, #d18616);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}

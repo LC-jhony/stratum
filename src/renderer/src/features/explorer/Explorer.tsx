@@ -2,15 +2,16 @@ import { useMemo, useState } from 'react'
 import type { ConnectionView, TableInfo } from '../../../../shared/types'
 import { connectionDialect } from '../../../../core/dialects'
 import { isSqlKind } from '../../../../core/kinds'
+import { connectionColor, colorVar, PROFILE_PRESETS } from '../../../../core/profiles'
 import { qualify, quote } from '../../../../core/quoting'
 import { useWorkbench } from '../../store/workbench'
 import { FileIcon, Icon } from '../../ui/Icon'
 
 type Kind = 'connection' | 'schema' | 'group' | 'table' | 'view' | 'column' | 'index'
-interface Row { key: string; depth: number; kind: Kind; label: string; detail?: string; expandable: boolean; icon: string; fi?: string; color?: string; conn: ConnectionView; schema?: string; table?: string; pk?: boolean; fk?: boolean; extra?: string }
+interface Row { key: string; depth: number; kind: Kind; label: string; detail?: string; expandable: boolean; icon: string; fi?: string; color?: string; connColor?: string; conn: ConnectionView; schema?: string; table?: string; pk?: boolean; fk?: boolean; extra?: string }
 
 export function Explorer() {
-  const { connections, live, connect, refresh, openConsole, openTable, openDiagram, set, disconnect, removeConnection, setActive } = useWorkbench()
+  const { connections, live, connect, reconnect, refresh, openConsole, openTable, openDiagram, set, disconnect, removeConnection, setActive } = useWorkbench()
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [sel, setSel] = useState<string>()
   const [filter, setFilter] = useState('')
@@ -24,9 +25,16 @@ export function Explorer() {
     const f = filter.trim().toLowerCase()
     const hit = (value: string) => !f || value.toLowerCase().includes(f)
     const childHit = (t: TableInfo) => !!f && (t.columns.some((c) => hit(c.name)) || t.indexes.some((i) => hit(i.name) || i.columns.some(hit)))
-    for (const conn of connections) {
+    const ordered = [...connections].sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || a.name.localeCompare(b.name))
+    let lastGroup: string | undefined
+    for (const conn of ordered) {
       const l = live[conn.id], ck = conn.id
-      out.push({ key: ck, depth: 0, kind: 'connection', label: conn.name, detail: l?.version ? `${conn.kind} ${l.version}` : conn.kind, expandable: true, icon: l?.status === 'ready' ? 'database' : l?.status === 'error' ? 'error' : 'server', color: l?.status === 'ready' ? 'var(--vscode-charts-green)' : l?.status === 'error' ? 'var(--vscode-errorForeground)' : undefined, conn })
+      const group = conn.group?.trim()
+      if (group && group !== lastGroup) {
+        out.push({ key: `group/${group}`, depth: 0, kind: 'group', label: group, expandable: false, icon: 'folder', conn })
+      }
+      lastGroup = group
+      out.push({ key: ck, depth: 0, kind: 'connection', label: conn.name, detail: l?.version ? `${conn.kind} ${l.version}` : conn.kind, expandable: true, icon: l?.status === 'ready' ? 'database' : l?.status === 'error' ? 'error' : 'server', color: l?.status === 'ready' ? 'var(--vscode-charts-green)' : l?.status === 'error' ? 'var(--vscode-errorForeground)' : undefined, connColor: colorVar(connectionColor(conn)), conn })
       if (!open.has(ck)) continue
       const model = l?.model
       if (l?.status === 'connecting' || l?.loadingModel) out.push({ key: `${ck}/loading`, depth: 1, kind: 'group', label: l?.status === 'connecting' ? 'Connecting…' : 'Introspecting…', expandable: false, icon: 'loading', conn })
@@ -110,6 +118,7 @@ export function Explorer() {
         <span>Database Explorer</span>
         <div className="pane-actions">
           <button title="New Data Source…" onClick={() => set({ dialog: {} })}><Icon id="add" /></button>
+          <button title="Search all data sources (Ctrl/⌘+Shift+O)" onClick={() => set({ objectSearchOpen: true })}><Icon id="search" /></button>
           <button title="Refresh" onClick={() => connections.forEach((c) => live[c.id]?.status === 'ready' && void refresh(c.id))}><Icon id="refresh" /></button>
           <button title="New Query Console" onClick={() => openConsole(sel ? rows.find((r) => r.key === sel)?.conn.id : undefined)}><Icon id="terminal" /></button>
         </div>
@@ -123,6 +132,7 @@ export function Explorer() {
             onDoubleClick={() => (r.kind === 'table' || r.kind === 'view') ? openTable(r.conn.id, r.table!, r.schema) : undefined}
             onContextMenu={(e) => { e.preventDefault(); setSel(r.key); setMenu({ x: e.clientX, y: e.clientY, row: r }) }}>
             <span className="chev" onClick={(e) => { e.stopPropagation(); if (r.expandable) r.kind === 'connection' ? activate(r) : toggle(r.key) }}>{r.expandable ? <Icon id={open.has(r.key) ? 'chevron-down' : 'chevron-right'} /> : null}</span>
+            {r.kind === 'connection' && r.connColor && <span className="conn-color" style={{ background: r.connColor }} title={r.conn.profile ? `${PROFILE_PRESETS[r.conn.profile].label} profile` : 'Connection color'} />}
             {r.fi ? <FileIcon icon={r.fi} /> : <Icon id={r.icon} className={r.icon === 'loading' ? 'codicon-modifier-spin' : ''} style={{ color: r.color }} />}
             <span className="label">{r.label}</span>
             {r.extra && <span className="badge-kind">{r.extra}</span>}
@@ -133,13 +143,16 @@ export function Explorer() {
       {menu && (
         <ul className="menu" style={{ left: menu.x, top: menu.y }}>
           {menu.row.kind === 'connection' && <>
-            <li onClick={() => void connect(menu.row.conn.id)}><Icon id="plug" />Connect</li>
+            {live[menu.row.conn.id]?.status === 'ready'
+              ? <li onClick={() => void disconnect(menu.row.conn.id)}><Icon id="debug-disconnect" />Disconnect</li>
+              : <li onClick={() => void connect(menu.row.conn.id)}><Icon id="plug" />Connect</li>}
+            <li onClick={() => void reconnect(menu.row.conn.id)}><Icon id="refresh-cw" />Reconnect</li>
             <li onClick={() => openConsole(menu.row.conn.id)}><Icon id="terminal" />New Query Console</li>
             {isSqlKind(menu.row.conn.kind) && <li onClick={() => openDiagram(menu.row.conn.id)}><Icon id="type-hierarchy" />Show Diagram</li>}
+            {(menu.row.conn.kind === 'postgres' || menu.row.conn.kind === 'mysql') && <li onClick={() => set({ sessionMonitor: menu.row.conn.id })}><Icon id="server" />Sessions &amp; Locks…</li>}
             <li onClick={() => void refresh(menu.row.conn.id)}><Icon id="refresh" />Refresh</li>
             <hr />
             <li onClick={() => set({ dialog: { editing: menu.row.conn } })}><Icon id="settings-gear" />Properties…</li>
-            <li onClick={() => void disconnect(menu.row.conn.id)}><Icon id="debug-disconnect" />Disconnect</li>
             <li className="danger" onClick={() => void removeConnection(menu.row.conn.id)}><Icon id="trash" />Remove</li>
           </>}
           {(menu.row.kind === 'table' || menu.row.kind === 'view') && <>

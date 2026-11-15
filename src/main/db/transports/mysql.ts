@@ -1,5 +1,6 @@
 import { createConnection, type Connection, type ConnectionOptions } from 'mysql2/promise'
 import type { ConnectionConfig, RawResult } from '../../../shared/types'
+import { sslMaterial } from '../ssl'
 import type { Transport } from '../types'
 import { isConnectionError, transactionState } from './tx'
 
@@ -12,16 +13,17 @@ export class MysqlTransport implements Transport {
 
   constructor(private cfg: ConnectionConfig) {}
 
-  private options(): ConnectionOptions {
+  private async options(): Promise<ConnectionOptions> {
     const c = this.cfg
     const socket = c.socketPath?.trim()
+    const tls = await sslMaterial(c)
     return {
       ...(socket ? { socketPath: socket } : { host: c.host ?? 'localhost', port: c.port ?? 3306 }),
       user: c.user,
       password: c.password,
       database: c.database,
       // Certificate verification is opt-in: existing profiles that only enable SSL keep working.
-      ssl: c.ssl ? { rejectUnauthorized: c.sslVerify === true } : undefined,
+      ssl: c.ssl ? { rejectUnauthorized: c.sslVerify === true, ...tls } : undefined,
       rowsAsArray: true,
       dateStrings: false,
       supportBigNumbers: true,
@@ -42,7 +44,7 @@ export class MysqlTransport implements Transport {
       const previous = this.conn
       this.conn = undefined
       if (previous) await previous.end().catch(() => {})
-      const conn = await createConnection(this.options())
+      const conn = await createConnection(await this.options())
       this.attach(conn)
       try {
         if (this.cfg.readonly) await conn.query('set session transaction read only')
@@ -101,9 +103,13 @@ export class MysqlTransport implements Transport {
   async cancel() {
     const id = this.processId()
     if (!id || this.broken) return
-    const side = await createConnection({ ...this.options(), rowsAsArray: false })
+    const side = await createConnection({ ...(await this.options()), rowsAsArray: false })
     try { await side.query(`KILL QUERY ${Number(id)}`) } finally { await side.end().catch(() => {}) }
   }
+
+  inTransaction(): boolean { return this.inTx }
+
+  async ping() { await this.query('select 1') }
 
   async close() {
     await this.opening?.catch(() => undefined)
