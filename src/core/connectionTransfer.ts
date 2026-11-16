@@ -7,7 +7,7 @@
  * assigns fresh ids, so a file cannot overwrite an existing data source.
  */
 import type {
-  ConnectionColor, ConnectionConfig, ConnectionProfile, DialectId, DriverKind, SessionConfig, SshConfig, SshJumpHost,
+  ConnectionColor, ConnectionConfig, ConnectionProfile, DialectId, DriverKind, ProxyConfig, SessionConfig, SshConfig, SshJumpHost,
   TransactionIsolation,
 } from '../shared/types'
 import { DIALECTS } from './dialects'
@@ -113,6 +113,24 @@ function cleanSsh(v: unknown): SshConfig | undefined {
   return out
 }
 
+/** Proxy fields travel, the proxy password never does: the importer starts without one. */
+function cleanProxy(v: unknown): ProxyConfig | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
+  const raw = v as Record<string, unknown>
+  if (raw.type !== 'socks5' && raw.type !== 'http') return undefined
+  const enabled = raw.enabled === true
+  const host = nonEmpty(raw.host, 2000)
+  // A disabled proxy still records type/host/port so re-enabling it needs no retyping.
+  if (!enabled && !host) return undefined
+  const out: ProxyConfig = { enabled, type: raw.type }
+  if (host) out.host = host
+  const port = int(raw.port, 1, 65_535)
+  if (port !== undefined) out.port = port
+  const user = nonEmpty(raw.user, 2000)
+  if (user) out.user = user
+  return out
+}
+
 function cleanJdbc(v: unknown): ConnectionConfig['jdbc'] | undefined {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
   const raw = v as Record<string, unknown>
@@ -190,6 +208,7 @@ export function sanitizeConnection(input: unknown, index = 0): { connection?: Co
   const session = cleanSession(raw.session); if (session) out.session = session
   const variables = stringMap(raw.variables); if (variables) out.variables = variables
   const ssh = cleanSsh(raw.ssh); if (ssh) out.ssh = ssh
+  const proxy = cleanProxy(raw.proxy); if (proxy) out.proxy = proxy
   if (kind === 'jdbc') {
     const jdbc = cleanJdbc(raw.jdbc)
     if (jdbc) out.jdbc = jdbc

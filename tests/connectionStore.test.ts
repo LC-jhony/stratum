@@ -83,6 +83,36 @@ describe('ConnectionStore secret handling', () => {
   })
 })
 
+describe('ConnectionStore: proxy secrets', () => {
+  const withProxy = (over: Partial<ConnectionConfig> = {}): ConnectionConfig => config({
+    ssh: undefined,
+    proxy: { enabled: true, type: 'socks5', host: 'proxy', port: 1080, user: 'ana', password: 'proxy-secret' },
+    ...over,
+  })
+
+  it('never exposes the proxy password in list()', async () => {
+    await store.save(withProxy())
+    const [view] = await store.list()
+    expect(view.proxy).toMatchObject({ enabled: true, type: 'socks5', host: 'proxy', user: 'ana', hasPassword: true })
+    expect(view.proxy).not.toHaveProperty('password')
+  })
+
+  it('decrypts the proxy password for main-process consumers', async () => {
+    await store.save(withProxy())
+    const full = await store.get('c1')
+    expect(full?.proxy?.password).toBe('proxy-secret')
+  })
+
+  it('keeps an omitted proxy password when the view is saved back', async () => {
+    await store.save(withProxy())
+    const view = (await store.list())[0]
+    await store.save({ ...view, name: 'renamed', proxy: view.proxy ? { ...view.proxy, password: undefined } : undefined })
+    const full = await store.get('c1')
+    expect(full).toMatchObject({ name: 'renamed' })
+    expect(full?.proxy?.password).toBe('proxy-secret')
+  })
+})
+
 describe('ConnectionStore: TLS and jump-host secrets', () => {
   const withSecrets = (over: Partial<ConnectionConfig> = {}): ConnectionConfig => config({
     sslKeyPassphrase: 'ssl-secret',

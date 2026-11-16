@@ -9,6 +9,7 @@ import { useWorkbench, type TableTab } from '../../store/workbench'
 import { DataGrid } from '../../ui/DataGrid'
 import { ExportMenu } from '../../ui/ExportMenu'
 import { Icon } from '../../ui/Icon'
+import { ValueDialog } from '../../ui/ValueDialog'
 
 const PAGE = 500
 
@@ -51,6 +52,8 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
   const [res, setRes] = useState<QueryResult>(), [busy, setBusy] = useState(false), [msg, setMsg] = useState<string>()
   const [edits, setEdits] = useState(new Map<string, unknown>()), [deleted, setDeleted] = useState(new Set<number>()), [inserted, setInserted] = useState<unknown[][]>([])
   const [selRow, setSelRow] = useState<number>()
+  const [selCell, setSelCell] = useState<{ r: number; c: number }>()
+  const [viewer, setViewer] = useState<{ title: string; value: unknown }>()
   const [preview, setPreview] = useState(false)
 
   const load = useCallback(async (off = offset) => {
@@ -76,6 +79,13 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
     target, dialect, columns: res.columns.map((c) => c.name), primaryKey: pkCols,
     rows: res.rows, edits, deleted, inserted,
   }) : []), [res, target, dialect, pkCols, edits, deleted, inserted])
+
+  const openValue = (row = selCell?.r, col = selCell?.c) => {
+    if (!res || row === undefined || col === undefined) return
+    const column = res.columns[col]
+    if (!column) return
+    setViewer({ title: `${column.name}${column.type ? ` · ${column.type}` : ''}`, value: rows[row]?.[col] })
+  }
 
   const onEdit = (r: number, c: number, v: unknown) => {
     if (r >= len) setInserted((p) => p.map((row, i) => (i === r - len ? row.map((x, j) => (j === c ? v : x)) : row)))
@@ -116,6 +126,7 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
           <button title="Revert" disabled={!pending} onClick={() => void load(offset)}><Icon id="discard" /></button>
           <button className={pending ? 'primary' : ''} title="Submit (Ctrl/⌘+Alt+Enter)" disabled={!pending || busy} onClick={() => void submit()}><Icon id="check" /> Submit{pending ? ` (${pending})` : ''}</button>
           <button className={preview ? 'on' : ''} title="Preview the SQL that Submit will run" disabled={!pending} onClick={() => setPreview((v) => !v)}><Icon id="code" /></button>
+          <button title="View the selected cell (full value, JSON, map)" disabled={!selCell} onClick={() => openValue()}><Icon id="eye" /></button>
           <span className="grow" />
           <ExportMenu columns={res?.columns ?? []} rows={rows} source={res ? { connectionId: tab.connectionId, sql: res.sql, offset: res.offset, rawRows: res.rows, hasMore: !!res.hasMore } : undefined} table={tab.table} dialect={dialect} neutralizeFormulas={neutralize} disabled={!res || !!res.error || !rows.length} />
           {!editable && (sqlKind
@@ -130,9 +141,10 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
         )}
         {msg && <div className={`banner ${res?.error || /fail|error|constraint/i.test(msg) ? 'error' : ''}`}>{msg}</div>}
         {preview && pending > 0 && <pre className="sql-preview" aria-label="Pending SQL">{statements.join(';\n\n')}</pre>}
-        {res && !res.error ? <DataGrid columns={res.columns} rows={rows} edits={edits} deleted={deleted} insertedFrom={len} readOnlyColumns={editable ? undefined : new Set(res.columns.map((_, i) => i))} onEdit={editable ? onEdit : undefined} onSelectRow={setSelRow} /> : <div className="empty-state">{busy ? 'Loading…' : ''}</div>}
+        {res && !res.error ? <DataGrid columns={res.columns} rows={rows} edits={edits} deleted={deleted} insertedFrom={len} readOnlyColumns={editable ? undefined : new Set(res.columns.map((_, i) => i))} onEdit={editable ? onEdit : undefined} onSelectRow={setSelRow} onSelectCell={(r, c) => setSelCell({ r, c })} onOpenValue={(r, c) => openValue(r, c)} /> : <div className="empty-state">{busy ? 'Loading…' : ''}</div>}
         <div className="grid-foot">{res && !res.error ? `${len} rows${res.hasMore ? '+' : ''} · ${res.durationMs} ms` : ''}</div>
       </div>
+      {viewer && <ValueDialog title={viewer.title} value={viewer.value} onClose={() => setViewer(undefined)} />}
     </div>
   )
 }

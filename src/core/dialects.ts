@@ -23,6 +23,10 @@ export const DIALECTS: readonly { id: DialectId; label: string }[] = [
   { id: 'bigquery', label: 'BigQuery' },
   { id: 'hive', label: 'Apache Hive' },
   { id: 'spark', label: 'Spark SQL' },
+  { id: 'duckdb', label: 'DuckDB' },
+  { id: 'trino', label: 'Trino' },
+  { id: 'teradata', label: 'Teradata' },
+  { id: 'firebird', label: 'Firebird' },
   { id: 'cassandra', label: 'Cassandra (CQL)' },
   { id: 'generic', label: 'Generic SQL' },
 ]

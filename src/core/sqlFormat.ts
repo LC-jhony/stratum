@@ -29,6 +29,10 @@ const LANGUAGE: Record<DialectId, SqlLanguage> = {
   bigquery: 'bigquery',
   hive: 'hive',
   spark: 'spark',
+  duckdb: 'duckdb',
+  trino: 'trino',
+  teradata: 'sql',
+  firebird: 'sql',
   cassandra: 'sql',
   generic: 'sql',
 }

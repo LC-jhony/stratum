@@ -2,8 +2,9 @@ import { Fragment, useEffect, useState } from 'react'
 import { ipc } from '../../ipc/client'
 import type { CSSProperties, ReactNode } from 'react'
 import type { DriverJar } from '../../../../shared/drivers'
-import type { ConnectionColor, ConnectionConfig, ConnectionProfile, ConnectionView, DialectId, DriverKind, SessionConfig, SshConfig, SshJumpHost } from '../../../../shared/types'
+import type { ConnectionColor, ConnectionConfig, ConnectionProfile, ConnectionView, DialectId, DriverKind, ProxyConfig, SessionConfig, SshConfig, SshJumpHost } from '../../../../shared/types'
 import { DIALECTS } from '../../../../core/dialects'
+import { ENGINE_PRESETS, urlForEngine } from '../../../../core/engines'
 import { inferDockerKind, publishedPorts, type DockerContainer, type DockerPort } from '../../../../core/docker'
 import { isSqlKind } from '../../../../core/kinds'
 import { COLOR_LABEL, CONNECTION_COLORS, colorVar, confirmsWrites, PROFILE_ORDER, PROFILE_PRESETS } from '../../../../core/profiles'
@@ -38,6 +39,8 @@ interface ServerType {
   port?: number
   /** JDBC connection string preset for the JDBC-backed types. */
   url?: string
+  /** Driver class pre-filled for a declarative engine preset. */
+  driverClass?: string
   /** Helper panes that fill a connection instead of selecting a kind (Docker today). */
   action?: 'docker'
 }
@@ -65,10 +68,13 @@ const ROW2: ServerType[] = [
   { id: 'kafka', label: 'Kafka', icon: 'kafka', kind: 'kafka', port: 9092 },
   { id: 'rabbitmq', label: 'RabbitMQ', icon: 'rabbitmq', kind: 'rabbitmq', port: 15672 },
   { id: 'cassandra', label: 'Cassandra', icon: 'cassandra', kind: 'cassandra', port: 9042 },
-  { id: 'more', label: 'More', icon: 'more' },
 ]
 const PIPE_AFTER = new Set(['postgres', 'mssql', 'oracle', 'docker', 'mongodb', 'ftp', 'cassandra'])
-const ALL_TYPES = [...ROW1, ...ROW2]
+/** Engines reachable through the generic JDBC transport, declared once in src/core/engines.ts. */
+const ENGINE_TYPES: ServerType[] = ENGINE_PRESETS.map((e) => ({
+  id: `engine:${e.id}`, label: e.label, icon: 'jdbc', kind: 'jdbc', dialect: e.dialect, port: e.port, url: e.url, driverClass: e.driverClass,
+}))
+const ALL_TYPES = [...ROW1, ...ROW2, ...ENGINE_TYPES]
 
 /** Unix socket defaults behind the Main tab's "Use" button (Host is ignored while one is set). */
 const SOCKET_DEFAULT: Partial<Record<DriverKind, string>> = { mysql: '/var/run/mysqld/mysqld.sock', postgres: '/var/run/postgresql' }
@@ -146,7 +152,7 @@ export function DatasourceDialog() {
   const [c, setC] = useState<ConnectionConfig>(() => {
     const view = dialog?.editing
     if (!view) return blank()
-    const { hasPassword: _hasPassword, hasSslKeyPassphrase: _hasSslKeyPassphrase, ssh, ...rest } = view
+    const { hasPassword: _hasPassword, hasSslKeyPassphrase: _hasSslKeyPassphrase, ssh, proxy, ...rest } = view
     const sshRest = ssh
       ? (() => {
           const { hasPassword: _sshHasPassword, hasPassphrase: _sshHasPassphrase, jumpHosts, ...rest } = ssh
@@ -159,11 +165,18 @@ export function DatasourceDialog() {
           }
         })()
       : undefined
+    const proxyRest = proxy
+      ? (() => {
+          const { hasPassword: _proxyHasPassword, ...proxyRest } = proxy
+          return { ...proxyRest, password: undefined }
+        })()
+      : undefined
     return {
       ...rest,
       password: undefined,
       sslKeyPassphrase: undefined,
       ssh: sshRest ? { ...sshRest, password: undefined, passphrase: undefined } : undefined,
+      proxy: proxyRest,
     }
   })
   const [type, setType] = useState(() => typeOf(c))
@@ -184,10 +197,12 @@ export function DatasourceDialog() {
   const storedSshPassword = !!dialog.editing?.ssh?.hasPassword
   const storedSshPassphrase = !!dialog.editing?.ssh?.hasPassphrase
   const storedSslPassphrase = !!dialog.editing?.hasSslKeyPassphrase
+  const storedProxyPassword = !!dialog.editing?.proxy?.hasPassword
   const passwordPlaceholder = storedPassword ? 'Stored password — leave blank to keep' : 'Password'
   const sshPasswordPlaceholder = storedSshPassword ? 'Stored password — leave blank to keep' : 'Password'
   const passphrasePlaceholder = storedSshPassphrase ? 'Stored passphrase — leave blank to keep' : 'Key passphrase'
   const sslPassphrasePlaceholder = storedSslPassphrase ? 'Stored passphrase — leave blank to keep' : 'Key passphrase (optional)'
+  const proxyPasswordPlaceholder = storedProxyPassword ? 'Stored password — leave blank to keep' : 'Password (optional)'
 
   const up = (p: Partial<ConnectionConfig>) => { setC((x) => ({ ...x, ...p })); setNote(null) }
   const setSession = (p: Partial<SessionConfig>) => up({ session: { ...c.session, ...p } })
@@ -206,10 +221,27 @@ export function DatasourceDialog() {
     setType(t.id)
     setC((x) =>
       kind === 'jdbc'
-        ? { ...x, kind, port: undefined, uri: undefined, authSource: undefined, jdbc: { url: x.jdbc?.url || t.url || 'jdbc:', driverPath: x.jdbc?.driverPath ?? '', driverClass: x.jdbc?.driverClass, dialect: t.dialect ?? 'generic' } }
+        ? {
+            ...x,
+            kind,
+            port: t.port,
+            uri: undefined,
+            authSource: undefined,
+            jdbc: {
+              url: t.url ? urlForEngine(x.jdbc, { id: t.id, label: t.label, dialect: t.dialect ?? 'generic', url: t.url }, t.url) : x.jdbc?.url || 'jdbc:',
+              driverPath: x.jdbc?.driverPath ?? '',
+              driverClass: t.driverClass ?? x.jdbc?.driverClass,
+              dialect: t.dialect ?? 'generic',
+            },
+          }
         : { ...x, kind, port: t.port, jdbc: undefined, uri: kind === 'mongodb' ? x.uri : undefined, authSource: kind === 'mongodb' ? x.authSource : undefined },
     )
     setNote(null)
+  }
+
+  const pickEngine = (id: string) => {
+    const t = ENGINE_TYPES.find((e) => e.id === id)
+    if (t) pickType(t)
   }
 
   const name = c.name || (sql ? (c.filePath?.split(/[\\/]/).pop() ?? 'sqlite') : c.kind === 'jdbc' ? c.jdbc?.url || 'jdbc' : c.database || c.host || 'data source')
@@ -220,10 +252,13 @@ export function DatasourceDialog() {
   /** Required SSH fields for the chosen auth mode; the tunnel itself is validated again in main. */
   const sshOk = !sshOn || (!!sshCfg.host?.trim() && !!sshCfg.user?.trim()
     && (sshAuth !== 'password' || !!sshCfg.password || storedSshPassword) && (sshAuth !== 'privateKey' || !!sshCfg.privateKeyPath?.trim()))
-  const ok = (sql ? !!c.filePath : c.kind === 'mongodb' ? uriSet || !!c.host : c.kind === 'jdbc' ? !!c.jdbc?.url && !!c.jdbc.driverPath : c.kind === 's3' ? true : !!c.host) && sshOk
+  const proxyCfg = c.proxy ?? { enabled: false, type: 'socks5' as const }
+  const proxyOn = !!proxyCfg.enabled
+  const proxyOk = !proxyOn || (!sql && !!proxyCfg.host?.trim() && !sshOn)
+  const ok = (sql ? !!c.filePath : c.kind === 'mongodb' ? uriSet || !!c.host : c.kind === 'jdbc' ? !!c.jdbc?.url && !!c.jdbc.driverPath : c.kind === 's3' ? true : !!c.host) && sshOk && proxyOk
   const hint = dockerHelper
     ? 'Scan the Docker daemon and pick a published port to fill Host/Port; the server type follows the image when it is recognized.'
-    : !sshOk ? 'Complete the SSH tunnel settings.' : ok ? 'Ready.' : sql ? 'Pick the database file first.' : c.kind === 'mongodb' ? 'Connection string or host is required.' : c.kind === 'jdbc' ? 'JDBC URL and driver file are required.' : c.kind === 'rabbitmq' ? 'Set the Management API host (port 15672 by default).' : 'Host and port are required.'
+    : !sshOk ? 'Complete the SSH tunnel settings.' : !proxyOk ? 'Complete the proxy settings, or disable the SSH tunnel (both helpers cannot be active).' : ok ? 'Ready.' : sql ? 'Pick the database file first.' : c.kind === 'mongodb' ? 'Connection string or host is required.' : c.kind === 'jdbc' ? 'JDBC URL and driver file are required.' : c.kind === 'rabbitmq' ? 'Set the Management API host (port 15672 by default).' : 'Host and port are required.'
 
   const doTest = async () => {
     setBusy(true)
@@ -273,6 +308,7 @@ export function DatasourceDialog() {
 
   const goTab = (next: typeof tab) => {
     if (next !== 'main') closeDocker()
+    if (next === 'socks' || next === 'http') up({ proxy: { ...proxyCfg, type: next === 'socks' ? 'socks5' : 'http' } })
     setTab(next)
   }
 
@@ -669,7 +705,12 @@ export function DatasourceDialog() {
   ) : (
     <Fragment>
       <Lbl className="ds-c1">Enable</Lbl>
-      <div className="ds-c2 ds-start"><Switch label="Enable SSH tunnel" checked={sshOn} onChange={(enabled) => setSsh({ enabled })} /></div>
+      <div className="ds-c2 ds-start"><Switch label="Enable SSH tunnel" checked={sshOn} onChange={(enabled) => {
+        if (enabled && proxyOn) {
+          up({ ssh: { ...sshCfg, enabled: true }, proxy: { ...proxyCfg, enabled: false } })
+          setNote({ tone: 'info', text: 'The proxy was disabled: this build uses one connection helper per data source.' })
+        } else setSsh({ enabled })
+      }} /></div>
 
       <Lbl className="ds-c1" req dim={!sshOn}>Host</Lbl>
       <input className="ds-field ds-c2" value={sshCfg.host ?? ''} placeholder="jump host" disabled={!sshOn} onChange={(e) => setSsh({ host: e.target.value })} />
@@ -795,19 +836,36 @@ export function DatasourceDialog() {
     </Fragment>
   )
 
-  const proxy = (label: string, port: number) => (
+  const setProxy = (p: Partial<ProxyConfig>) => up({ proxy: { ...proxyCfg, ...p } })
+  const toggleProxy = (enabled: boolean, type: ProxyConfig['type']) => {
+    if (!enabled) { setProxy({ enabled: false }); return }
+    const turnOffSsh = sshOn
+    up({
+      proxy: { ...proxyCfg, enabled: true, type },
+      ...(turnOffSsh ? { ssh: { ...sshCfg, enabled: false } } : {}),
+    })
+    if (turnOffSsh) setNote({ tone: 'info', text: 'The SSH tunnel was disabled: this build uses one connection helper per data source.' })
+  }
+  const proxy = (label: string, fallbackPort: number, type: ProxyConfig['type']) => sql ? (
+    <p className="ds-note">SQLite opens local files; a proxy does not apply. Pick a network server type to use this helper.</p>
+  ) : (
     <Fragment>
-      <div className="ds-c2 ds-start"><span className="ds-badge-host"><Switch label={`Enable ${label}`} checked={false} disabled onChange={() => undefined} /><Premium /></span></div>
+      <div className="ds-c2 ds-start"><Switch label={`Enable ${label}`} checked={proxyOn} onChange={(enabled) => toggleProxy(enabled, type)} /></div>
 
-      <Lbl className="ds-c1" req dim>Host</Lbl>
-      <input className="ds-field ds-c2" placeholder="Host" disabled />
-      <Lbl className="ds-c4" req dim>Port</Lbl>
-      <div className="ds-c5"><Stepper label={`${label} port`} value={port} disabled onChange={() => undefined} /></div>
+      <Lbl className="ds-c1" req={proxyOn} dim={!proxyOn}>Host</Lbl>
+      <input className="ds-field ds-c2" value={proxyCfg.host ?? ''} placeholder="proxy.example.com" disabled={!proxyOn} onChange={(e) => setProxy({ type, host: e.target.value })} />
+      <Lbl className="ds-c4" req={proxyOn} dim={!proxyOn}>Port</Lbl>
+      <div className="ds-c5"><Stepper label={`${label} port`} value={proxyCfg.port ?? fallbackPort} disabled={!proxyOn} onChange={(port) => setProxy({ type, port })} /></div>
 
-      <Lbl className="ds-c1" dim>Username</Lbl>
-      <input className="ds-field ds-c2" placeholder="Username" disabled />
-      <Lbl className="ds-c4" dim>Password</Lbl>
-      <input className="ds-field ds-c5" type="password" placeholder="Password" disabled />
+      <Lbl className="ds-c1" dim={!proxyOn}>Username</Lbl>
+      <input className="ds-field ds-c2" value={proxyCfg.user ?? ''} placeholder="Optional" disabled={!proxyOn} onChange={(e) => setProxy({ type, user: e.target.value })} />
+      <Lbl className="ds-c4" dim={!proxyOn}>Password</Lbl>
+      <input className="ds-field ds-c5" type="password" autoComplete="off" placeholder={proxyPasswordPlaceholder} value={proxyCfg.password ?? ''} disabled={!proxyOn} onChange={(e) => setProxy({ type, password: e.target.value })} />
+
+      <div className="ds-row-full">
+        <p className="ds-note"><Icon id="info" /> One connection helper per data source: enabling the proxy turns the SSH tunnel off, and vice versa. The proxy reaches one host:port; database credentials, TLS and the database name stay unchanged. The proxy password is sealed by the OS keychain.</p>
+      </div>
+      {proxyOn && sshOn && <div className="ds-row-full"><p className="ds-note">Disable the SSH tunnel to use the proxy.</p></div>}
     </Fragment>
   )
 
@@ -944,6 +1002,13 @@ export function DatasourceDialog() {
 
           <div className="ds-sec">Server Type</div>
           <div className="ds-st-rows" role="tablist" aria-label="Server Type">{typeRow(ROW1)}{typeRow(ROW2)}</div>
+          <div className="ds-row-full ds-engines">
+            <Lbl style={{ width: 190 }}>More engines</Lbl>
+            <select className="ds-field" value={type.startsWith('engine:') ? type : ''} onChange={(e) => pickEngine(e.target.value)} aria-label="More JDBC engines">
+              <option value="">Choose a JDBC engine…</option>
+              {ENGINE_TYPES.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
+            </select>
+          </div>
 
           <div className="ds-cfg">
             <span className="ds-sec">Config</span>
@@ -959,8 +1024,8 @@ export function DatasourceDialog() {
           {tab === 'main' && <section className="ds-pane" role="tabpanel" aria-label="Main">{dockerFields ?? (sql ? sqliteFields : c.kind === 'jdbc' ? jdbcFields : c.kind === 'mongodb' ? mongoFields : c.kind === 'redis' ? redisFields : c.kind === 'elastic' ? elasticFields : c.kind === 'cassandra' ? cassandraFields : c.kind === 's3' ? s3Fields : c.kind === 'ftp' ? ftpFields : c.kind === 'kafka' ? kafkaFields : c.kind === 'rabbitmq' ? rabbitmqFields : netFields)}</section>}
           {tab === 'session' && <section className="ds-pane" role="tabpanel" aria-label="Session">{sessionFields}</section>}
           {tab === 'ssh' && <section className="ds-pane" role="tabpanel" aria-label="SSH Tunnel">{sshFields}</section>}
-          {tab === 'socks' && <section className="ds-pane" role="tabpanel" aria-label="Socks Proxy">{proxy('Socks proxy', 1080)}</section>}
-          {tab === 'http' && <section className="ds-pane" role="tabpanel" aria-label="HTTP Proxy">{proxy('HTTP proxy', 3128)}</section>}
+          {tab === 'socks' && <section className="ds-pane" role="tabpanel" aria-label="Socks Proxy">{proxy('SOCKS5 proxy', 1080, 'socks5')}</section>}
+          {tab === 'http' && <section className="ds-pane" role="tabpanel" aria-label="HTTP Proxy">{proxy('HTTP proxy', 3128, 'http')}</section>}
         </div>
 
         <footer className="ds-foot">

@@ -110,18 +110,19 @@ async function defaultKeyPath(): Promise<string | undefined> {
 }
 
 /**
- * Real server address behind a connection config — the host:port the tunnel forwards to.
+ * Real server address behind a connection config — the host:port the helper forwards to.
  * Understands host/port fields, provider connection strings (mongodb://, redis://…) and JDBC URLs.
+ * `helper` only shapes the error text: both the SSH tunnel and the proxy share this resolution.
  */
-export function tunnelTarget(cfg: ConnectionConfig): TunnelTarget {
-  if (cfg.kind === 'sqlite') throw new Error('SQLite is a local file: an SSH tunnel does not apply.')
-  if (cfg.socketPath?.trim()) throw new Error('A unix socket cannot be reached through an SSH tunnel; clear the socket path first.')
+export function tunnelTarget(cfg: ConnectionConfig, helper = 'SSH tunnel'): TunnelTarget {
+  if (cfg.kind === 'sqlite') throw new Error(`SQLite is a local file: the ${helper} does not apply to it.`)
+  if (cfg.socketPath?.trim()) throw new Error(`A unix socket cannot be reached through the ${helper}; clear the socket path first.`)
   const uri = cfg.uri?.trim()
-  if (cfg.kind !== 'jdbc' && uri) return targetFromUri(uri, cfg.kind)
+  if (cfg.kind !== 'jdbc' && uri) return targetFromUri(uri, cfg.kind, helper)
   if (cfg.kind === 'jdbc') return targetFromJdbc(cfg.jdbc?.url ?? '')
   const host = cfg.host?.trim()
-  if (!host) throw new Error('Set the server host (or a connection string) before enabling the SSH tunnel.')
-  if (cfg.kind === 'kafka' && host.includes(',')) throw new Error('The SSH tunnel bridges one Kafka broker; list a single bootstrap broker or connect directly.')
+  if (!host) throw new Error(`Set the server host (or a connection string) before enabling the ${helper}.`)
+  if (cfg.kind === 'kafka' && host.includes(',')) throw new Error(`The ${helper} bridges one Kafka broker; list a single bootstrap broker or connect directly.`)
   // Kafka accepts host:port in the broker field; split it so the forward targets the real address.
   let targetHost = host
   let explicitPort: number | undefined
@@ -134,14 +135,14 @@ export function tunnelTarget(cfg: ConnectionConfig): TunnelTarget {
     }
   }
   const port = explicitPort ?? (cfg.port && cfg.port > 0 ? cfg.port : KINDS[cfg.kind].defaultPort)
-  if (!port) throw new Error('Set the server port before enabling the SSH tunnel.')
+  if (!port) throw new Error(`Set the server port before enabling the ${helper}.`)
   return { host: targetHost, port }
 }
 
-function targetFromUri(uri: string, kind: DriverKind): TunnelTarget {
+function targetFromUri(uri: string, kind: DriverKind, helper: string): TunnelTarget {
   const scheme = schemeOf(uri)
-  if (scheme.endsWith('+srv')) throw new Error(`${scheme}:// resolves its hosts through DNS, which the SSH tunnel cannot forward; use a direct host:port.`)
-  if (authorityOf(uri).includes(',')) throw new Error('The connection string lists several hosts; the SSH tunnel forwards to a single host:port.')
+  if (scheme.endsWith('+srv')) throw new Error(`${scheme}:// resolves its hosts through DNS, which the ${helper} cannot forward; use a direct host:port.`)
+  if (authorityOf(uri).includes(',')) throw new Error(`The connection string lists several hosts; the ${helper} forwards to a single host:port.`)
   let url: URL
   try { url = new URL(uri) } catch { throw new Error(`Cannot parse the connection string for the tunnel: ${uri}`) }
   if (!url.hostname) throw new Error('The connection string has no host to tunnel to.')
@@ -186,6 +187,7 @@ export function rewriteForTunnel(cfg: ConnectionConfig, localPort: number): Conn
 export async function acquireTunnel(cfg: ConnectionConfig): Promise<TunnelHandle> {
   const ssh = cfg.ssh
   if (!ssh?.enabled) return { config: cfg, release: () => undefined }
+  if (cfg.proxy?.enabled) throw new Error('This data source has both an SSH tunnel and a proxy enabled; disable one of them.')
   if ((ssh.jumpHosts?.length ?? 0) > MAX_JUMP_HOSTS) throw new Error(`A connection supports at most ${MAX_JUMP_HOSTS} SSH jump hosts.`)
   const target = tunnelTarget(cfg)
   const tunnel = await getTunnel(cfg.id, ssh, target)

@@ -8,7 +8,7 @@ export type DriverKind = 'postgres' | 'mysql' | 'sqlite' | 'jdbc' | 'mongodb' | 
 export type DialectId =
   | 'postgres' | 'mysql' | 'mariadb' | 'sqlite' | 'mssql' | 'oracle' | 'db2' | 'derby' | 'h2' | 'hsql'
   | 'sybase' | 'vertica' | 'exasol' | 'greenplum' | 'redshift' | 'cockroach' | 'snowflake' | 'clickhouse'
-  | 'bigquery' | 'hive' | 'spark' | 'cassandra' | 'generic'
+  | 'bigquery' | 'hive' | 'spark' | 'duckdb' | 'trino' | 'teradata' | 'firebird' | 'cassandra' | 'generic'
 
 /** One intermediate SSH server in a jump chain. Credentials live only in the main process. */
 export interface SshJumpHost {
@@ -67,6 +67,16 @@ export interface SessionConfig {
   idleTimeoutSeconds?: number
 }
 
+/** SOCKS5 or HTTP CONNECT proxy used as a connection helper for network databases. */
+export interface ProxyConfig {
+  enabled: boolean
+  type: 'socks5' | 'http'
+  host?: string
+  port?: number
+  user?: string
+  password?: string
+}
+
 export interface ConnectionConfig {
   id: string
   name: string
@@ -112,6 +122,8 @@ export interface ConnectionConfig {
   authSource?: string
   /** SSH tunnel helper; see SshConfig. Ignored by file databases (SQLite). */
   ssh?: SshConfig
+  /** SOCKS5/HTTP CONNECT proxy helper; mutually exclusive with `ssh` in this build. */
+  proxy?: ProxyConfig
   readonly?: boolean
   /** Folder label shown in the Database Explorer. */
   group?: string
@@ -129,7 +141,7 @@ export interface SshJumpHostView extends Omit<SshJumpHost, 'password' | 'passphr
  * Connection metadata safe to send to the renderer. Secrets never cross the process boundary:
  * the UI only learns whether one is stored, and saving without a password preserves the old one.
  */
-export interface ConnectionView extends Omit<ConnectionConfig, 'password' | 'ssh' | 'sslKeyPassphrase'> {
+export interface ConnectionView extends Omit<ConnectionConfig, 'password' | 'ssh' | 'sslKeyPassphrase' | 'proxy'> {
   password?: undefined
   sslKeyPassphrase?: undefined
   ssh?: Omit<SshConfig, 'password' | 'passphrase' | 'jumpHosts'> & {
@@ -139,6 +151,7 @@ export interface ConnectionView extends Omit<ConnectionConfig, 'password' | 'ssh
     hasPassphrase: boolean
     jumpHosts?: SshJumpHostView[]
   }
+  proxy?: Omit<ProxyConfig, 'password'> & { password?: undefined; hasPassword: boolean }
   hasPassword: boolean
   hasSslKeyPassphrase: boolean
 }

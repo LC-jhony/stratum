@@ -33,6 +33,14 @@ const session = z.object({
   keepAliveSeconds: z.number().int().min(0).max(86_400).optional(),
   idleTimeoutSeconds: z.number().int().min(0).max(604_800).optional(),
 }).passthrough()
+const proxy = z.object({
+  enabled: z.boolean(),
+  type: z.enum(['socks5', 'http']),
+  host: z.string().max(2000).optional(),
+  port: port.optional(),
+  user: z.string().max(2000).optional(),
+  password: z.string().max(100_000).optional(),
+}).passthrough()
 
 export const connectionSchema = z.object({
   id: z.string().min(1).max(200),
@@ -68,6 +76,7 @@ export const connectionSchema = z.object({
   /** SQL variables expanded before execution; connection values override the globals. */
   variables: z.record(z.string().min(1).max(200), z.string().max(100_000)).optional(),
   ssh: ssh.optional(),
+  proxy: proxy.optional(),
   readonly: z.boolean().optional(),
   group: z.string().max(500).optional(),
 }).passthrough()

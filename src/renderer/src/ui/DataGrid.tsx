@@ -21,13 +21,15 @@ export interface GridProps {
   onOpenValue?(row: number, col: number): void
   onEdit?(row: number, col: number, value: unknown): void
   onSelectRow?(row: number): void
+  /** Notifies the selected cell (toolbars can open the full value viewer). */
+  onSelectCell?(row: number, col: number): void
 }
 
 const isNum = (v: unknown) => typeof v === 'number' || (typeof v === 'string' && v !== '' && /^-?\d+(\.\d+)?$/.test(v))
 function show(v: unknown) { return v === null || v === undefined ? null : typeof v === 'boolean' ? String(v) : String(v) }
 
 /** DataGrip-style result grid: windowed rows, resizable columns, cell cursor, inline editing, TSV copy. */
-export function DataGrid({ columns, rows, edits, deleted, insertedFrom, readOnlyColumns, sort, onSort, onOpenValue, onEdit, onSelectRow }: GridProps) {
+export function DataGrid({ columns, rows, edits, deleted, insertedFrom, readOnlyColumns, sort, onSort, onOpenValue, onEdit, onSelectRow, onSelectCell }: GridProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [scroll, setScroll] = useState({ top: 0, h: 400 })
   const [cur, setCur] = useState<{ r: number; c: number } | null>(null)
@@ -49,7 +51,7 @@ export function DataGrid({ columns, rows, edits, deleted, insertedFrom, readOnly
 
   const value = useCallback((r: number, c: number) => (edits?.has(`${r}:${c}`) ? edits.get(`${r}:${c}`) : rows[r]?.[c]), [edits, rows])
   const commit = () => { if (editing) { const raw = editing.v; onEdit?.(editing.r, editing.c, raw === '' ? null : raw); setEditing(null) } }
-  const select = (r: number, c: number) => { setCur({ r, c }); onSelectRow?.(r) }
+  const select = (r: number, c: number) => { setCur({ r, c }); onSelectRow?.(r); onSelectCell?.(r, c) }
 
   const onKey = (e: React.KeyboardEvent) => {
     if (editing || !cur) return

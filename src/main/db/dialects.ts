@@ -406,5 +406,9 @@ export const dialects: Record<DialectId, Dialect> = {
   snowflake: { ...withId(generic, 'snowflake'), paginate: appendLimit },
   hive: { ...withId(generic, 'hive'), paginate: appendLimit },
   spark: { ...withId(generic, 'spark'), paginate: appendLimit },
+  duckdb: { ...withId(generic, 'duckdb'), paginate: appendLimit },
+  trino: { ...withId(generic, 'trino'), paginate: appendLimit },
+  teradata: withId(generic, 'teradata'),
+  firebird: { ...withId(generic, 'firebird'), paginate: appendOffsetFetch },
 }
 export { returnsRows }

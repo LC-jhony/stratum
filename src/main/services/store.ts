@@ -60,7 +60,7 @@ export const unseal = (s?: string) => (s?.startsWith(PREFIX) ? safeStorage.decry
 
 /** Strip secrets from a persisted connection; the renderer only needs to know whether they exist. */
 export function connectionView(c: ConnectionConfig): ConnectionView {
-  const { password, ssh, sslKeyPassphrase, ...rest } = c
+  const { password, ssh, sslKeyPassphrase, proxy, ...rest } = c
   const sshView = ssh
     ? (() => {
         const { password: _password, passphrase: _passphrase, jumpHosts, ...sshRest } = ssh
@@ -75,7 +75,13 @@ export function connectionView(c: ConnectionConfig): ConnectionView {
         }
       })()
     : undefined
-  return { ...rest, hasPassword: !!password, hasSslKeyPassphrase: !!sslKeyPassphrase, ssh: sshView }
+  const proxyView = proxy
+    ? (() => {
+        const { password: _proxyPassword, ...proxyRest } = proxy
+        return { ...proxyRest, hasPassword: !!proxy.password }
+      })()
+    : undefined
+  return { ...rest, hasPassword: !!password, hasSslKeyPassphrase: !!sslKeyPassphrase, ssh: sshView, proxy: proxyView }
 }
 
 const unsealJump = (j: SshJumpHost): SshJumpHost => ({ ...j, password: unseal(j.password), passphrase: unseal(j.passphrase) })
@@ -102,7 +108,10 @@ const mergeSecrets = (next: ConnectionConfig, previous?: ConnectionConfig): Conn
       }
     : undefined
   const sslKeyPassphrase = next.sslKeyPassphrase === undefined ? previous?.sslKeyPassphrase : seal(next.sslKeyPassphrase)
-  return { ...next, password, ssh, sslKeyPassphrase }
+  const proxy = next.proxy
+    ? { ...next.proxy, password: next.proxy.password === undefined ? previous?.proxy?.password : seal(next.proxy.password) }
+    : undefined
+  return { ...next, password, ssh, sslKeyPassphrase, proxy }
 }
 
 export class ConnectionStore {
@@ -138,6 +147,6 @@ export class ConnectionStore {
   /** Full config with decrypted secrets. Main-process use only (session open/test). */
   async get(id: string): Promise<ConnectionConfig | undefined> {
     const c = (await this.store.read()).connections.find((x) => x.id === id)
-    return c ? { ...c, password: unseal(c.password), sslKeyPassphrase: unseal(c.sslKeyPassphrase), ssh: unsealSsh(c.ssh) } : undefined
+    return c ? { ...c, password: unseal(c.password), sslKeyPassphrase: unseal(c.sslKeyPassphrase), ssh: unsealSsh(c.ssh), proxy: c.proxy ? { ...c.proxy, password: unseal(c.proxy.password) } : undefined } : undefined
   }
 }

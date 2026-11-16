@@ -261,3 +261,41 @@
   const activityBar = { boxShadow: getComputedStyle(on).boxShadow, label: on.dataset.label, tooltip: getComputedStyle(on, '::after').content, count: document.querySelectorAll('.stripe [data-label]').length }
   return { ...layout, sorted, filterMeta, fetch: { before, onePage, all: count(), nextButton: !!next, allButton: !!all, hasMore: wb.getState().tabs[0].results.at(-1).result.hasMore }, exportMenu, activityBar }
 })()
+//--- datasource dialog: extra engines, SOCKS/HTTP proxy panes, SSH/proxy exclusivity
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms)), wb = window.__wb
+  const setInput = (el, value) => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })) }
+  const setSelect = (el, value) => { const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; setter.call(el, value); el.dispatchEvent(new Event('change', { bubbles: true })) }
+  const tab = (name) => [...document.querySelectorAll('.ds-tabs [role=tab]')].find((b) => b.textContent.includes(name))
+  const switchFor = (label) => document.querySelector(`.ds-modal [role=switch][aria-label="Enable ${label}"]`)
+  const on = (el) => el?.getAttribute('aria-checked')
+  wb.getState().set({ dialog: {} }); await sleep(600)
+  const modal = !!document.querySelector('.ds-modal')
+  const engineSelect = document.querySelector('select[aria-label="More JDBC engines"]')
+  const engineOptions = engineSelect ? engineSelect.options.length : 0
+  if (engineSelect) setSelect(engineSelect, 'engine:duckdb')
+  await sleep(400)
+  // A preset must fill the URL, the driver class and the SQL dialect the driver manager will use.
+  const jdbcUrl = document.querySelector('.ds-modal input[placeholder^="jdbc:oracle"]')?.value
+  const driverClass = document.querySelector('.ds-modal input[placeholder="optional"]')?.value
+  tab('Socks Proxy')?.click(); await sleep(250)
+  const socksSwitch = () => switchFor('SOCKS5 proxy')
+  socksSwitch()?.click(); await sleep(250)
+  const socksOn = on(socksSwitch())
+  const host = () => [...document.querySelectorAll('.ds-pane input')].find((i) => i.placeholder === 'proxy.example.com')
+  if (host()) setInput(host(), 'proxy.internal')
+  await sleep(250)
+  const socksHost = host()?.value, socksPort = document.querySelector('.ds-modal input[aria-label="SOCKS5 proxy port"]')?.value
+  tab('HTTP Proxy')?.click(); await sleep(300)
+  const httpSwitch = () => switchFor('HTTP proxy')
+  // Switching panes keeps the helper enabled; only the protocol and its default port change.
+  const httpOn = on(httpSwitch()), httpPort = document.querySelector('.ds-modal input[aria-label="HTTP proxy port"]')?.value
+  tab('SSH Tunnel')?.click(); await sleep(250)
+  const sshSwitch = () => switchFor('SSH tunnel')
+  sshSwitch()?.click(); await sleep(300)
+  const sshOn = on(sshSwitch()), sshStatus = document.querySelector('.ds-modal .ds-status')?.textContent?.trim()
+  tab('HTTP Proxy')?.click(); await sleep(250)
+  const proxyAfterSsh = on(httpSwitch())
+  wb.getState().set({ dialog: null })
+  return { modal, engineOptions, jdbcUrl, driverClass, socksOn, socksHost, socksPort, httpOn, httpPort, sshOn, proxyAfterSsh, exclusive: /proxy was disabled/.test(sshStatus ?? '') }
+})()

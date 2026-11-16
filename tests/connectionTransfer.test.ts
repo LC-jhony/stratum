@@ -37,14 +37,24 @@ describe('sanitizeConnection', () => {
     expect(connection?.ssh?.jumpHosts?.[0]).not.toHaveProperty('passphrase')
   })
 
+  it('keeps the proxy topology and strips its password', () => {
+    const { connection } = sanitizeConnection(base({
+      ssh: undefined,
+      proxy: { enabled: true, type: 'socks5', host: 'proxy.example.com', port: 1080, user: 'proxy-user', password: 'proxy-secret' },
+    }))
+    expect(connection?.proxy).toEqual({ enabled: true, type: 'socks5', host: 'proxy.example.com', port: 1080, user: 'proxy-user' })
+  })
+
   it('drops renderer-only secret flags instead of exporting them', () => {
     const view = { ...base(), hasPassword: true, hasSslKeyPassphrase: true,
       ssh: { enabled: true, host: 'jump.example.com', hasPassword: true, hasPassphrase: true,
-        jumpHosts: [{ id: 'j1', host: 'inner', user: 'carol', hasPassword: true }] } }
+        jumpHosts: [{ id: 'j1', host: 'inner', user: 'carol', hasPassword: true }] },
+      proxy: { enabled: true, type: 'http', host: 'proxy', hasPassword: true, password: 'proxy-secret' } }
     const json = JSON.stringify(sanitizeConnection(view).connection)
     expect(json).not.toContain('hasPassword')
     expect(json).not.toContain('hasPassphrase')
     expect(json).not.toContain('hunter2')
+    expect(json).not.toContain('proxy-secret')
   })
 
   it('rejects entries without a supported kind', () => {
@@ -63,6 +73,13 @@ describe('sanitizeConnection', () => {
   it('keeps a disabled SSH tunnel that still has a host', () => {
     const { connection } = sanitizeConnection({ kind: 'postgres', host: 'db', ssh: { enabled: false, host: 'jump', user: 'bob', password: 'x' } })
     expect(connection?.ssh).toEqual({ enabled: false, host: 'jump', user: 'bob' })
+  })
+
+  it('keeps a disabled proxy with a host and drops one without a type', () => {
+    const kept = sanitizeConnection({ kind: 'postgres', host: 'db', proxy: { enabled: false, type: 'http', host: 'proxy', port: 3128, password: 'x' } }).connection
+    expect(kept?.proxy).toEqual({ enabled: false, type: 'http', host: 'proxy', port: 3128 })
+    const dropped = sanitizeConnection({ kind: 'postgres', host: 'db', proxy: { enabled: true, type: 'ftp', host: 'proxy' } }).connection
+    expect(dropped).not.toHaveProperty('proxy')
   })
 
   it('keeps a JDBC preset but warns when the URL is missing', () => {
