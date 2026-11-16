@@ -20,7 +20,7 @@ const EMPTY_HISTORY: string[] = []
 export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: boolean }) {
   const host = useRef<HTMLDivElement>(null)
   const ed = useRef<Monaco.editor.IStandaloneCodeEditor | undefined>(undefined)
-  const { run, cancel, patchTab, live, connections, showResults, set, plan, refreshTransaction, beginTransaction, commitTransaction, rollbackTransaction } = useWorkbench()
+  const { run, cancel, patchTab, live, connections, showResults, set, plan, refreshTransaction, beginTransaction, commitTransaction, rollbackTransaction, savepoint, rollbackToSavepoint } = useWorkbench()
   const prefs = useWorkbench((s) => s.prefs)
   const model = live[tab.connectionId]?.model
   const conn = connections.find((c) => c.id === tab.connectionId)
@@ -34,8 +34,21 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
   // useSyncExternalStore re-render forever (React error #185) while the connection has no history yet.
   const history = useWorkbench((s) => s.history[tab.connectionId]) ?? EMPTY_HISTORY
   const [histOpen, setHistOpen] = useState(false)
+  const [spEdit, setSpEdit] = useState(false)
+  const [spName, setSpName] = useState('')
   const [formatNote, setFormatNote] = useState<{ text: string; error: boolean } | null>(null)
   const noteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const createSavepoint = async () => {
+    const name = spName.trim() || `sp${(tx?.savepoints?.length ?? 0) + 1}`
+    await savepoint(tab.connectionId, name)
+    setSpEdit(false)
+    setSpName('')
+  }
+  const rollbackSp = async (name: string) => {
+    if (!window.confirm(`Roll back to savepoint ${name}? Changes made after it will be discarded.`)) return
+    await rollbackToSavepoint(tab.connectionId, name)
+  }
 
   /** Console language: SQL/CQL for those providers, redis-cli / Dev Tools / mongosh text otherwise. */
   const split = (text: string) => (sqlKind || cassandra ? splitStatements(text) : redis ? splitRedisStatements(text) : elastic ? splitElasticStatements(text) : splitMongoStatements(text)).map((s) => s.text)
@@ -192,6 +205,27 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
               {tx?.failed && <span className="tx-failed">Rollback required</span>}
               <span className="grow" />
               <button type="button" disabled={!!tx?.open} onClick={() => void beginTransaction(tab.connectionId)}>Begin</button>
+              {tx?.open && (spEdit ? (
+                <span className="tx-sp-edit">
+                  <input
+                    autoFocus
+                    value={spName}
+                    placeholder={`sp${(tx.savepoints?.length ?? 0) + 1}`}
+                    aria-label="Savepoint name"
+                    onChange={(e) => setSpName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void createSavepoint()
+                      if (e.key === 'Escape') { setSpEdit(false); setSpName('') }
+                    }}
+                  />
+                  <button type="button" onClick={() => void createSavepoint()}>Save</button>
+                </span>
+              ) : (
+                <button type="button" title="Create a savepoint" onClick={() => { setSpName(`sp${(tx.savepoints?.length ?? 0) + 1}`); setSpEdit(true) }}>Savepoint…</button>
+              ))}
+              {tx?.open && tx.savepoints?.map((name) => (
+                <button key={name} type="button" className="tx-sp" title={`Roll back to savepoint ${name}`} onClick={() => void rollbackSp(name)}>{name}</button>
+              ))}
               <button type="button" disabled={!tx?.open} onClick={() => void commitTransaction(tab.connectionId)}>Commit</button>
               <button type="button" disabled={!tx?.open} onClick={() => void rollbackTransaction(tab.connectionId)}>Rollback</button>
             </div>
@@ -199,7 +233,7 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
           <div className="editor-host" ref={host} />
         </div>
         {tab.plan && <PlanView plan={tab.plan} onClose={() => patchTab(tab.id, { plan: undefined })} />}
-        {showResults && <ResultsPane tabId={tab.id} results={tab.results} active={tab.activeResult} onActive={(i) => patchTab(tab.id, { activeResult: i })} running={tab.running} dialect={dialect} />}
+        {showResults && <ResultsPane tabId={tab.id} connectionId={tab.connectionId} results={tab.results} active={tab.activeResult} onActive={(i) => patchTab(tab.id, { activeResult: i })} running={tab.running} dialect={dialect} />}
       </div>
     </div>
   )

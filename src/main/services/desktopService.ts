@@ -5,6 +5,8 @@ import type { SaveFilter } from '../../shared/ipc'
 
 /** Larger imports would freeze the renderer while the parser builds the statement list. */
 const MAX_TEXT_BYTES = 64 * 1024 * 1024
+/** `@include` files are expanded into the running script; 16 MB is already an enormous script. */
+const MAX_INCLUDE_BYTES = 16 * 1024 * 1024
 
 /** Native dialogs, file saves and PDF rendering. Keeps Electron UI plumbing out of IPC routers. */
 export class DesktopService {
@@ -29,6 +31,30 @@ export class DesktopService {
 
   /** Open a folder in the OS file manager. */
   async openFolder(dir: string): Promise<void> { await shell.openPath(dir) }
+
+  /**
+   * Read a text file named by an `@include` command. Relative paths resolve next to the including
+   * file, or inside the user's Documents folder for the top-level script (which has no path yet).
+   * The path comes from the user's own script; the renderer never receives a directory listing.
+   */
+  async readText(file: string, from?: string): Promise<{ path: string; name: string; content: string }> {
+    const requested = file.trim()
+    if (!requested || requested.length > 4000 || requested.includes('\0')) throw new Error('Invalid @include path.')
+    const home = app.getPath('home')
+    const expanded = /^~[\\/]/.test(requested) ? path.join(home, requested.slice(2)) : requested === '~' ? home : requested
+    const full = path.isAbsolute(expanded)
+      ? path.normalize(expanded)
+      : path.resolve(from ? path.dirname(from) : app.getPath('documents'), expanded)
+    let info
+    try { info = await stat(full) }
+    catch { throw new Error(`Cannot include "${full}": the file does not exist.`) }
+    if (!info.isFile()) throw new Error(`Cannot include "${full}": it is not a file.`)
+    if (info.size > MAX_INCLUDE_BYTES) {
+      throw new Error(`Cannot include "${full}": the file is ${(info.size / 1048576).toFixed(1)} MB; the limit is 16 MB.`)
+    }
+    const content = await readFile(full, 'utf8')
+    return { path: full, name: path.basename(full), content: content.replace(/^\uFEFF/, '') }
+  }
 
   async openText(filters?: SaveFilter[]): Promise<{ path: string; name: string; content: string } | null> {
     const win = this.window()

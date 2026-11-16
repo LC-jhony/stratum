@@ -2,9 +2,14 @@
 
 const TX_START = /^\s*(begin|start\s+transaction|savepoint)\b/i
 const TX_END = /^\s*(commit|end|rollback)\b/i
+/** `ROLLBACK TO [SAVEPOINT] name` keeps the transaction open on every engine. */
+const TX_ROLLBACK_TO = /^\s*rollback\s+(?:(?:work|transaction)\s+)?to\b/i
+/** SQL Server spells it `ROLLBACK TRANSACTION savepoint_name`; a bare one still ends the transaction. */
+const TX_ROLLBACK_NAMED = /^\s*rollback\s+(?:work|transaction)\s+[A-Za-z_"`[\\]/i
 
 export const startsTransaction = (sql: string): boolean => TX_START.test(sql)
-export const endsTransaction = (sql: string): boolean => TX_END.test(sql)
+export const endsTransaction = (sql: string): boolean =>
+  !TX_ROLLBACK_TO.test(sql) && !TX_ROLLBACK_NAMED.test(sql) && TX_END.test(sql)
 
 /** True after the statement has run: BEGIN/SAVEPOINT enter, COMMIT/ROLLBACK leave. */
 export const transactionState = (sql: string, inTransaction: boolean): boolean => {

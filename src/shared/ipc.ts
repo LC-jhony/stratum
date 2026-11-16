@@ -47,6 +47,12 @@ export interface StratumApi {
     begin(id: string): Promise<TransactionState>
     commit(id: string): Promise<TransactionState>
     rollback(id: string): Promise<TransactionState>
+    /** Create a savepoint (opens the transaction first when auto-commit is on). */
+    savepoint(id: string, name: string): Promise<TransactionState>
+    /** Discard changes made after a savepoint; the savepoint remains usable. */
+    rollbackToSavepoint(id: string, name: string): Promise<TransactionState>
+    /** Release a savepoint explicitly (unsupported on SQL Server). */
+    releaseSavepoint(id: string, name: string): Promise<TransactionState>
     /** Server sessions/locks (PostgreSQL, MySQL). */
     sessions(id: string): Promise<SessionInfo[]>
     killSession(id: string, pid: number | string): Promise<void>
@@ -91,6 +97,13 @@ export interface StratumApi {
     pickFile(filters?: { name: string; extensions: string[] }[]): Promise<string | undefined>
     /** Read a text file through a native open dialog (UTF-8, BOM stripped); null when cancelled. */
     openText(filters?: SaveFilter[]): Promise<{ path: string; name: string; content: string } | null>
+  }
+  script: {
+    /**
+     * Read a file named by `@include`. Relative paths resolve next to the including script, or in
+     * the user's Documents folder for the top-level console. BOM stripped; 16 MB limit.
+     */
+    read(path: string, from?: string): Promise<{ path: string; name: string; content: string }>
   }
   docker: {
     /** Read-only container listing for the Docker helper (unix socket or TCP daemon). */

@@ -197,6 +197,8 @@ export interface TransactionState {
   since?: number
   /** True when the driver reported that the transaction can only be rolled back. */
   failed?: boolean
+  /** Savepoints created from the toolbar, in creation order (advisory; the server owns the real list). */
+  savepoints?: string[]
 }
 
 /** One node of an execution plan, normalized across PostgreSQL, MySQL and SQLite. */

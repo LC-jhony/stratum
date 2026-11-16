@@ -78,6 +78,9 @@ export interface ConsoleSlice {
   beginTransaction(connectionId: string): Promise<void>
   commitTransaction(connectionId: string): Promise<void>
   rollbackTransaction(connectionId: string): Promise<void>
+  savepoint(connectionId: string, name: string): Promise<void>
+  rollbackToSavepoint(connectionId: string, name: string): Promise<void>
+  releaseSavepoint(connectionId: string, name: string): Promise<void>
   /** Ask the database for the plan of one statement; keeps errors inside the plan. */
   plan(tabId: string, sql: string): Promise<void>
 }

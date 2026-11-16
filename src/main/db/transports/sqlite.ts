@@ -45,6 +45,8 @@ export class SqliteTransport implements Transport {
     const affectedRows = db.getRowsModified()
     // export() reopens the DB and would discard an open transaction, so only persist outside one.
     if (/^\s*(begin|savepoint)\b/i.test(sql)) this.inTx = true
+    // `ROLLBACK TO name` (and `ROLLBACK TRANSACTION TO SAVEPOINT name`) keeps the transaction open.
+    else if (/^\s*rollback\s+(?:(?:transaction|work)\s+)?to\b/i.test(sql)) { /* still in transaction */ }
     else if (/^\s*(commit|end|rollback)\b/i.test(sql)) { this.inTx = false; if (!/^\s*rollback/i.test(sql)) await this.persist() }
     else if (!this.inTx) await this.persist()
     return { columns: [], rows: [], affectedRows }

@@ -1180,6 +1180,9 @@ svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
 }
 .tx-bar button:hover:not(:disabled) { background: var(--hover); }
 .tx-bar button:disabled { opacity: 0.45; cursor: default; }
+.tx-bar .tx-sp { max-width: 120px; overflow: hidden; border-color: color-mix(in srgb, var(--warn) 45%, var(--line-soft)); color: var(--warn-ink, var(--ink)); text-overflow: ellipsis; white-space: nowrap; }
+.tx-sp-edit { display: inline-flex; align-items: center; gap: 4px; }
+.tx-sp-edit input { width: 96px; height: calc(var(--h-compact) - 6px); padding: 0 6px; border: 1px solid var(--line-soft); border-radius: var(--radius-xs); background: var(--surface-1); color: var(--ink); font: 11px var(--stratum-mono); }
 
 /* ── Execution plan ─────────────────────────────────────────────────────── */
 .plan-pane {

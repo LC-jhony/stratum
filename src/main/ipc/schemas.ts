@@ -73,6 +73,7 @@ export const connectionSchema = z.object({
 }).passthrough()
 
 export const idSchema = z.string().min(1).max(200)
+export const savepointNameSchema = z.string().min(1).max(63)
 export const sqlSchema = z.string().max(10_000_000)
 export const queryOptionsSchema = z.object({
   limit: z.number().int().min(1).max(1_000_000).optional(),
@@ -92,6 +93,8 @@ export const savedQuerySchema = z.object({
 export const settingsPatchSchema = z.record(z.string(), z.unknown())
 export const saveFilterSchema = z.object({ name: z.string(), extensions: z.array(z.string()) })
 export const filtersSchema = z.array(saveFilterSchema).optional()
+/** Path accepted by `@include`; the desktop service resolves and validates it. */
+export const scriptPathSchema = z.string().min(1).max(4000)
 export const dockerEndpointSchema = z.object({
   socketPath: z.string().max(4000).optional(),
   host: z.string().max(2000).optional(),

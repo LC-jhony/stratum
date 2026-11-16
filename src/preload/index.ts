@@ -13,7 +13,7 @@ const api: StratumApi = {
       return () => ipcRenderer.removeListener('connections:state', l)
     },
   },
-  db: group('db', ['introspect', 'execute', 'cancel', 'submit', 'plan', 'transaction', 'begin', 'commit', 'rollback', 'sessions', 'killSession']) as StratumApi['db'],
+  db: group('db', ['introspect', 'execute', 'cancel', 'submit', 'plan', 'transaction', 'begin', 'commit', 'rollback', 'savepoint', 'rollbackToSavepoint', 'releaseSavepoint', 'sessions', 'killSession']) as StratumApi['db'],
   themes: group('themes', ['list', 'read', 'importVsCodeExtensions']) as StratumApi['themes'],
   settings: group('settings', ['get', 'set']) as StratumApi['settings'],
   history: group('history', ['get', 'add']) as StratumApi['history'],
@@ -21,6 +21,7 @@ const api: StratumApi = {
   extensions: group('extensions', ['list', 'setEnabled']) as StratumApi['extensions'],
   drivers: group('drivers', ['list', 'add', 'remove', 'reveal', 'openFolder']) as StratumApi['drivers'],
   dialogs: group('dialogs', ['pickFile', 'openText']) as StratumApi['dialogs'],
+  script: group('script', ['read']) as StratumApi['script'],
   docker: group('docker', ['list']) as StratumApi['docker'],
   export: group('export', ['save', 'saveBinary', 'pdf']) as StratumApi['export'],
   update: {

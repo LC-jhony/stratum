@@ -40,6 +40,8 @@ export class DbSession {
   private txSince?: number
   /** Set when the driver reported that the transaction can only be rolled back. */
   private txFailed = false
+  /** Savepoints created from this session, shown in the transaction bar. */
+  private savepoints: string[] = []
 
   constructor(readonly config: ConnectionConfig, private transport: Transport, readonly dialect: Dialect) {}
 
@@ -54,6 +56,7 @@ export class DbSession {
   }
 
   close() {
+    this.savepoints = []
     // Leaving a transaction open across a reconnect is an invitation to half-applied changes.
     return (this.txOpen ? this.transport.query('ROLLBACK').catch(() => undefined) : Promise.resolve(undefined)).then(() => this.transport.close())
   }
@@ -102,13 +105,16 @@ export class DbSession {
     const actual = this.transport.inTransaction?.()
     if (actual === undefined) return
     if (actual && !this.txOpen) this.txSince = Date.now()
-    if (!actual) { this.txSince = undefined; this.txFailed = false }
+    if (!actual) { this.txSince = undefined; this.txFailed = false; this.savepoints = [] }
     this.txOpen = actual
   }
 
   transaction(): TransactionState {
     this.syncTransaction()
-    return { open: this.txOpen, autoCommit: this.autoCommit, since: this.txSince, failed: this.txFailed || undefined }
+    return {
+      open: this.txOpen, autoCommit: this.autoCommit, since: this.txSince, failed: this.txFailed || undefined,
+      savepoints: this.savepoints.length ? [...this.savepoints] : undefined,
+    }
   }
 
   private txState(): TransactionState { return this.transaction() }
@@ -124,14 +130,89 @@ export class DbSession {
 
   async commit(): Promise<TransactionState> {
     if (this.txOpen) await this.transport.query('COMMIT')
-    this.txOpen = false; this.txSince = undefined; this.txFailed = false
+    this.txOpen = false; this.txSince = undefined; this.txFailed = false; this.savepoints = []
     this.syncTransaction()
     return this.txState()
   }
 
   async rollback(): Promise<TransactionState> {
     if (this.txOpen) await this.transport.query('ROLLBACK')
-    this.txOpen = false; this.txSince = undefined; this.txFailed = false
+    this.txOpen = false; this.txSince = undefined; this.txFailed = false; this.savepoints = []
+    this.syncTransaction()
+    return this.txState()
+  }
+
+  /* ------------------------------------------------------------------ savepoints */
+
+  private savepointName(name: string): string {
+    const trimmed = name.trim()
+    if (!/^[A-Za-z_][A-Za-z0-9_$]{0,62}$/.test(trimmed)) {
+      throw new Error('Savepoint names must start with a letter or underscore and contain only letters, digits, _ or $.')
+    }
+    return trimmed
+  }
+
+  /** SAVEPOINT grammar differs by engine; every branch is built from a validated identifier. */
+  private savepointSql(action: 'create' | 'rollback' | 'release', name: string): string {
+    const d = this.dialect.id
+    if (d === 'mssql' || d === 'sybase') {
+      if (action === 'create') return `SAVE TRANSACTION ${name}`
+      if (action === 'rollback') return `ROLLBACK TRANSACTION ${name}`
+      throw new Error('SQL Server has no RELEASE SAVEPOINT statement.')
+    }
+    if (d === 'oracle') {
+      if (action === 'create') return `SAVEPOINT ${name}`
+      if (action === 'rollback') return `ROLLBACK TO SAVEPOINT ${name}`
+      // Oracle has no RELEASE statement: savepoints vanish on commit/rollback.
+      throw new Error('Oracle has no RELEASE SAVEPOINT statement.')
+    }
+    if (d === 'sqlite') {
+      if (action === 'create') return `SAVEPOINT ${name}`
+      if (action === 'rollback') return `ROLLBACK TO ${name}`
+      return `RELEASE ${name}`
+    }
+    if (d === 'db2') {
+      if (action === 'create') return `SAVEPOINT ${name} ON ROLLBACK RETAIN CURSORS`
+      if (action === 'rollback') return `ROLLBACK TO SAVEPOINT ${name}`
+      return `RELEASE TO SAVEPOINT ${name}`
+    }
+    if (action === 'create') return `SAVEPOINT ${name}`
+    if (action === 'rollback') return `ROLLBACK TO SAVEPOINT ${name}`
+    return `RELEASE SAVEPOINT ${name}`
+  }
+
+  /** Creates a savepoint, opening a transaction first when auto-commit would reject it. */
+  async savepoint(name: string): Promise<TransactionState> {
+    const safe = this.savepointName(name)
+    if (!this.txOpen) await this.begin()
+    await this.transport.query(this.savepointSql('create', safe))
+    if (!this.savepoints.includes(safe)) this.savepoints.push(safe)
+    this.syncTransaction()
+    return this.txState()
+  }
+
+  async rollbackToSavepoint(name: string): Promise<TransactionState> {
+    const safe = this.savepointName(name)
+    if (!this.txOpen) throw new Error('There is no open transaction to roll back.')
+    await this.transport.query(this.savepointSql('rollback', safe))
+    const at = this.savepoints.indexOf(safe)
+    if (at >= 0) this.savepoints = this.savepoints.slice(0, at + 1) // the savepoint itself stays usable
+    this.syncTransaction()
+    return this.txState()
+  }
+
+  async releaseSavepoint(name: string): Promise<TransactionState> {
+    const safe = this.savepointName(name)
+    if (!this.txOpen) throw new Error('There is no open transaction.')
+    await this.transport.query(this.savepointSql('release', safe))
+    const at = this.savepoints.indexOf(safe)
+    // PostgreSQL, SQLite and Db2 drop the named savepoint and every later one; MySQL only the named one.
+    if (at >= 0) {
+      const onlyNamed = MYSQL_FAMILY.has(this.dialect.id)
+      this.savepoints = onlyNamed
+        ? this.savepoints.filter((_, i) => i !== at)
+        : this.savepoints.slice(0, at)
+    }
     this.syncTransaction()
     return this.txState()
   }

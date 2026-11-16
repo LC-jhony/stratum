@@ -27,6 +27,8 @@ import {
   statementsSchema,
   themePathSchema,
   driverPathSchema,
+  savepointNameSchema,
+  scriptPathSchema,
 } from './ipc/schemas'
 type Handlers = { [G in keyof StratumApi]: StratumApi[G] extends Record<string, (...a: any[]) => any> ? StratumApi[G] : never }
 /** Main-process side of the API: renderer-bound callbacks such as onState live in preload only. */
@@ -62,13 +64,15 @@ export function registerIpc(d: IpcDependencies) {
       // Only the main window's renderer may call the bridge. A hidden export window has no preload,
       // but this check also rejects calls from any future window or compromised subframe.
       if (!win || win.isDestroyed() || event.sender !== win.webContents) throw new Error('Rejected IPC call from an untrusted sender')
-      if (args.length !== schemas.length) throw new Error(`Invalid argument count for ${ch}`)
+      // Optional trailing arguments may be omitted (`db.execute(id, sql)`), but never extra ones.
+      // A missing required argument still fails its schema when it parses `undefined`.
+      if (args.length > schemas.length) throw new Error(`Invalid argument count for ${ch}`)
       const parsed = schemas.map((schema, i) => schema.parse(args[i]))
       return fn(...parsed)
     })
   }
 
-  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'library' | 'extensions' | 'drivers' | 'dialogs' | 'export' | 'docker' | 'update' | 'window'> = {
+  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'library' | 'extensions' | 'drivers' | 'dialogs' | 'script' | 'export' | 'docker' | 'update' | 'window'> = {
     connections: {
       list: () => d.connections.list(),
       save: (c) => d.connections.save(c),
@@ -90,6 +94,9 @@ export function registerIpc(d: IpcDependencies) {
       begin: (id) => d.sessions.require(id).begin(),
       commit: (id) => d.sessions.require(id).commit(),
       rollback: (id) => d.sessions.require(id).rollback(),
+      savepoint: (id, name) => d.sessions.require(id).savepoint(name),
+      rollbackToSavepoint: (id, name) => d.sessions.require(id).rollbackToSavepoint(name),
+      releaseSavepoint: (id, name) => d.sessions.require(id).releaseSavepoint(name),
       sessions: (id) => d.sessions.require(id).sessions(),
       killSession: (id, pid) => d.sessions.require(id).killSession(pid),
     },
@@ -125,6 +132,9 @@ export function registerIpc(d: IpcDependencies) {
     dialogs: {
       pickFile: (filters) => d.desktop.pickFile(filters),
       openText: (filters) => d.desktop.openText(filters),
+    },
+    script: {
+      read: (path, from) => d.desktop.readText(path, from),
     },
     docker: { list: (endpoint) => listDockerContainers(endpoint) },
     export: {
@@ -167,6 +177,7 @@ export function registerIpc(d: IpcDependencies) {
   route('db', api.db as unknown as Record<string, Handler>, {
     introspect: [idSchema], execute: [idSchema, sqlSchema, queryOptionsSchema], cancel: [idSchema], submit: [idSchema, statementsSchema],
     plan: [idSchema, sqlSchema], transaction: [idSchema], begin: [idSchema], commit: [idSchema], rollback: [idSchema],
+    savepoint: [idSchema, savepointNameSchema], rollbackToSavepoint: [idSchema, savepointNameSchema], releaseSavepoint: [idSchema, savepointNameSchema],
     sessions: [idSchema], killSession: [idSchema, sessionIdSchema],
   })
   route('themes', api.themes as unknown as Record<string, Handler>, {
@@ -190,6 +201,9 @@ export function registerIpc(d: IpcDependencies) {
   route('dialogs', api.dialogs as unknown as Record<string, Handler>, {
     pickFile: [filtersSchema],
     openText: [filtersSchema],
+  })
+  route('script', api.script as unknown as Record<string, Handler>, {
+    read: [scriptPathSchema, scriptPathSchema.optional()],
   })
   route('docker', api.docker as unknown as Record<string, Handler>, {
     list: [dockerEndpointSchema],
