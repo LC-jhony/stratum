@@ -129,9 +129,13 @@ export interface UiSlice {
   libraryOpen: boolean
   extensionsOpen: boolean
   driverManagerOpen: boolean
+  /** Server dashboard and recurring export tasks. */
+  adminOpen: boolean
+  /** AI assistant chat panel. */
+  aiOpen: boolean
   /** Connection whose server sessions/locks are being inspected. */
   sessionMonitor?: string
-  set(p: Partial<Pick<WorkbenchState, 'dialog' | 'importRequest' | 'palette' | 'showResults' | 'objectSearchOpen' | 'libraryOpen' | 'extensionsOpen' | 'driverManagerOpen' | 'sessionMonitor'>>): void
+  set(p: Partial<Pick<WorkbenchState, 'dialog' | 'importRequest' | 'palette' | 'showResults' | 'objectSearchOpen' | 'libraryOpen' | 'extensionsOpen' | 'driverManagerOpen' | 'adminOpen' | 'aiOpen' | 'sessionMonitor'>>): void
 }
 
 export interface UpdateSlice {

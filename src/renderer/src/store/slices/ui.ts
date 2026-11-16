@@ -6,5 +6,7 @@ export const createUiSlice: WorkbenchSlice<UiSlice> = (set) => ({
   libraryOpen: false,
   extensionsOpen: false,
   driverManagerOpen: false,
+  adminOpen: false,
+  aiOpen: false,
   set: (patch) => set(patch),
 })

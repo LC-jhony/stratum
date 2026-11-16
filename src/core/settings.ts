@@ -1,4 +1,5 @@
 /** User-editable application settings stored in <userData>/settings.json and shared by main + renderer. */
+import type { AiProviderId } from '../shared/ai'
 import type { Locale } from './i18n'
 
 export type KeywordCase = 'upper' | 'lower' | 'preserve'
@@ -59,6 +60,15 @@ export interface StratumSettings {
   'variables.global': Record<string, string>
   'jdbc.jarPath': string
   'jdbc.javaHome': string
+  /** AI assistant provider; `none` hides the chat entry points. */
+  'ai.provider': AiProviderId
+  /** Base URL of the provider (or a complete OpenAI-compatible endpoint). */
+  'ai.endpoint': string
+  'ai.model': string
+  /** API key sealed with the OS keychain; the renderer only sees `ai.hasKey`. */
+  'ai.apiKey': string
+  /** Send the introspected schema with every question. */
+  'ai.sendSchema': boolean
   /** Check GitHub Releases shortly after launch and every four hours. */
   'update.autoCheck': boolean
   /** Download an available update in the background; installation still needs a restart. */
@@ -97,6 +107,11 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   'variables.global': {},
   'jdbc.jarPath': '',
   'jdbc.javaHome': '',
+  'ai.provider': 'none',
+  'ai.endpoint': '',
+  'ai.model': '',
+  'ai.apiKey': '',
+  'ai.sendSchema': true,
   'update.autoCheck': true,
   'update.autoDownload': true,
 }
@@ -153,6 +168,11 @@ export function mergeSettings(raw?: Record<string, unknown>): StratumSettings {
     'variables.global': stringMap(r['variables.global'], 500),
     'jdbc.jarPath': str(r['jdbc.jarPath'], ''),
     'jdbc.javaHome': str(r['jdbc.javaHome'], ''),
+    'ai.provider': r['ai.provider'] === 'openai' || r['ai.provider'] === 'anthropic' || r['ai.provider'] === 'ollama' || r['ai.provider'] === 'custom' ? r['ai.provider'] : 'none',
+    'ai.endpoint': str(r['ai.endpoint'], '').slice(0, 2000),
+    'ai.model': str(r['ai.model'], '').slice(0, 200),
+    'ai.apiKey': str(r['ai.apiKey'], ''),
+    'ai.sendSchema': bool(r['ai.sendSchema'], DEFAULT_SETTINGS['ai.sendSchema']),
     'update.autoCheck': bool(r['update.autoCheck'], DEFAULT_SETTINGS['update.autoCheck']),
     'update.autoDownload': bool(r['update.autoDownload'], DEFAULT_SETTINGS['update.autoDownload']),
   }

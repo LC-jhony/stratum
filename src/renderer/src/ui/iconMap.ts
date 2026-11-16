@@ -8,6 +8,7 @@ import type { GlyphName } from './glyphs'
  * (or repointed by the active product icon theme) fall back to the codicon font. Lucide is ISC.
  */
 export const APP_ICONS = {
+  account: 'user-round',
   add: 'plus',
   check: 'check',
   'chevron-down': 'chevron-down',
@@ -57,6 +58,7 @@ export const APP_ICONS = {
   search: 'search',
   server: 'server',
   'settings-gear': 'settings',
+  sparkle: 'sparkles',
   'symbol-color': 'palette',
   'symbol-field': 'columns-3',
   'symbol-key': 'type',

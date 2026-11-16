@@ -19,6 +19,8 @@ export const en = {
   'menu.openScript': 'Open SQL Script…',
   'menu.saveScript': 'Save Script',
   'menu.saveScriptAs': 'Save Script As…',
+  'menu.dashboard': 'Dashboard & Scheduled Tasks…',
+  'menu.ai': 'AI Assistant…',
   'menu.newTable': 'New Table…',
   'menu.importData': 'Import Data…',
   'menu.importConnections': 'Import Data Sources…',

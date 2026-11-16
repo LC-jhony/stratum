@@ -15,6 +15,8 @@ import { DatasourceDialog } from './features/connections/DatasourceDialog'
 import { ErdView } from './features/erd/ErdView'
 import { Explorer } from './features/explorer/Explorer'
 import { SessionMonitorDialog } from './features/admin/SessionMonitorDialog'
+import { AdminDialog } from './features/admin/AdminDialog'
+import { AiChatDialog } from './features/ai/AiChatDialog'
 import { QueryLibraryDialog } from './features/library/QueryLibraryDialog'
 import { ObjectSearchDialog } from './features/search/ObjectSearchDialog'
 import { ExtensionsDialog } from './features/extensions/ExtensionsDialog'
@@ -127,6 +129,8 @@ export function App() {
         return
       }
       case 'console.new': return void s.openConsole(cur?.connectionId)
+      case 'admin.open': return s.set({ adminOpen: true })
+      case 'ai.open': return s.set({ aiOpen: true })
       case 'designer.new': {
         const connectionId = cur?.connectionId ?? s.connections[0]?.id
         if (!connectionId) { window.alert('Create a data source before designing a table.'); return }
@@ -201,6 +205,8 @@ export function App() {
       { id: 'export-connections', label: t('menu.exportConnections'), run: () => void command('datasource.export') },
       { id: 'drivers', label: t('menu.driverManager'), run: () => void command('drivers.open') },
       { id: 'console', label: 'New Query Console', run: () => void command('console.new') },
+      { id: 'dashboard', label: t('menu.dashboard'), run: () => void command('admin.open') },
+      { id: 'ai', label: t('menu.ai'), hint: ipc.platform === 'darwin' ? '⌥⌘A' : 'Ctrl+Alt+A', run: () => void command('ai.open') },
       { id: 'new-table', label: t('menu.newTable'), run: () => void command('designer.new') },
       { id: 'import-data', label: t('menu.importData'), hint: ipc.platform === 'darwin' ? '⇧⌘I' : 'Ctrl+Shift+I', run: () => void command('data.import') },
       { id: 'open-script', label: t('menu.openScript'), hint: ipc.platform === 'darwin' ? '⌘O' : 'Ctrl+O', run: () => void command('script.open') },
@@ -242,6 +248,7 @@ export function App() {
         <button data-label="New Query Console" aria-label="New Query Console" onClick={() => void command('console.new')}><Icon id="terminal" /></button>
         <button data-label="Diagram" aria-label="Diagram" onClick={() => void command('erd.open')}><Icon id="type-hierarchy" /></button>
         <span className="grow" />
+        <button data-label="AI Assistant (⌘/Ctrl+Alt+A)" aria-label="AI Assistant" onClick={() => void command('ai.open')}><Icon id="sparkle" /></button>
         <button data-label="Find Action (⌘/Ctrl+Shift+A)" aria-label="Find Action" onClick={() => command('palette')}><Icon id="search" /></button>
         <button data-label="Settings (Ctrl+Alt+S)" aria-label="Settings" onClick={() => command('settings')}><Icon id="settings-gear" /></button>
       </nav>
@@ -285,6 +292,7 @@ export function App() {
       <ExtensionsDialog />
       <DriverManagerDialog />
       <SessionMonitorDialog />
+      <AdminDialog />
       <ImportDialog />
     </div>
   )

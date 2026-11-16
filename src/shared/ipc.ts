@@ -1,6 +1,8 @@
+import type { AiChatResult, AiMessage } from './ai'
 import type { DockerContainer, DockerEndpoint } from './docker'
 import type { DriverJar } from './drivers'
 import type { ExtensionView } from './extensions'
+import type { ScheduledTask, TaskFormat, TaskInput } from './tasks'
 import type {
   ConnectionConfig, ConnectionView, DatabaseModel, QueryPlan, QueryResult, SavedQuery, SessionInfo,
   SessionStateChange, ThemeFile, ThemeManifestEntry, TransactionState,
@@ -88,6 +90,23 @@ export interface StratumApi {
     importVsCodeExtensions(): Promise<ThemeManifestEntry[]>
   }
   settings: { get(): Promise<Record<string, unknown>>; set(patch: Record<string, unknown>): Promise<void> }
+  ai: {
+    /** Ask the configured provider; the schema of `connectionId` is included when available. */
+    chat(connectionId: string | undefined, messages: AiMessage[]): Promise<AiChatResult>
+  }
+  tasks: {
+    /** Recurring exports, soonest planned run first. */
+    list(): Promise<ScheduledTask[]>
+    /** Create or update by id and return the stored list. */
+    save(input: TaskInput): Promise<ScheduledTask[]>
+    remove(id: string): Promise<ScheduledTask[]>
+    /** Run now (outside the schedule) and return the updated list. */
+    run(id: string): Promise<ScheduledTask[]>
+    /** Native save dialog for the output file, without writing it yet. */
+    chooseOutput(defaultName: string, format: TaskFormat): Promise<string | null>
+    /** Main -> renderer after any task is created, edited, run or deleted. */
+    onChanged(cb: (tasks: ScheduledTask[]) => void): () => void
+  }
   history: {
     /** Executed statements per connection, newest first. */
     get(): Promise<Record<string, string[]>>

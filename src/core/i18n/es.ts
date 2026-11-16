@@ -21,6 +21,8 @@ export const es: Record<MessageKey, string> = {
   'menu.openScript': 'Abrir script SQL…',
   'menu.saveScript': 'Guardar script',
   'menu.saveScriptAs': 'Guardar script como…',
+  'menu.dashboard': 'Panel y tareas programadas…',
+  'menu.ai': 'Asistente de IA…',
   'menu.newTable': 'Nueva tabla…',
   'menu.importData': 'Importar datos…',
   'menu.importConnections': 'Importar fuentes de datos…',

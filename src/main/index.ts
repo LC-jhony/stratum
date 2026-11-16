@@ -7,6 +7,7 @@ import { brandPath } from './brand'
 import { configureLogger, logger } from './logger'
 import { registerIpc } from './ipc'
 import { buildMenu } from './menu'
+import { AiService } from './services/aiService'
 import { ConnectionManager } from './services/connectionManager'
 import { ConnectionService } from './services/connectionService'
 import { DesktopService } from './services/desktopService'
@@ -19,6 +20,7 @@ import { QueryLibraryService } from './services/queryLibraryService'
 import { SessionFactory } from './services/sessionFactory'
 import { SettingsService } from './services/settingsService'
 import { ConnectionStore, JsonStore } from './services/store'
+import { TaskService } from './services/taskService'
 import { ThemeService } from './services/themeService'
 import { UpdateService } from './services/updateService'
 
@@ -98,6 +100,10 @@ async function main() {
   const drivers = new DriverService(path.join(data, 'drivers'), desktop)
   const history = new HistoryService(new JsonStore(path.join(data, 'history.json'), { queries: {} }))
   const library = new QueryLibraryService(new JsonStore(path.join(data, 'library.json'), { queries: [] }))
+  const tasks = new TaskService(path.join(data, 'tasks.json'), manager, {
+    onChanged: (list) => win?.webContents.send('tasks:changed', list),
+  })
+  const ai = new AiService(settings, manager)
   const extensions = new ExtensionService(settings)
   const themes = new ThemeService(resourcePath('themes'), path.join(data, 'themes'))
   const updates = new UpdateService({ settings, getWindow: () => win })
@@ -131,6 +137,8 @@ async function main() {
     settings,
     history,
     library,
+    ai,
+    tasks,
     extensions,
     drivers,
     desktop,
@@ -138,6 +146,8 @@ async function main() {
     window: () => win,
   })
   buildMenu(resolveLocale(initial['app.locale'], app.getLocale()))
+  tasks.start()
+  app.on('before-quit', () => tasks.stop())
 
   const create = async () => {
     const prefs = await settings.get()

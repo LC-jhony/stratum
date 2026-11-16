@@ -91,6 +91,17 @@ export const savedQuerySchema = z.object({
   updatedAt: z.number().int().nonnegative(),
 }).strict()
 export const settingsPatchSchema = z.record(z.string(), z.unknown())
+const taskFormat = z.enum(['csv', 'tsv', 'json', 'insert', 'xlsx'])
+export const taskInputSchema = z.object({
+  id: z.string().min(1).max(200).optional(),
+  name: z.string().max(200),
+  connectionId: z.string().min(1).max(200),
+  sql: z.string().min(1).max(1_000_000),
+  format: taskFormat,
+  outputPath: z.string().min(1).max(4000),
+  everyMinutes: z.number().int().min(1).max(10_080),
+  enabled: z.boolean(),
+}).strict()
 export const saveFilterSchema = z.object({ name: z.string(), extensions: z.array(z.string()) })
 export const filtersSchema = z.array(saveFilterSchema).optional()
 /** Path accepted by `@include`; the desktop service resolves and validates it. */

@@ -10,6 +10,8 @@ import { resolveFileIconById, type FileIconThemeJson } from '../../theme/fileIco
 import { clampUiFontSize, MAX_UI_FONT_SIZE, MIN_UI_FONT_SIZE } from '../../theme/appearance'
 import { MONO_FONTS, systemFonts } from '../../theme/fonts'
 import { formatBytes, formatSpeed, packageKindLabel, updatePhaseLabel, updateProgress } from '../../../../core/update'
+import { AI_PROVIDERS } from '../../../../core/ai'
+import type { AiProviderId } from '../../../../shared/ai'
 import { Icon } from '../../ui/Icon'
 import { VariableEditor } from '../../ui/VariableEditor'
 
@@ -61,11 +63,15 @@ export function SettingsDialog() {
   const [err, setErr] = useState<string>()
   const [fonts, setFonts] = useState<string[]>(MONO_FONTS)
   const [iconPreview, setIconPreview] = useState<Record<string, string>>({})
+  /** The renderer never receives the API key: only whether settings.json holds one. */
+  const [hasKey, setHasKey] = useState(false)
+  const [clearKey, setClearKey] = useState(false)
   const mode0 = useRef<AppearanceMode>(themes.mode)
   const theme0 = useRef(themes.active.color?.entry)
   const fileIcon0 = useRef(themes.active.fileIcon?.entry)
   const appearance0 = useRef(appearanceOf(prefs))
   useEffect(() => { let live = true; void systemFonts().then((sys) => { if (live && sys.length) setFonts([...MONO_FONTS, ...sys.filter((f) => !MONO_FONTS.includes(f))]) }); return () => { live = false } }, [])
+  useEffect(() => { let live = true; void ipc.settings.get().then((s) => { if (live) setHasKey(s['ai.hasKey'] === true) }).catch(() => undefined); return () => { live = false } }, [])
   // One representative icon per installed file-icon theme, so the picker previews what it applies.
   useEffect(() => {
     let live = true
@@ -131,10 +137,19 @@ export function SettingsDialog() {
     if (colorId) patch.colorTheme = colorId // The theme that is actually active wins over the draft's stale copy.
     patch.fileIconTheme = themes.active.fileIcon?.entry.id ?? null // Same for the icon theme chosen in the picker.
     await savePrefs(patch)
+    if (clearKey && !draft['ai.apiKey'].trim()) await ipc.settings.set({ 'ai.apiKey': null })
     void themes.applyMode(patch['appearance.mode'] as AppearanceMode) // The saved mode wins even when the store value did not change.
     closeSettings()
   }
   const pickJar = async () => { const f = await ipc.dialogs.pickFile([{ name: 'Java archive', extensions: ['jar'] }]); if (f) up({ 'jdbc.jarPath': f }) }
+  /** Switching provider fills the endpoint and model with that provider's defaults unless they were customised. */
+  const pickProvider = (id: AiProviderId) => {
+    const prev = AI_PROVIDERS.find((p) => p.id === draft['ai.provider'])
+    const next = AI_PROVIDERS.find((p) => p.id === id)
+    const endpoint = !draft['ai.endpoint'] || draft['ai.endpoint'] === prev?.endpoint ? next?.endpoint ?? '' : draft['ai.endpoint']
+    const model = !draft['ai.model'] || draft['ai.model'] === prev?.model ? next?.model ?? '' : draft['ai.model']
+    up({ 'ai.provider': id, 'ai.endpoint': endpoint, 'ai.model': model })
+  }
   const colorThemes = themes.catalog.filter((e) => e.kind === 'color')
   const fileIconThemes = themes.catalog.filter((e) => e.kind === 'fileIcon')
   const themeGroups: { label: string; items: ThemeManifestEntry[] }[] = [
@@ -222,6 +237,30 @@ export function SettingsDialog() {
           <h3 className="section">Data export</h3>
           <Check label="Protect CSV and other delimited exports from spreadsheet formulas" k="export.neutralizeFormulas" />
           <p className="hint"><Icon id="info" /> Text starting with =, +, - or @ is prefixed with an apostrophe so Excel and LibreOffice show it instead of executing it. Numbers and JSON/SQL exports are unaffected.</p>
+
+          <h3 className="section">AI assistant</h3>
+          <F label="Provider" wide>
+            <select value={draft['ai.provider']} onChange={(e) => pickProvider(e.target.value as AiProviderId)}>
+              <option value="none">Disabled</option>
+              {AI_PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </F>
+          {draft['ai.provider'] !== 'none' && <>
+            <F label="Endpoint" wide><input value={draft['ai.endpoint']} placeholder={AI_PROVIDERS.find((p) => p.id === draft['ai.provider'])?.endpoint} onChange={(e) => up({ 'ai.endpoint': e.target.value })} /></F>
+            <F label="Model"><input value={draft['ai.model']} placeholder={AI_PROVIDERS.find((p) => p.id === draft['ai.provider'])?.model} onChange={(e) => up({ 'ai.model': e.target.value })} /></F>
+            <F label="API key"><div className="with-btn">
+              <input
+                type="password"
+                value={draft['ai.apiKey']}
+                placeholder={clearKey ? 'will be cleared when you press OK' : hasKey ? '•••••• stored — leave blank to keep' : 'not set'}
+                autoComplete="off"
+                onChange={(e) => { setClearKey(false); up({ 'ai.apiKey': e.target.value }) }}
+              />
+              {hasKey && <button type="button" disabled={clearKey} onClick={() => { setClearKey(true); up({ 'ai.apiKey': '' }) }}>Clear</button>}
+            </div></F>
+            <Check label="Send the schema of the active data source with every question" k="ai.sendSchema" />
+            <p className="hint"><Icon id="sparkle" /> The key is sealed with the OS keychain and never reaches the chat window. A stored key stays when this field is left blank; answers can be wrong, so review the SQL before running it.</p>
+          </>}
 
           <h3 className="section">Updates</h3>
           <p className="hint"><Icon id="info" /> Current version {update?.currentVersion ?? '—'} · {packageKindLabel(update?.packageKind)}. Checks run shortly after launch and every four hours.</p>

@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, Menu } from 'electron'
 import { z } from 'zod'
 import type { StratumApi } from '../shared/ipc'
 import { listDockerContainers } from './services/docker'
+import type { AiService } from './services/aiService'
 import type { ConnectionManager } from './services/connectionManager'
 import type { ConnectionService } from './services/connectionService'
 import type { DesktopService } from './services/desktopService'
@@ -10,6 +11,7 @@ import type { ExtensionService } from './services/extensionService'
 import type { HistoryService } from './services/historyService'
 import type { QueryLibraryService } from './services/queryLibraryService'
 import type { SettingsService } from './services/settingsService'
+import type { TaskService } from './services/taskService'
 import type { ThemeService } from './services/themeService'
 import type { UpdateService } from './services/updateService'
 import {
@@ -29,12 +31,14 @@ import {
   driverPathSchema,
   savepointNameSchema,
   scriptPathSchema,
+  taskInputSchema,
 } from './ipc/schemas'
 type Handlers = { [G in keyof StratumApi]: StratumApi[G] extends Record<string, (...a: any[]) => any> ? StratumApi[G] : never }
 /** Main-process side of the API: renderer-bound callbacks such as onState live in preload only. */
-type IpcHandlers = Omit<Handlers, 'update' | 'window' | 'connections'> & {
+type IpcHandlers = Omit<Handlers, 'update' | 'window' | 'connections' | 'tasks'> & {
   connections: Omit<StratumApi['connections'], 'onState'>
   update: Omit<StratumApi['update'], 'onState'>
+  tasks: Omit<StratumApi['tasks'], 'onChanged'>
   window: Omit<StratumApi['window'], 'onMaximized'>
 }
 type Handler = (...args: any[]) => unknown
@@ -45,6 +49,8 @@ export interface IpcDependencies {
   settings: SettingsService
   history: HistoryService
   library: QueryLibraryService
+  ai: AiService
+  tasks: TaskService
   extensions: ExtensionService
   drivers: DriverService
   themes: ThemeService
@@ -72,7 +78,7 @@ export function registerIpc(d: IpcDependencies) {
     })
   }
 
-  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'library' | 'extensions' | 'drivers' | 'dialogs' | 'script' | 'export' | 'docker' | 'update' | 'window'> = {
+  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'library' | 'ai' | 'tasks' | 'extensions' | 'drivers' | 'dialogs' | 'script' | 'export' | 'docker' | 'update' | 'window'> = {
     connections: {
       list: () => d.connections.list(),
       save: (c) => d.connections.save(c),
@@ -106,7 +112,7 @@ export function registerIpc(d: IpcDependencies) {
       importVsCodeExtensions: () => d.themes.importVsCodeExtensions(),
     },
     settings: {
-      get: () => d.settings.get(),
+      get: () => d.settings.getPublic(),
       set: (patch) => d.settings.update(patch).then(() => undefined),
     },
     history: {
@@ -117,6 +123,19 @@ export function registerIpc(d: IpcDependencies) {
       list: () => d.library.list(),
       save: (query) => d.library.save(query),
       remove: (id) => d.library.remove(id),
+    },
+    ai: {
+      chat: (connectionId, messages) => d.ai.chat(connectionId, messages),
+    },
+    tasks: {
+      list: () => d.tasks.list(),
+      save: (input) => d.tasks.save(input),
+      remove: (id) => d.tasks.remove(id),
+      run: (id) => d.tasks.runNow(id),
+      chooseOutput: (defaultName, format) => d.desktop.savePath(defaultName, [{
+        name: format === 'xlsx' ? 'Excel workbook' : format === 'insert' ? 'SQL script' : format.toUpperCase() + ' file',
+        extensions: [format === 'insert' ? 'sql' : format],
+      }]),
     },
     extensions: {
       list: () => d.extensions.list(),
@@ -193,6 +212,16 @@ export function registerIpc(d: IpcDependencies) {
   })
   route('library', api.library as unknown as Record<string, Handler>, {
     list: [], save: [savedQuerySchema], remove: [idSchema],
+  })
+  route('ai', api.ai as unknown as Record<string, Handler>, {
+    chat: [idSchema.optional(), z.array(z.object({
+      role: z.enum(['system', 'user', 'assistant']),
+      content: z.string().min(1).max(20_000),
+    })).min(1).max(30)],
+  })
+  route('tasks', api.tasks as unknown as Record<string, Handler>, {
+    list: [], save: [taskInputSchema], remove: [idSchema], run: [idSchema],
+    chooseOutput: [z.string().max(500), z.enum(['csv', 'tsv', 'json', 'insert', 'xlsx'])],
   })
   route('extensions', api.extensions as unknown as Record<string, Handler>, {
     list: [], setEnabled: [idSchema, z.boolean()],

@@ -18,6 +18,15 @@ const api: StratumApi = {
   settings: group('settings', ['get', 'set']) as StratumApi['settings'],
   history: group('history', ['get', 'add']) as StratumApi['history'],
   library: group('library', ['list', 'save', 'remove']) as StratumApi['library'],
+  ai: group('ai', ['chat']) as StratumApi['ai'],
+  tasks: {
+    ...group('tasks', ['list', 'save', 'remove', 'run', 'chooseOutput']) as Omit<StratumApi['tasks'], 'onChanged'>,
+    onChanged(cb) {
+      const l = (_: unknown, tasks: Parameters<typeof cb>[0]) => cb(tasks)
+      ipcRenderer.on('tasks:changed', l)
+      return () => ipcRenderer.removeListener('tasks:changed', l)
+    },
+  },
   extensions: group('extensions', ['list', 'setEnabled']) as StratumApi['extensions'],
   drivers: group('drivers', ['list', 'add', 'remove', 'reveal', 'openFolder']) as StratumApi['drivers'],
   dialogs: group('dialogs', ['pickFile', 'openText', 'openImport']) as StratumApi['dialogs'],

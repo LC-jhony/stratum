@@ -99,6 +99,17 @@ export class DesktopService {
     }
   }
 
+  /**
+   * Pick a destination without writing yet (scheduled exports need a path the user has already
+   * approved, and the scheduler writes it later without another dialog).
+   */
+  async savePath(defaultName: string, filters?: SaveFilter[]): Promise<string | null> {
+    const win = this.window()
+    if (!win) return null
+    const { canceled, filePath } = await dialog.showSaveDialog(win, { defaultPath: defaultName, filters })
+    return canceled || !filePath ? null : filePath
+  }
+
   async saveFile(defaultName: string, content: string, filters?: SaveFilter[], encoding: BufferEncoding = 'utf8'): Promise<string | null> {
     const win = this.window()
     if (!win) return null

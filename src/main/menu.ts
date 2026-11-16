@@ -55,6 +55,8 @@ export function buildMenu(locale: Locale = 'en') {
     { label: t('menu.database'), submenu: [
       { label: t('menu.reconnect'), accelerator: 'CmdOrCtrl+Alt+R', click: send('datasource.reconnect') },
       { label: t('menu.sessions'), click: send('session.monitor') },
+      { label: t('menu.dashboard'), click: send('admin.open') },
+      { label: t('menu.ai'), accelerator: 'CmdOrCtrl+Alt+A', click: send('ai.open') },
       { label: t('menu.newTable'), accelerator: 'CmdOrCtrl+Alt+N', click: send('designer.new') },
       { label: t('menu.importData'), accelerator: 'CmdOrCtrl+Shift+I', click: send('data.import') },
       { label: t('menu.driverManager'), click: send('drivers.open') },
