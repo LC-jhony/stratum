@@ -12,6 +12,8 @@ export const LUCIDE = {
   'circle-check': (<><circle cx="12" cy="12" r="10" /> <path d="m16 9-5.5 5.5L8 12" /></>),
   'circle-slash': (<><circle cx="12" cy="12" r="10" /> <line x1="9" x2="15" y1="15" y2="9" /></>),
   'circle-x': (<><circle cx="12" cy="12" r="10" /> <path d="m15 9-6 6" /> <path d="m9 9 6 6" /></>),
+  'cloud-upload': (<><path d="M12 13v8" /> <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" /> <path d="m8 17 4-4 4 4" /></>),
+  'code': (<><path d="m16 18 6-6-6-6" /> <path d="m8 6-6 6 6 6" /></>),
   'columns-3': (<><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M9 3v18" /> <path d="M15 3v18" /></>),
   'copy': (<><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /> <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></>),
   'database': (<><ellipse cx="12" cy="5" rx="9" ry="3" /> <path d="M3 5V19A9 3 0 0 0 21 19V5" /> <path d="M3 12A9 3 0 0 0 21 12" /></>),
