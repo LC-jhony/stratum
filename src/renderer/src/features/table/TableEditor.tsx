@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ipc } from '../../ipc/client'
+import { gridChanges } from '../../../../core/gridEdit'
 import { isSqlKind } from '../../../../core/kinds'
+import { confirmsWrites } from '../../../../core/profiles'
 import { qualify, quote } from '../../../../core/quoting'
-import { buildDelete, buildInsert, buildUpdate } from '../../../../core/sqlgen'
 import type { QueryResult } from '../../../../shared/types'
 import { useWorkbench, type TableTab } from '../../store/workbench'
 import { DataGrid } from '../../ui/DataGrid'
@@ -50,6 +51,7 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
   const [res, setRes] = useState<QueryResult>(), [busy, setBusy] = useState(false), [msg, setMsg] = useState<string>()
   const [edits, setEdits] = useState(new Map<string, unknown>()), [deleted, setDeleted] = useState(new Set<number>()), [inserted, setInserted] = useState<unknown[][]>([])
   const [selRow, setSelRow] = useState<number>()
+  const [preview, setPreview] = useState(false)
 
   const load = useCallback(async (off = offset) => {
     setBusy(true); setMsg(undefined)
@@ -70,7 +72,10 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
   const len = res?.rows.length ?? 0
   const pending = edits.size + deleted.size + inserted.length
   const rows = useMemo(() => (res ? [...res.rows, ...inserted] : []), [res, inserted])
-  const colIdx = (name: string) => res!.columns.findIndex((c) => c.name === name)
+  const statements = useMemo(() => (res ? gridChanges({
+    target, dialect, columns: res.columns.map((c) => c.name), primaryKey: pkCols,
+    rows: res.rows, edits, deleted, inserted,
+  }) : []), [res, target, dialect, pkCols, edits, deleted, inserted])
 
   const onEdit = (r: number, c: number, v: unknown) => {
     if (r >= len) setInserted((p) => p.map((row, i) => (i === r - len ? row.map((x, j) => (j === c ? v : x)) : row)))
@@ -84,18 +89,17 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
   }
 
   async function submit() {
-    if (!res || !pending) return
-    const q = (s: string) => quote(dialect, s), stmts: string[] = []
-    const key = (r: number) => ({ columns: pkCols, values: pkCols.map((c) => res.rows[r][colIdx(c)]) })
-    const byRow = new Map<number, Record<string, unknown>>()
-    for (const [k, v] of edits) { const [r, c] = k.split(':').map(Number); if (deleted.has(r)) continue; byRow.set(r, { ...byRow.get(r), [res.columns[c].name]: v }) }
-    for (const [r, ch] of byRow) stmts.push(buildUpdate(q, target, key(r), ch, dialect))
-    for (const r of deleted) stmts.push(buildDelete(q, target, key(r), dialect))
-    for (const row of inserted) stmts.push(buildInsert(q, target, Object.fromEntries(res.columns.map((c, i) => [c.name, row[i]]).filter(([, v]) => v !== null && v !== '')), dialect))
+    if (!res || !statements.length) return
+    // A protected profile (Test/Prod) must not receive grid writes without an explicit confirmation.
+    if (confirmsWrites(conn)) {
+      const shown = statements.slice(0, 8).join('\n')
+      const more = statements.length > 8 ? `\n… ${statements.length - 8} more` : ''
+      if (!window.confirm(`${conn?.name ?? 'This data source'} is protected: apply ${statements.length} change(s)?\n\n${shown}${more}`)) return
+    }
     setBusy(true)
-    const out = await ipc.db.submit(tab.connectionId, stmts)
+    const out = await ipc.db.submit(tab.connectionId, statements)
     setBusy(false)
-    if (out.ok) { setMsg(`${stmts.length} change(s) submitted`); await load(offset) } else setMsg(out.error)
+    if (out.ok) { setMsg(`${statements.length} change(s) submitted`); setPreview(false); await load(offset) } else setMsg(out.error)
   }
 
   return (
@@ -111,6 +115,7 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
           <button title="Delete row" disabled={!editable || selRow === undefined} onClick={delRow}><Icon id="remove" /></button>
           <button title="Revert" disabled={!pending} onClick={() => void load(offset)}><Icon id="discard" /></button>
           <button className={pending ? 'primary' : ''} title="Submit (Ctrl/⌘+Alt+Enter)" disabled={!pending || busy} onClick={() => void submit()}><Icon id="check" /> Submit{pending ? ` (${pending})` : ''}</button>
+          <button className={preview ? 'on' : ''} title="Preview the SQL that Submit will run" disabled={!pending} onClick={() => setPreview((v) => !v)}><Icon id="code" /></button>
           <span className="grow" />
           <ExportMenu columns={res?.columns ?? []} rows={rows} source={res ? { connectionId: tab.connectionId, sql: res.sql, offset: res.offset, rawRows: res.rows, hasMore: !!res.hasMore } : undefined} table={tab.table} dialect={dialect} neutralizeFormulas={neutralize} disabled={!res || !!res.error || !rows.length} />
           {!editable && (sqlKind
@@ -124,6 +129,7 @@ export function TableEditor({ tab, visible }: { tab: TableTab; visible: boolean 
           </div>
         )}
         {msg && <div className={`banner ${res?.error || /fail|error|constraint/i.test(msg) ? 'error' : ''}`}>{msg}</div>}
+        {preview && pending > 0 && <pre className="sql-preview" aria-label="Pending SQL">{statements.join(';\n\n')}</pre>}
         {res && !res.error ? <DataGrid columns={res.columns} rows={rows} edits={edits} deleted={deleted} insertedFrom={len} readOnlyColumns={editable ? undefined : new Set(res.columns.map((_, i) => i))} onEdit={editable ? onEdit : undefined} onSelectRow={setSelRow} /> : <div className="empty-state">{busy ? 'Loading…' : ''}</div>}
         <div className="grid-foot">{res && !res.error ? `${len} rows${res.hasMore ? '+' : ''} · ${res.durationMs} ms` : ''}</div>
       </div>

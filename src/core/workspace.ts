@@ -10,6 +10,8 @@ export interface WorkspaceTabInput {
   title: string
   connectionId: string
   sql: string
+  /** File the console was opened from, so relative `@include` keeps working after a restart. */
+  path?: string
 }
 
 export interface WorkspaceTab {
@@ -17,6 +19,7 @@ export interface WorkspaceTab {
   title: string
   connectionId: string
   sql: string
+  path?: string
 }
 
 export interface WorkspaceSnapshot {
@@ -46,11 +49,13 @@ export function serializeWorkspace(tabs: readonly WorkspaceTabInput[], activeTab
     if (!sql.trim()) continue
     if (total + sql.length > WORKSPACE_MAX_TOTAL_SQL) continue
     total += sql.length
+    const file = clean(tab.path, 4000)
     kept.push({
       id: clean(tab.id, 200),
       title: clean(tab.title, 200),
       connectionId: clean(tab.connectionId, 200),
       sql: sql.slice(0, WORKSPACE_MAX_TAB_SQL),
+      ...(file ? { path: file } : {}),
     })
   }
   if (!kept.length) return undefined
@@ -80,7 +85,8 @@ export function parseWorkspace(raw: string | null | undefined, connectionIds: re
     if (!id || !connectionId || !validConnections.has(connectionId) || !sql.trim()) continue
     if (total + sql.length > WORKSPACE_MAX_TOTAL_SQL) continue
     total += sql.length
-    tabs.push({ id, title: title || 'SQL console', connectionId, sql })
+    const file = clean(tab.path, 4000)
+    tabs.push({ id, title: title || 'SQL console', connectionId, sql, ...(file ? { path: file } : {}) })
   }
   if (!tabs.length) return undefined
   const activeTab = typeof value.activeTab === 'string' && tabs.some((tab) => tab.id === value.activeTab) ? value.activeTab : undefined

@@ -20,8 +20,8 @@ const api: StratumApi = {
   library: group('library', ['list', 'save', 'remove']) as StratumApi['library'],
   extensions: group('extensions', ['list', 'setEnabled']) as StratumApi['extensions'],
   drivers: group('drivers', ['list', 'add', 'remove', 'reveal', 'openFolder']) as StratumApi['drivers'],
-  dialogs: group('dialogs', ['pickFile', 'openText']) as StratumApi['dialogs'],
-  script: group('script', ['read']) as StratumApi['script'],
+  dialogs: group('dialogs', ['pickFile', 'openText', 'openImport']) as StratumApi['dialogs'],
+  script: group('script', ['read', 'write']) as StratumApi['script'],
   docker: group('docker', ['list']) as StratumApi['docker'],
   export: group('export', ['save', 'saveBinary', 'pdf']) as StratumApi['export'],
   update: {

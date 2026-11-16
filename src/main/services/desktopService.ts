@@ -10,7 +10,15 @@ const MAX_INCLUDE_BYTES = 16 * 1024 * 1024
 
 /** Native dialogs, file saves and PDF rendering. Keeps Electron UI plumbing out of IPC routers. */
 export class DesktopService {
+  /** Paths the user opened or chose in a dialog; only these may be overwritten without asking again. */
+  private writable = new Set<string>()
+
   constructor(private window: () => BrowserWindow | null) {}
+
+  /** True when `file` is a path the user already granted through a native dialog in this session. */
+  private canOverwrite(file: string): boolean {
+    try { return this.writable.has(path.resolve(file)) } catch { return false }
+  }
 
   async pickFile(filters?: SaveFilter[]): Promise<string | undefined> {
     const win = this.window()
@@ -67,7 +75,28 @@ export class DesktopService {
       throw new Error(`${path.basename(file)} is ${(size / 1048576).toFixed(1)} MB; the import limit is 64 MB.`)
     }
     const content = await readFile(file, 'utf8')
+    this.writable.add(path.resolve(file))
     return { path: file, name: path.basename(file), content: content.replace(/^\uFEFF/, '') }
+  }
+
+  /** Open a CSV/JSON/SQL/XLSX file for the import wizard; binary workbooks travel as base64. */
+  async openImport(filters?: SaveFilter[]): Promise<{ path: string; name: string; size: number; text?: string; base64?: string } | null> {
+    const win = this.window()
+    if (!win) return null
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openFile'], filters })
+    const file = filePaths[0]
+    if (canceled || !file) return null
+    const info = await stat(file)
+    if (info.size > MAX_TEXT_BYTES) {
+      throw new Error(`${path.basename(file)} is ${(info.size / 1048576).toFixed(1)} MB; the import limit is 64 MB.`)
+    }
+    const name = path.basename(file), binary = /\.(xlsx|xlsm|xls)$/i.test(name)
+    return {
+      path: file, name, size: info.size,
+      ...(binary
+        ? { base64: (await readFile(file)).toString('base64') }
+        : { text: (await readFile(file, 'utf8')).replace(/^\uFEFF/, '') }),
+    }
   }
 
   async saveFile(defaultName: string, content: string, filters?: SaveFilter[], encoding: BufferEncoding = 'utf8'): Promise<string | null> {
@@ -76,7 +105,33 @@ export class DesktopService {
     const { canceled, filePath } = await dialog.showSaveDialog(win, { defaultPath: defaultName, filters })
     if (canceled || !filePath) return null
     await writeFile(filePath, content, encoding)
+    this.writable.add(path.resolve(filePath))
     return filePath
+  }
+
+  /**
+   * Save a script file. A path the user already opened or chose may be overwritten directly;
+   * anything else goes through the native save dialog, so the renderer can never write outside
+   * a location the user granted.
+   */
+  async writeText(file: string | undefined, content: string, defaultName = 'query.sql'): Promise<string | null> {
+    if (typeof content !== 'string' || content.length > MAX_TEXT_BYTES) {
+      throw new Error('The script is too large to save (64 MB limit).')
+    }
+    const win = this.window()
+    if (!win) return null
+    let target = file && this.canOverwrite(file) ? path.resolve(file) : undefined
+    if (!target) {
+      const { canceled, filePath } = await dialog.showSaveDialog(win, {
+        defaultPath: file || defaultName,
+        filters: [{ name: 'SQL script', extensions: ['sql', 'ddl', 'pgsql', 'mysql'] }],
+      })
+      if (canceled || !filePath) return null
+      target = filePath
+    }
+    await writeFile(target, content, 'utf8')
+    this.writable.add(path.resolve(target))
+    return target
   }
 
   async savePdf(defaultName: string, svg: string, size: { width: number; height: number }): Promise<string | null> {

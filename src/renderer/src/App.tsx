@@ -19,6 +19,8 @@ import { QueryLibraryDialog } from './features/library/QueryLibraryDialog'
 import { ObjectSearchDialog } from './features/search/ObjectSearchDialog'
 import { ExtensionsDialog } from './features/extensions/ExtensionsDialog'
 import { DriverManagerDialog } from './features/drivers/DriverManagerDialog'
+import { ImportDialog } from './features/import/ImportDialog'
+import { DesignerEditor } from './features/designer/DesignerEditor'
 import { UpdateStatus } from './features/updates/UpdateStatus'
 import { ErrorBoundary } from './ui/ErrorBoundary'
 import { Icon } from './ui/Icon'
@@ -70,7 +72,7 @@ export function App() {
       try {
         if (!s.prefs['workbench.restoreTabs']) { localStorage.removeItem(WORKSPACE_STORAGE_KEY); return }
         const raw = serializeWorkspace(
-          s.tabs.filter((t) => t.type === 'console').map((t) => ({ id: t.id, title: t.title, connectionId: t.connectionId, sql: t.sql })),
+          s.tabs.filter((t) => t.type === 'console').map((t) => ({ id: t.id, title: t.title, connectionId: t.connectionId, sql: t.sql, path: t.path })),
           s.activeTab,
         )
         if (raw) localStorage.setItem(WORKSPACE_STORAGE_KEY, raw)
@@ -125,6 +127,18 @@ export function App() {
         return
       }
       case 'console.new': return void s.openConsole(cur?.connectionId)
+      case 'designer.new': {
+        const connectionId = cur?.connectionId ?? s.connections[0]?.id
+        if (!connectionId) { window.alert('Create a data source before designing a table.'); return }
+        return s.openDesigner(connectionId, cur?.type === 'table' ? cur.schema : undefined)
+      }
+      case 'data.import': {
+        if (!cur?.connectionId) { window.alert('Open a data source before importing data.'); return }
+        return s.set({ importRequest: { connectionId: cur.connectionId, schema: cur.type === 'table' ? cur.schema : undefined, table: cur.type === 'table' ? cur.table : undefined } })
+      }
+      case 'script.open': return void s.openScript()
+      case 'script.save': return void (cur?.type === 'console' && s.saveScript(cur.id))
+      case 'script.saveAs': return void (cur?.type === 'console' && s.saveScript(cur.id, true))
       case 'object.search': return s.set({ objectSearchOpen: true })
       case 'library.open': return s.set({ libraryOpen: true })
       case 'session.monitor': {
@@ -167,6 +181,8 @@ export function App() {
       else if (mod && e.altKey && e.key.toLowerCase() === 'l') { e.preventDefault(); void command('library.open') }
       else if (mod && e.shiftKey && e.key.toLowerCase() === 'x') { e.preventDefault(); void command('extensions.open') }
       else if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); void command('view.sideBar') }
+      else if (mod && !e.altKey && e.key.toLowerCase() === 's') { e.preventDefault(); void command(e.shiftKey ? 'script.saveAs' : 'script.save') }
+      else if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') { e.preventDefault(); void command('script.open') }
       else if (mod && !e.shiftKey && !e.altKey && e.key === '1') { e.preventDefault(); void command('view.explorer') }
       if (e.key === 'Escape') set({ palette: null, dialog: null, objectSearchOpen: false, libraryOpen: false, extensionsOpen: false, driverManagerOpen: false, sessionMonitor: undefined })
     }
@@ -185,6 +201,11 @@ export function App() {
       { id: 'export-connections', label: t('menu.exportConnections'), run: () => void command('datasource.export') },
       { id: 'drivers', label: t('menu.driverManager'), run: () => void command('drivers.open') },
       { id: 'console', label: 'New Query Console', run: () => void command('console.new') },
+      { id: 'new-table', label: t('menu.newTable'), run: () => void command('designer.new') },
+      { id: 'import-data', label: t('menu.importData'), hint: ipc.platform === 'darwin' ? '⇧⌘I' : 'Ctrl+Shift+I', run: () => void command('data.import') },
+      { id: 'open-script', label: t('menu.openScript'), hint: ipc.platform === 'darwin' ? '⌘O' : 'Ctrl+O', run: () => void command('script.open') },
+      { id: 'save-script', label: t('menu.saveScript'), hint: ipc.platform === 'darwin' ? '⌘S' : 'Ctrl+S', run: () => void command('script.save') },
+      { id: 'save-script-as', label: t('menu.saveScriptAs'), hint: ipc.platform === 'darwin' ? '⇧⌘S' : 'Ctrl+Shift+S', run: () => void command('script.saveAs') },
       { id: 'search-objects', label: 'Search Database Objects…', hint: ipc.platform === 'darwin' ? '⇧⌘O' : 'Ctrl+Shift+O', run: () => void command('object.search') },
       { id: 'library', label: 'Open Saved Queries…', hint: ipc.platform === 'darwin' ? '⌥⌘L' : 'Ctrl+Alt+L', run: () => void command('library.open') },
       { id: 'sessions', label: 'Sessions & Locks…', run: () => void command('session.monitor') },
@@ -240,7 +261,7 @@ export function App() {
           {tabs.map((t) => (
             <div key={t.id} className="tab-body" style={{ display: t.id === activeTab ? 'flex' : 'none' }}>
               <ErrorBoundary>
-                {t.type === 'console' ? <ConsoleEditor tab={t} visible={t.id === activeTab} /> : t.type === 'table' ? <TableEditor tab={t} visible={t.id === activeTab} /> : t.type === 'diagram' ? <ErdView tab={t} visible={t.id === activeTab} /> : null}
+                {t.type === 'console' ? <ConsoleEditor tab={t} visible={t.id === activeTab} /> : t.type === 'table' ? <TableEditor tab={t} visible={t.id === activeTab} /> : t.type === 'diagram' ? <ErdView tab={t} visible={t.id === activeTab} /> : t.type === 'designer' ? <DesignerEditor tab={t} /> : null}
               </ErrorBoundary>
             </div>
           ))}
@@ -264,6 +285,7 @@ export function App() {
       <ExtensionsDialog />
       <DriverManagerDialog />
       <SessionMonitorDialog />
+      <ImportDialog />
     </div>
   )
 }

@@ -1,16 +1,17 @@
-import { mkdtemp, mkdir, rm, truncate, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const roots = vi.hoisted(() => ({ home: '', docs: '' }))
+const dialogs = vi.hoisted(() => ({ open: [] as string[], save: undefined as string | undefined }))
 vi.mock('electron', () => ({
   app: {
     getPath: (name: string) => name === 'home' ? roots.home : name === 'documents' ? roots.docs : tmpdir(),
   },
   dialog: {
-    showOpenDialog: async () => ({ canceled: true, filePaths: [] }),
-    showSaveDialog: async () => ({ canceled: true }),
+    showOpenDialog: async () => ({ canceled: !dialogs.open.length, filePaths: dialogs.open }),
+    showSaveDialog: async () => ({ canceled: !dialogs.save, filePath: dialogs.save }),
   },
   shell: { showItemInFolder: () => undefined, openPath: async () => '' },
   BrowserWindow: class {},
@@ -24,7 +25,9 @@ let service: InstanceType<typeof DesktopService>
 beforeEach(() => {
   roots.home = path.join(base, 'home')
   roots.docs = path.join(base, 'documents')
-  service = new DesktopService(() => null)
+  dialogs.open = []
+  dialogs.save = undefined
+  service = new DesktopService(() => ({} as never))
 })
 
 afterAll(async () => { await rm(base, { recursive: true, force: true }) })
@@ -70,5 +73,31 @@ describe('DesktopService.readText (@include)', () => {
     await writeFile(huge, '')
     await truncate(huge, 17 * 1024 * 1024)
     await expect(service.readText(huge)).rejects.toThrow('limit is 16 MB')
+  })
+})
+
+describe('DesktopService.writeText (save script)', () => {
+  it('overwrites a file the user opened, without asking again', async () => {
+    const file = path.join(base, 'open.sql')
+    await writeFile(file, 'select 1', 'utf8')
+    dialogs.open = [file]
+    await service.openText()
+    expect(await service.writeText(file, 'select 2')).toBe(file)
+    expect(await readFile(file, 'utf8')).toBe('select 2')
+  })
+
+  it('asks for a path when the file was not granted in this session', async () => {
+    const target = path.join(base, 'chosen.sql')
+    dialogs.save = target
+    expect(await service.writeText('/etc/passwd', 'select 3')).toBe(target)
+    expect(await readFile(target, 'utf8')).toBe('select 3')
+  })
+
+  it('returns null when the save dialog is cancelled', async () => {
+    expect(await service.writeText(undefined, 'select 4')).toBeNull()
+  })
+
+  it('refuses oversized scripts', async () => {
+    await expect(service.writeText(undefined, 'x'.repeat(64 * 1024 * 1024 + 1))).rejects.toThrow('64 MB')
   })
 })

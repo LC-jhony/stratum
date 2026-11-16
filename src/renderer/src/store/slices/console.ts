@@ -154,7 +154,7 @@ export const createConsoleSlice: WorkbenchSlice<ConsoleSlice> = (set, get) => ({
         let items: ScriptItem[]
         try { items = parseScript(chunk) }
         catch (e) { fail(chunk, cleanIpcError(e)); break }
-        await runItems(items, undefined, 0)
+        await runItems(items, tab.path, 0)
         if (stopped || aborted) break
       }
     } catch (e) {

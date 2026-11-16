@@ -97,6 +97,11 @@ export interface StratumApi {
     pickFile(filters?: { name: string; extensions: string[] }[]): Promise<string | undefined>
     /** Read a text file through a native open dialog (UTF-8, BOM stripped); null when cancelled. */
     openText(filters?: SaveFilter[]): Promise<{ path: string; name: string; content: string } | null>
+    /**
+     * Open a data file for the import wizard. Text formats return UTF-8 `text`; `.xlsx`/`.xls`
+     * return `base64` for the workbook reader. Null when cancelled; 64 MB limit.
+     */
+    openImport(filters?: SaveFilter[]): Promise<{ path: string; name: string; size: number; text?: string; base64?: string } | null>
   }
   script: {
     /**
@@ -104,6 +109,12 @@ export interface StratumApi {
      * the user's Documents folder for the top-level console. BOM stripped; 16 MB limit.
      */
     read(path: string, from?: string): Promise<{ path: string; name: string; content: string }>
+    /**
+     * Save a SQL script. A path the user opened or already saved to is overwritten; any other
+     * path (including a restored one after a restart) opens the native save dialog first.
+     * Returns the chosen path, or null when cancelled.
+     */
+    write(path: string | undefined, content: string, defaultName?: string): Promise<string | null>
   }
   docker: {
     /** Read-only container listing for the Docker helper (unix socket or TCP daemon). */

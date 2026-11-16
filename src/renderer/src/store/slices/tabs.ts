@@ -38,6 +38,8 @@ export const createTabsSlice: WorkbenchSlice<TabsSlice> = (set, get) => ({
   },
 
   closeTab(id) {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (tab?.type === 'console' && tab.dirty && typeof window !== 'undefined' && !window.confirm(`Discard unsaved changes to ${tab.title}?`)) return
     set((s) => {
       const i = s.tabs.findIndex((t) => t.id === id), tabs = s.tabs.filter((t) => t.id !== id)
       return { tabs, activeTab: s.activeTab === id ? tabs[Math.min(i, tabs.length - 1)]?.id : s.activeTab }
@@ -52,7 +54,7 @@ export const createTabsSlice: WorkbenchSlice<TabsSlice> = (set, get) => ({
     const connections = new Set(get().connections.map((c) => c.id))
     const tabs: ConsoleTab[] = snapshot.tabs
       .filter((t) => connections.has(t.connectionId))
-      .map((t) => ({ id: t.id, type: 'console', connectionId: t.connectionId, title: t.title, sql: t.sql, results: [], activeResult: 0, running: false }))
+      .map((t) => ({ id: t.id, type: 'console', connectionId: t.connectionId, title: t.title, sql: t.sql, path: t.path, results: [], activeResult: 0, running: false }))
     if (!tabs.length) return
     set({ tabs, activeTab: tabs.find((t) => t.id === snapshot.activeTab)?.id ?? tabs[0].id })
   },

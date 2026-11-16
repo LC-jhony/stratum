@@ -46,6 +46,34 @@ describe('qualified completion', () => {
   })
 })
 
+describe('CTE scope', () => {
+  it('offers the projected columns of a CTE through its alias', () => {
+    const l = labels('with recent as (select id, email as mail from customers) select * from recent r where r.')
+    expect(l).toEqual(expect.arrayContaining(['id', 'mail']))
+    expect(l).not.toContain('email')
+  })
+
+  it('uses an explicit CTE column list', () => {
+    expect(labels('with pair (left_id, right_id) as (select id, customer_id from orders) select * from pair p where p.'))
+      .toEqual(expect.arrayContaining(['left_id', 'right_id']))
+  })
+
+  it('lets a CTE shadow a real table with the same name', () => {
+    const l = labels('with customers as (select id from orders) select * from customers c where c.')
+    expect(l).toContain('id')
+    expect(l).not.toContain('email')
+  })
+
+  it('supports several CTEs and a quoted body', () => {
+    const sql = "with a as (select id from orders where status = ')'), b as (select email from customers) select * from b where b."
+    expect(labels(sql)).toContain('email')
+  })
+
+  it('does not lose normal scope when the statement has no CTE', () => {
+    expect(labels('select * from orders o where o.')).toEqual(expect.arrayContaining(['status']))
+  })
+})
+
 describe('INSERT auto-fill', () => {
   it('suggests the missing columns of the target table', () => {
     const l = labels('insert into orders (')

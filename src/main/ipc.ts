@@ -132,9 +132,11 @@ export function registerIpc(d: IpcDependencies) {
     dialogs: {
       pickFile: (filters) => d.desktop.pickFile(filters),
       openText: (filters) => d.desktop.openText(filters),
+      openImport: (filters) => d.desktop.openImport(filters),
     },
     script: {
       read: (path, from) => d.desktop.readText(path, from),
+      write: (path, content, defaultName) => d.desktop.writeText(path, content, defaultName),
     },
     docker: { list: (endpoint) => listDockerContainers(endpoint) },
     export: {
@@ -201,9 +203,11 @@ export function registerIpc(d: IpcDependencies) {
   route('dialogs', api.dialogs as unknown as Record<string, Handler>, {
     pickFile: [filtersSchema],
     openText: [filtersSchema],
+    openImport: [filtersSchema],
   })
   route('script', api.script as unknown as Record<string, Handler>, {
     read: [scriptPathSchema, scriptPathSchema.optional()],
+    write: [scriptPathSchema.optional(), z.string().max(64 * 1024 * 1024), z.string().max(4000).optional()],
   })
   route('docker', api.docker as unknown as Record<string, Handler>, {
     list: [dockerEndpointSchema],

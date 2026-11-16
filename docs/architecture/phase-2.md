@@ -119,8 +119,8 @@ Wayland smoke run, not by the type checker, because both sides were individually
 
 ## Deliberate limits
 
-- A console does not have a file path yet, so top-level relative includes fall back to Documents.
-  Opening/saving `.sql` files with a real path is the next gap.
+- A console now gets a real file path from **Open SQL Script…**; an untitled console still resolves
+  top-level relative includes in Documents.
 - Commands run in the console only. Import scripts, generated DDL and the ERD export do not parse
   them.
 - `@export` always shows the save dialog; there is no silent overwrite mode.

@@ -136,7 +136,7 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
     e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => execRef.current(false))
     e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => execRef.current(true))
     e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF, () => formatRef.current())
-    e.onDidChangeModelContent(() => patchTab(tab.id, { sql: e.getValue() }))
+    e.onDidChangeModelContent((ev) => patchTab(tab.id, { sql: e.getValue(), dirty: !ev.isFlush }))
     e.onDidFocusEditorText(() => setCompletionModel(sqlKind ? useWorkbench.getState().live[tab.connectionId]?.model : undefined))
     if (location.search.includes('smoke=1')) Object.assign(window, { __editor: e }) // test hook, only with ?smoke=1
     ed.current = e

@@ -610,6 +610,20 @@ html[data-platform="darwin"] .titlebar-left { padding-left: 72px; }
 .banner { padding: 6px 12px; background: var(--surface-3); border-bottom: 1px solid var(--line-soft); font-size: var(--text-xs); }
 .banner.error { color: var(--err); }
 .grid-foot { padding: 3px 12px; min-height: 22px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: var(--text-2xs); }
+.sql-preview { margin: 0; padding: 8px 12px; max-height: 180px; overflow: auto; border-top: 1px solid var(--line-soft); background: var(--surface-2, var(--surface-1)); color: var(--ink); font: 11px/1.5 var(--stratum-mono); white-space: pre-wrap; }
+.designer { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px; overflow: auto; }
+.designer .designer-title { font-weight: 600; }
+.designer-form { display: flex; flex-wrap: wrap; gap: 14px; padding: 12px; border-bottom: 1px solid var(--line-soft); }
+.designer-form label { display: flex; flex-direction: column; gap: 4px; min-width: 220px; color: var(--muted); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: .04em; }
+.designer-grid { padding: 8px 12px; overflow: auto; }
+.designer-row { display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(130px, 1fr) 62px 82px 60px minmax(110px, .8fr) 30px; gap: 8px; align-items: center; padding: 3px 0; }
+.designer-row.head { color: var(--muted); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: .04em; }
+.designer-row input[type="checkbox"] { justify-self: center; }
+.designer-row input:not([type="checkbox"]) { min-width: 0; }
+.designer-row button { width: var(--h-compact); height: var(--h-compact); padding: 0; color: var(--muted); }
+.designer-actions { padding: 4px 12px 10px; }
+.designer-ddl { margin: 0 12px 12px; padding: 10px; max-height: 220px; overflow: auto; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--surface-2, var(--surface-1)); font: 11px/1.5 var(--stratum-mono); white-space: pre-wrap; }
+.designer .hint.error { margin: 4px 12px; }
 .grid-foot-more { display: flex; align-items: center; gap: 8px; }
 .grid-foot-more button { font-size: var(--text-2xs); padding: 1px 8px; }
 .fetch-error { display: inline-flex; align-items: center; gap: 4px; color: var(--err); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1415,6 +1429,25 @@ svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
 
 /* ── Driver Manager ─────────────────────────────────────────────────────── */
 .dialog.drivers-dialog { width: 720px; }
+.dialog.import-dialog { width: min(860px, 94vw); }
+.import-target, .import-source { padding: 10px 18px; border-bottom: 1px solid var(--line-soft); }
+.import-target { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.import-target label { display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
+.import-target label > span:first-child { color: var(--muted); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: .04em; }
+.import-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.import-actions .sep { width: 1px; height: 18px; background: var(--line-soft); margin: 0 4px; }
+.import-file { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.import-file .hint { margin: 0; }
+.import-map { max-height: 260px; overflow: auto; border-bottom: 1px solid var(--line-soft); }
+.import-map-head, .import-map-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(160px, 1.2fr) 130px; gap: 10px; align-items: center; padding: 3px 18px; }
+.import-map-head { position: sticky; top: 0; z-index: 1; background: var(--surface-1); color: var(--muted); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--line-soft); }
+.import-map-row:nth-child(odd) { background: color-mix(in srgb, var(--ink) 3%, transparent); }
+.import-map-row select { width: 100%; }
+.import-map-row .req { color: var(--warn); }
+.import-map > .hint { margin: 8px 18px; }
+.import-sql { margin: 0; padding: 8px 18px; max-height: 160px; overflow: auto; border-bottom: 1px solid var(--line-soft); background: var(--surface-2, var(--surface-1)); font: 11px/1.5 var(--stratum-mono); white-space: pre-wrap; }
+.import-dialog .hint.error { margin: 8px 18px 0; }
+.import-dialog .hint.ok { margin: 8px 18px 0; color: var(--ok-ink); }
 .drivers-hint { margin: 12px 16px 0; }
 .drivers-dialog .hint.error { margin: 8px 16px 0; }
 .driver-list { display: flex; flex-direction: column; gap: 4px; min-height: 140px; max-height: 52vh; padding: 10px 12px; overflow: auto; }

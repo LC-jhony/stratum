@@ -13,7 +13,20 @@ export interface ResultEntry {
 }
 
 interface TabBase { id: string; title: string; connectionId: string }
-export interface ConsoleTab extends TabBase { type: 'console'; sql: string; results: ResultEntry[]; activeResult: number; running: boolean; /** Last EXPLAIN for this tab. */ plan?: QueryPlan; planning?: boolean }
+export interface ConsoleTab extends TabBase {
+  type: 'console'
+  sql: string
+  results: ResultEntry[]
+  activeResult: number
+  running: boolean
+  /** File the script came from or was last saved to; relative `@include` resolves next to it. */
+  path?: string
+  /** Unsaved edits since the last open/save. */
+  dirty?: boolean
+  /** Last EXPLAIN for this tab. */
+  plan?: QueryPlan
+  planning?: boolean
+}
 export interface TableTab extends TabBase { type: 'table'; schema?: string; table: string }
 export interface DiagramTab extends TabBase { type: 'diagram'; options: ErdOptions }
 /** DataGrip's "New Table" designer; the table is created when Run is pressed. */
@@ -61,6 +74,13 @@ export interface TabsSlice {
   patchTab(id: string, patch: Partial<Tab>): void
   /** Reopen SQL consoles saved by the previous session (validated against the current connections). */
   restoreWorkspace(snapshot: WorkspaceSnapshot): void
+}
+
+export interface ScriptsSlice {
+  /** Open a .sql file from disk in a console bound to the active (or first) data source. */
+  openScript(): Promise<void>
+  /** Save a console to its file; `saveAs` always asks for a path. Returns false when cancelled. */
+  saveScript(tabId: string, saveAs?: boolean): Promise<boolean>
 }
 
 export interface ConsoleSlice {
@@ -127,5 +147,5 @@ export interface UpdateSlice {
   installUpdate(): Promise<void>
 }
 
-export type WorkbenchState = ConnectionsSlice & TabsSlice & ConsoleSlice & PrefsSlice & UiSlice & UpdateSlice
+export type WorkbenchState = ConnectionsSlice & TabsSlice & ScriptsSlice & ConsoleSlice & PrefsSlice & UiSlice & UpdateSlice
 export type WorkbenchSlice<T> = StateCreator<WorkbenchState, [], [], T>

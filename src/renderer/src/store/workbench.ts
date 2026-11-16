@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { createConnectionsSlice } from './slices/connections'
 import { createConsoleSlice } from './slices/console'
 import { createPrefsSlice } from './slices/prefs'
+import { createScriptsSlice } from './slices/scripts'
 import { createTabsSlice } from './slices/tabs'
 import { createUiSlice } from './slices/ui'
 import { createUpdateSlice } from './slices/update'
@@ -14,6 +15,7 @@ import type { WorkbenchState } from './types'
 export const useWorkbench = create<WorkbenchState>((set, get, api) => ({
   ...createConnectionsSlice(set, get, api),
   ...createTabsSlice(set, get, api),
+  ...createScriptsSlice(set, get, api),
   ...createConsoleSlice(set, get, api),
   ...createPrefsSlice(set, get, api),
   ...createUiSlice(set, get, api),

@@ -31,6 +31,13 @@ describe('serializeWorkspace', () => {
     expect(JSON.parse(serializeWorkspace([tab('a')], 'missing')!).activeTab).toBeUndefined()
   })
 
+  it('keeps the script path so relative @include survives a restart', () => {
+    const raw = serializeWorkspace([{ ...tab('a'), path: '/work/main.sql' }])!
+    const restored = parseWorkspace(raw, ['c1'])
+    expect(restored?.tabs[0].path).toBe('/work/main.sql')
+    expect(restored?.tabs[0].sql).toBe('select 1')
+  })
+
   it('caps the number of tabs', () => {
     const many = Array.from({ length: WORKSPACE_MAX_TABS + 5 }, (_, i) => tab(`${i}`))
     expect(JSON.parse(serializeWorkspace(many)!).tabs).toHaveLength(WORKSPACE_MAX_TABS)
