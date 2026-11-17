@@ -1538,3 +1538,258 @@ svg.stratum-icon { width: 1em; height: 1em; vertical-align: -0.125em; }
 .gis-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .gis-point { fill: var(--accent); stroke: var(--surface-1); stroke-width: 1.5; }
 .gis-foot { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: var(--text-2xs); }
+
+/* ── Glass & aurora layer ──────────────────────────────────────────────────
+   Valet-inspired skin: translucent chrome over a soft aurora, large rounded
+   cards, pill controls and one brand-red accent. Only chrome is translucent;
+   the editor, grid and result surfaces stay opaque so code and data remain
+   readable. Two blur depths only: chrome (20 px) and overlays (30 px). */
+:root {
+  --glass-blur: 20px;
+  --glass-blur-lg: 30px;
+  --glass-line: color-mix(in srgb, var(--fg) 14%, transparent);
+  --glass-line-soft: color-mix(in srgb, var(--fg) 8%, transparent);
+  --glass-chrome: color-mix(in srgb, var(--nav) 72%, transparent);
+  --glass-side: color-mix(in srgb, var(--surface-2) 64%, transparent);
+  --glass-panel: color-mix(in srgb, var(--panel) 92%, transparent);
+  --radius-card: 18px;
+  --radius-panel: 20px;
+  --shadow-card: 0 10px 30px rgb(0 0 0 / 0.10), 0 1px 2px rgb(0 0 0 / 0.06);
+}
+html[data-theme="dark"] {
+  --glass-line: color-mix(in srgb, var(--fg) 16%, transparent);
+  --glass-line-soft: color-mix(in srgb, var(--fg) 9%, transparent);
+  --glass-chrome: color-mix(in srgb, var(--nav) 64%, transparent);
+  --glass-side: color-mix(in srgb, var(--surface-2) 54%, transparent);
+  --glass-panel: color-mix(in srgb, var(--panel) 88%, transparent);
+  --shadow-card: 0 16px 42px rgb(0 0 0 / 0.34), inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+/* The aurora lives behind every grid track; isolation keeps it under the UI. */
+.workbench { position: relative; isolation: isolate; background: var(--bg); }
+.workbench::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 48% at 8% -8%, color-mix(in srgb, var(--accent-fill) 24%, transparent) 0%, transparent 62%),
+    radial-gradient(52% 44% at 96% 4%, color-mix(in srgb, #7c6cf5 16%, transparent) 0%, transparent 68%),
+    radial-gradient(60% 50% at 78% 108%, color-mix(in srgb, #26b6a3 11%, transparent) 0%, transparent 72%);
+}
+html[data-theme="light"] .workbench::before {
+  background:
+    radial-gradient(58% 48% at 8% -8%, color-mix(in srgb, var(--accent-fill) 15%, transparent) 0%, transparent 60%),
+    radial-gradient(52% 44% at 96% 4%, color-mix(in srgb, #7c6cf5 11%, transparent) 0%, transparent 66%),
+    radial-gradient(60% 50% at 78% 108%, color-mix(in srgb, #26b6a3 8%, transparent) 0%, transparent 70%);
+}
+
+/* Chrome: title bar, activity rail, side bar and status bar share one blur. */
+.titlebar {
+  background: color-mix(in srgb, var(--vscode-titleBar-activeBackground, var(--nav)) 70%, transparent);
+  border-bottom: 1px solid var(--glass-line-soft);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+}
+.titlebar-menu { border-radius: var(--radius-sm); }
+.titlebar-search {
+  border-color: var(--glass-line-soft);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+.titlebar-search:hover:not(:disabled) { border-color: var(--glass-line); }
+.window-controls button { border-radius: var(--radius-sm); }
+
+.stripe {
+  background: color-mix(in srgb, var(--nav) 52%, transparent);
+  border-color: var(--glass-line-soft);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.25);
+}
+.stripe button { border-radius: var(--radius); }
+.stripe button.on {
+  color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent-fill) 17%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-fill) 28%, transparent);
+}
+
+.side {
+  background: var(--glass-side);
+  border-color: var(--glass-line-soft);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+}
+.sash { background: var(--glass-line-soft); }
+.sash:hover, .sash:active { background: var(--accent-fill); }
+.pane-title { border-bottom-color: var(--glass-line-soft); }
+.filter {
+  border-color: var(--glass-line-soft);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+}
+.row { border-radius: var(--radius-sm); }
+.row.selected { box-shadow: inset 2px 0 var(--accent-fill); }
+
+.app-status {
+  background: color-mix(in srgb, var(--nav) 60%, transparent);
+  border-top: 1px solid var(--glass-line-soft);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.25);
+}
+.app-status button { border-radius: var(--radius-pill); }
+
+/* Work area: the aurora shows through the tab strip and welcome card only. */
+.editor-area { background: transparent; padding: 10px 12px 12px; gap: 9px; }
+.tabs {
+  align-items: center;
+  min-height: calc(var(--h-toolbar) + 4px);
+  padding: 4px 6px;
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+  border: 1px solid var(--glass-line-soft);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+}
+.tab { height: calc(var(--h-toolbar) - 2px); padding: 0 12px; border-radius: var(--radius-pill); }
+.tabs:empty { display: none; }
+.tab.active {
+  background: color-mix(in srgb, var(--accent-fill) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-fill) 30%, transparent);
+}
+.tab .close { border-radius: var(--radius-pill); }
+.content { background: transparent; }
+.split { padding: 0; gap: 10px; }
+
+/* Opaque reading surfaces: editor, results and their toolbars. */
+.editor-card, .results {
+  border: 1px solid var(--glass-line-soft);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: var(--shadow-card);
+}
+.editor-card .editor-toolbar { border-radius: var(--radius-card) var(--radius-card) 0 0; }
+.editor-host { border-radius: 0 0 var(--radius-card) var(--radius-card); }
+.results { background: color-mix(in srgb, var(--bg) 94%, var(--panel)); }
+.results:has(.grid-foot) .grid { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.results .grid-foot:last-child { border-radius: 0 0 var(--radius-card) var(--radius-card); }
+.results .grid { border-radius: 0 0 var(--radius-card) var(--radius-card); }
+.editor-toolbar {
+  background: color-mix(in srgb, var(--bg) 88%, var(--panel));
+  border-bottom-color: var(--glass-line-soft);
+}
+.editor-toolbar button { border-radius: var(--radius-pill); }
+.result-tabs button { border-radius: var(--radius-pill); }
+.result-tabs button.active { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-fill) 30%, transparent); }
+.grid-head { background: color-mix(in srgb, var(--bg) 86%, var(--panel)); }
+
+/* Welcome: a large glass card on the aurora. */
+.welcome {
+  position: relative;
+  max-width: 560px;
+  padding: 44px 52px;
+  overflow: hidden;
+  border: 1px solid var(--glass-line);
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--panel) 58%, transparent);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.06);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.3);
+}
+.welcome::before {
+  content: '';
+  position: absolute;
+  inset: -45% 38% 52% -42%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent-fill) 22%, transparent), transparent);
+  pointer-events: none;
+}
+.welcome > * { position: relative; }
+.welcome .logo { width: 218px; filter: drop-shadow(0 14px 32px color-mix(in srgb, var(--accent-fill) 18%, transparent)); }
+.welcome .actions button { height: 38px; padding: 0 18px; border-radius: var(--radius-pill); }
+.welcome .actions button:not(.primary) {
+  border-color: var(--glass-line);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+.welcome dl { margin: 24px 0 0; padding-top: 18px; border-top: 1px solid var(--glass-line-soft); }
+
+/* Overlays and dialogs: the second, deeper blur. */
+.scrim { background: color-mix(in srgb, #000 38%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.dialog, .palette, .ds-modal, .menu {
+  border-color: var(--glass-line);
+  border-radius: var(--radius-panel);
+  background: var(--glass-panel);
+  box-shadow: 0 34px 90px rgb(0 0 0 / 0.36);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.3);
+}
+.ds-modal { border-radius: var(--radius-panel); }
+.ds-field { border-radius: 10px; }
+.ds-btn, .ds-tab { border-radius: var(--radius-pill); }
+.ds-tab.on { border-radius: var(--radius-pill); }
+.seg { border-radius: var(--radius-pill); padding: 3px; }
+.seg button { border-radius: var(--radius-pill); }
+button.primary {
+  border-radius: var(--radius-pill);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--accent-fill) 28%, transparent);
+}
+.menu { border-radius: var(--radius); }
+.menu li { border-radius: var(--radius-sm); }
+
+/* Connection preview under the dialog: one line, never a secret. */
+.ds-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 7px 8px 7px 14px;
+  border: 1px solid var(--glass-line-soft);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  font-size: 13px;
+}
+.ds-preview-label {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.ds-preview-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font: 12.5px/1.4 var(--stratum-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-preview-helper {
+  flex: none;
+  max-width: 34%;
+  overflow: hidden;
+  padding: 2px 9px;
+  border: 1px solid var(--glass-line-soft);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-inline { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ds-status { flex-wrap: wrap; padding: 0 16px; line-height: 1.45; text-align: center; }
+
+/* Reduced motion and environments without backdrop-filter keep the same layout. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .titlebar, .stripe, .side, .app-status, .tabs { background: var(--bg); }
+  .welcome, .dialog, .palette, .ds-modal, .menu { background: var(--panel); }
+}

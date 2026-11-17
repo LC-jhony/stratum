@@ -14,7 +14,17 @@ export class SettingsService {
   constructor(private store: JsonStore<Record<string, unknown>>) {}
 
   /** Coerce persisted values through the schema on every read, including files edited by hand. */
-  async get(): Promise<StratumSettings> { return mergeSettings(await this.store.read()) }
+  async get(): Promise<StratumSettings> {
+    const raw = await this.store.read()
+    // New installs start in dark mode. A settings file that already chose a mode wins; a pinned
+    // theme with no mode yet keeps its own flavour instead of flipping to the other one.
+    if (raw['appearance.mode'] === undefined) {
+      const pinned = typeof raw.colorTheme === 'string' ? raw.colorTheme.toLowerCase() : ''
+      raw['appearance.mode'] = /light/.test(pinned) ? 'light' : 'dark'
+      await this.store.write(raw)
+    }
+    return mergeSettings(raw)
+  }
 
   /**
    * Settings safe for the renderer: the sealed API key is replaced by a boolean. A blank

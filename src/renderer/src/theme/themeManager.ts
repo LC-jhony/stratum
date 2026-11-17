@@ -79,7 +79,8 @@ class ThemeManager {
     const stored = settings['appearance.mode']
     const pinned = find(settings.colorTheme, 'color')
     const pinnedKind = pinned ? (entryKind(pinned) ?? kindOfName(pinned.label)) : undefined
-    // A stored mode wins; installs that pinned a theme before Appearance existed keep it; fresh installs follow the OS.
+    // A stored mode wins; installs that pinned a theme before Appearance existed keep it;
+    // SettingsService supplies 'dark' for a first run, so fresh installs start dark.
     this.mode = stored === 'dark' || stored === 'light' || stored === 'system' ? stored : (pinnedKind ?? 'system')
     // Persist a derived mode: without it the store's default ('system') would override the pinned theme after load().
     if (this.mode !== stored) void ipc.settings.set({ 'appearance.mode': this.mode })
