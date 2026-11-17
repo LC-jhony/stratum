@@ -14,6 +14,7 @@ const api: StratumApi = {
     },
   },
   db: group('db', ['introspect', 'execute', 'cancel', 'submit', 'plan', 'transaction', 'begin', 'commit', 'rollback', 'savepoint', 'rollbackToSavepoint', 'releaseSavepoint', 'sessions', 'killSession']) as StratumApi['db'],
+  debug: group('debug', ['probe', 'routines', 'start', 'snapshot', 'resume', 'stepOver', 'stepInto', 'selectFrame', 'setBreakpoint', 'setVariable', 'stop', 'close']) as StratumApi['debug'],
   themes: group('themes', ['list', 'read', 'importVsCodeExtensions']) as StratumApi['themes'],
   settings: group('settings', ['get', 'set']) as StratumApi['settings'],
   history: group('history', ['get', 'add']) as StratumApi['history'],

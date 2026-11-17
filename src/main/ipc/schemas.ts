@@ -135,3 +135,10 @@ export const exportSizeSchema = z.object({
   width: z.number().finite().min(1).max(100_000),
   height: z.number().finite().min(1).max(100_000),
 })
+/** PostgreSQL OID: unsigned 32-bit, represented as a JS number. */
+export const debugOidSchema = z.number().int().min(1).max(4_294_967_295)
+/** Body line for breakpoints; the entry breakpoint uses -1 and is never sent from the gutter. */
+export const debugLineSchema = z.number().int().min(1).max(2_147_483_647)
+export const debugFrameSchema = z.number().int().min(0).max(10_000)
+export const debugSessionIdSchema = z.string().min(1).max(200)
+export const debugValuesSchema = z.array(z.string().max(100_000)).max(100)

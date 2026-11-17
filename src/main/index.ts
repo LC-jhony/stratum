@@ -10,6 +10,7 @@ import { buildMenu } from './menu'
 import { AiService } from './services/aiService'
 import { ConnectionManager } from './services/connectionManager'
 import { ConnectionService } from './services/connectionService'
+import { DebugService } from './services/debugService'
 import { DesktopService } from './services/desktopService'
 import { DriverService } from './services/driverService'
 import { ExtensionService } from './services/extensionService'
@@ -97,6 +98,7 @@ async function main() {
   })
   const desktop = new DesktopService(() => win)
   const connectionService = new ConnectionService(connections, manager, desktop)
+  const debug = new DebugService(connections)
   const drivers = new DriverService(path.join(data, 'drivers'), desktop)
   const history = new HistoryService(new JsonStore(path.join(data, 'history.json'), { queries: {} }))
   const library = new QueryLibraryService(new JsonStore(path.join(data, 'library.json'), { queries: [] }))
@@ -133,6 +135,7 @@ async function main() {
   registerIpc({
     connections: connectionService,
     sessions: manager,
+    debug,
     themes,
     settings,
     history,
@@ -147,7 +150,7 @@ async function main() {
   })
   buildMenu(resolveLocale(initial['app.locale'], app.getLocale()))
   tasks.start()
-  app.on('before-quit', () => tasks.stop())
+  app.on('before-quit', () => { tasks.stop(); void debug.closeAll() })
 
   const create = async () => {
     const prefs = await settings.get()

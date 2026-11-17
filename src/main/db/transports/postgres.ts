@@ -1,11 +1,9 @@
 import { Client } from 'pg'
 import type { ConnectionConfig, RawResult } from '../../../shared/types'
 import { logger } from '../../logger'
-import { sslMaterial } from '../ssl'
+import { PG_TYPE_OIDS, postgresClientOptions } from '../postgresOptions'
 import type { Transport } from '../types'
 import { isConnectionError, transactionState } from './tx'
-
-const OID: Record<number, string> = { 16: 'bool', 17: 'bytea', 20: 'int8', 21: 'int2', 23: 'int4', 25: 'text', 114: 'json', 700: 'float4', 701: 'float8', 1043: 'varchar', 1082: 'date', 1114: 'timestamp', 1184: 'timestamptz', 1700: 'numeric', 2950: 'uuid', 3802: 'jsonb' }
 
 export class PostgresTransport implements Transport {
   private client?: Client
@@ -19,20 +17,7 @@ export class PostgresTransport implements Transport {
 
   constructor(private cfg: ConnectionConfig) {}
 
-  private async options() {
-    const c = this.cfg
-    const tls = await sslMaterial(c)
-    return {
-      host: c.socketPath?.trim() || c.host || 'localhost',
-      port: c.port ?? 5432,
-      user: c.user,
-      password: c.password,
-      database: c.database,
-      // Certificate verification is opt-in: existing profiles that only enable SSL keep working.
-      ssl: c.ssl ? { rejectUnauthorized: c.sslVerify === true, ...tls } : undefined,
-      connectionTimeoutMillis: c.session?.connectTimeoutMs ?? 10_000,
-    }
-  }
+  private options() { return postgresClientOptions(this.cfg) }
 
   /** An idle socket that dies raises `error`; without this listener Node would crash the main process. */
   private attach(client: Client) {
@@ -93,7 +78,7 @@ export class PostgresTransport implements Transport {
         const res = Array.isArray(r) ? r[r.length - 1] : r
         this.inTx = transactionState(sql, this.inTx)
         return {
-          columns: (res.fields ?? []).map((f: { name: string; dataTypeID: number }) => ({ name: f.name, type: OID[f.dataTypeID] ?? String(f.dataTypeID) })),
+          columns: (res.fields ?? []).map((f: { name: string; dataTypeID: number }) => ({ name: f.name, type: PG_TYPE_OIDS[f.dataTypeID] ?? String(f.dataTypeID) })),
           rows: res.rows as unknown[][],
           affectedRows: res.rowCount ?? undefined,
         }

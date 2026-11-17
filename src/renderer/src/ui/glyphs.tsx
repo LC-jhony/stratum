@@ -11,6 +11,7 @@ export type GlyphName =
   | 'chevron' | 'check' | 'alert' | 'info' | 'lock' | 'unlock'
   | 'play' | 'stop' | 'restart' | 'terminal' | 'close' | 'copy'
   | 'globe' | 'spinner' | 'plus' | 'mail'
+  | 'debug-alt' | 'debug-continue' | 'debug-step-over' | 'debug-step-into'
 
 export const GLYPHS: Record<GlyphName, ReactNode> = {
   sites: (
@@ -136,6 +137,32 @@ export const GLYPHS: Record<GlyphName, ReactNode> = {
     <>
       <rect x="3" y="5" width="18" height="14" rx="2.2" />
       <path d="m3.9 6.6 8.1 6.2 8.1-6.2" />
+    </>
+  ),
+  'debug-alt': (
+    <>
+      <circle cx="12" cy="13" r="4.3" />
+      <path d="M12 8.7V6M8.5 10.4 6.2 8.1M15.5 10.4l2.3-2.3M7.7 13H4.4M16.3 13h3.3M8.7 16.2l-2.2 2.2M15.3 16.2l2.2 2.2M9.8 5.9 8.4 4.2M14.2 5.9l1.4-1.7" />
+    </>
+  ),
+  'debug-continue': (
+    <>
+      <path d="M7.5 5.5 16.5 12l-9 6.5z" />
+      <path d="M19 5.5v13" />
+    </>
+  ),
+  'debug-step-over': (
+    <>
+      <path d="M4.5 15.5a7.5 7.5 0 0 1 13.5-4.5" />
+      <path d="m14.5 11.5 3.5 -0.5 0.5 -3.5" />
+      <circle cx="12" cy="18.5" r="1.5" />
+    </>
+  ),
+  'debug-step-into': (
+    <>
+      <path d="M12 4.5v9" />
+      <path d="m8.2 9.8 3.8 3.8 3.8-3.8" />
+      <circle cx="12" cy="18.5" r="1.6" />
     </>
   )
 }

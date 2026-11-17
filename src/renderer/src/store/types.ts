@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand'
 import type { StratumSettings } from '../../../core/settings'
 import type { WorkspaceSnapshot } from '../../../core/workspace'
-import type { ConnectionConfig, ConnectionView, DatabaseModel, ErdOptions, QueryPlan, QueryResult, SessionStateChange, TransactionState } from '../../../shared/types'
+import type { ConnectionConfig, ConnectionView, DatabaseModel, DebugRoutine, DebugSnapshot, ErdOptions, QueryPlan, QueryResult, SessionStateChange, TransactionState } from '../../../shared/types'
 import type { UpdateState } from '../../../shared/update'
 
 export interface ResultEntry {
@@ -31,7 +31,21 @@ export interface TableTab extends TabBase { type: 'table'; schema?: string; tabl
 export interface DiagramTab extends TabBase { type: 'diagram'; options: ErdOptions }
 /** DataGrip's "New Table" designer; the table is created when Run is pressed. */
 export interface DesignerTab extends TabBase { type: 'designer'; schema?: string }
-export type Tab = ConsoleTab | TableTab | DiagramTab | DesignerTab
+/** One live PL/pgSQL debug session; closing the tab aborts the target and rolls it back. */
+export interface DebugTab extends TabBase {
+  type: 'debug'
+  /** Main-process session id. */
+  sessionId: string
+  status: DebugSnapshot['status']
+  routine: DebugRoutine
+  snapshot: DebugSnapshot
+  /** A step/continue command is waiting for the next breakpoint. */
+  busy?: boolean
+  /** Stop was requested; late snapshots must not reopen the tab. */
+  stopping?: boolean
+  error?: string
+}
+export type Tab = ConsoleTab | TableTab | DiagramTab | DesignerTab | DebugTab
 
 export interface Live {
   status: 'connecting' | 'ready' | 'error'
@@ -105,6 +119,22 @@ export interface ConsoleSlice {
   plan(tabId: string, sql: string): Promise<void>
 }
 
+/** Commands against a live debug session; every response replaces the tab snapshot. */
+export interface DebugSlice {
+  /** Open the routine picker for one PostgreSQL data source. */
+  openDebugPicker(connectionId: string): void
+  /** Add the tab for a session that already stopped at its entry breakpoint. */
+  openDebug(connectionId: string, snapshot: DebugSnapshot): string
+  debugResume(tabId: string): Promise<void>
+  debugStepOver(tabId: string): Promise<void>
+  debugStepInto(tabId: string): Promise<void>
+  debugSelectFrame(tabId: string, level: number): Promise<void>
+  debugToggleBreakpoint(tabId: string, line: number): void
+  debugSetVariable(tabId: string, name: string, line: number, value: string): Promise<void>
+  /** Abort the target, roll back and close both PostgreSQL connections. */
+  debugStop(tabId: string): Promise<void>
+}
+
 export interface PrefsSlice {
   prefs: StratumSettings
   /** True once load() finished; effects that reconcile theme/fonts with persisted prefs wait for it. */
@@ -135,7 +165,9 @@ export interface UiSlice {
   aiOpen: boolean
   /** Connection whose server sessions/locks are being inspected. */
   sessionMonitor?: string
-  set(p: Partial<Pick<WorkbenchState, 'dialog' | 'importRequest' | 'palette' | 'showResults' | 'objectSearchOpen' | 'libraryOpen' | 'extensionsOpen' | 'driverManagerOpen' | 'adminOpen' | 'aiOpen' | 'sessionMonitor'>>): void
+  /** PostgreSQL connection whose routines are being picked for debugging. */
+  debugPicker?: string
+  set(p: Partial<Pick<WorkbenchState, 'dialog' | 'importRequest' | 'palette' | 'showResults' | 'objectSearchOpen' | 'libraryOpen' | 'extensionsOpen' | 'driverManagerOpen' | 'adminOpen' | 'aiOpen' | 'sessionMonitor' | 'debugPicker'>>): void
 }
 
 export interface UpdateSlice {
@@ -151,5 +183,5 @@ export interface UpdateSlice {
   installUpdate(): Promise<void>
 }
 
-export type WorkbenchState = ConnectionsSlice & TabsSlice & ScriptsSlice & ConsoleSlice & PrefsSlice & UiSlice & UpdateSlice
+export type WorkbenchState = ConnectionsSlice & TabsSlice & ScriptsSlice & ConsoleSlice & PrefsSlice & UiSlice & UpdateSlice & DebugSlice
 export type WorkbenchSlice<T> = StateCreator<WorkbenchState, [], [], T>

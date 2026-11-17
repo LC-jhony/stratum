@@ -1,5 +1,7 @@
 import type { WorkspaceSnapshot } from '../../../../core/workspace'
+import { routineLabel } from '../../../../core/debug'
 import type { ErdOptions } from '../../../../shared/types'
+import { ipc } from '../../ipc/client'
 import { uid } from '../internal'
 import type { ConsoleTab, DesignerTab, DiagramTab, TableTab, TabsSlice, WorkbenchSlice } from '../types'
 
@@ -40,6 +42,11 @@ export const createTabsSlice: WorkbenchSlice<TabsSlice> = (set, get) => ({
   closeTab(id) {
     const tab = get().tabs.find((t) => t.id === id)
     if (tab?.type === 'console' && tab.dirty && typeof window !== 'undefined' && !window.confirm(`Discard unsaved changes to ${tab.title}?`)) return
+    // A live debug tab owns a blocked target session; closing it must abort and roll back deliberately.
+    if (tab?.type === 'debug' && (tab.status === 'paused' || tab.status === 'running' || tab.busy)) {
+      if (typeof window !== 'undefined' && !window.confirm(`Stop debugging ${routineLabel(tab.routine)}? The target transaction will be rolled back.`)) return
+    }
+    if (tab?.type === 'debug') void ipc.debug.close(tab.sessionId).catch(() => undefined)
     set((s) => {
       const i = s.tabs.findIndex((t) => t.id === id), tabs = s.tabs.filter((t) => t.id !== id)
       return { tabs, activeTab: s.activeTab === id ? tabs[Math.min(i, tabs.length - 1)]?.id : s.activeTab }

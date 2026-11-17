@@ -150,6 +150,7 @@ export function Explorer() {
             <li onClick={() => openConsole(menu.row.conn.id)}><Icon id="terminal" />New Query Console</li>
             {isSqlKind(menu.row.conn.kind) && <li onClick={() => openDiagram(menu.row.conn.id)}><Icon id="type-hierarchy" />Show Diagram</li>}
             {(menu.row.conn.kind === 'postgres' || menu.row.conn.kind === 'mysql') && <li onClick={() => set({ sessionMonitor: menu.row.conn.id })}><Icon id="server" />Sessions &amp; Locks…</li>}
+            {menu.row.conn.kind === 'postgres' && <li onClick={() => set({ debugPicker: menu.row.conn.id })}><Icon id="debug-alt" />Debug Stored Routine…</li>}
             <li onClick={() => void refresh(menu.row.conn.id)}><Icon id="refresh" />Refresh</li>
             <hr />
             <li onClick={() => set({ dialog: { editing: menu.row.conn } })}><Icon id="settings-gear" />Properties…</li>

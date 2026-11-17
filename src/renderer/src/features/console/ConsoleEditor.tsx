@@ -175,6 +175,7 @@ export function ConsoleEditor({ tab, visible }: { tab: ConsoleTab; visible: bool
             <button title="Execute script (Ctrl/⌘+Shift+Enter)" disabled={tab.running} onClick={() => exec(true)}><Icon id="run-all" /></button>
             <button title="Format SQL (Ctrl/⌘+Shift+F)" disabled={!sqlKind} onClick={format}><Icon id="list-ordered" /></button>
             <button title="Explain execution plan" disabled={!sqlKind || tab.planning} onClick={explain}><Icon id="type-hierarchy" /></button>
+            {conn?.kind === 'postgres' && <button title="Debug a stored routine…" onClick={() => set({ debugPicker: tab.connectionId })}><Icon id="debug-alt" /></button>}
             <button title="Save to query library" onClick={() => void saveQuery()}><Icon id="file-down" /></button>
             <button title="Cancel (Ctrl/⌘+F2)" disabled={!tab.running} onClick={() => void cancel(tab.id)}><Icon id="debug-stop" /></button>
             <div className="menu-host">

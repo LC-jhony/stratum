@@ -4,8 +4,9 @@ import type { DriverJar } from './drivers'
 import type { ExtensionView } from './extensions'
 import type { ScheduledTask, TaskFormat, TaskInput } from './tasks'
 import type {
-  ConnectionConfig, ConnectionTestResult, ConnectionView, DatabaseModel, QueryPlan, QueryResult, SavedQuery, SessionInfo,
-  SessionStateChange, ThemeFile, ThemeManifestEntry, TransactionState,
+  ConnectionConfig, ConnectionTestResult, ConnectionView, DatabaseModel, DebugProbe, DebugRoutine,
+  DebugSnapshot, QueryPlan, QueryResult, SavedQuery, SessionInfo, SessionStateChange, ThemeFile,
+  ThemeManifestEntry, TransactionState,
 } from './types'
 import type { UpdateState } from './update'
 
@@ -58,6 +59,26 @@ export interface StratumApi {
     /** Server sessions/locks (PostgreSQL, MySQL). */
     sessions(id: string): Promise<SessionInfo[]>
     killSession(id: string, pid: number | string): Promise<void>
+  }
+  debug: {
+    /** Whether pldbgapi/plugin_debugger is installed; never throws for a missing extension. */
+    probe(id: string): Promise<DebugProbe>
+    /** PL/pgSQL functions and procedures of the database, grouped by schema in the UI. */
+    routines(id: string): Promise<DebugRoutine[]>
+    /** Open a target session, stop it at the entry breakpoint and return the first snapshot. */
+    start(id: string, oid: number, values: string[]): Promise<DebugSnapshot>
+    snapshot(sessionId: string): Promise<DebugSnapshot>
+    resume(sessionId: string): Promise<DebugSnapshot>
+    stepOver(sessionId: string): Promise<DebugSnapshot>
+    stepInto(sessionId: string): Promise<DebugSnapshot>
+    selectFrame(sessionId: string, level: number): Promise<DebugSnapshot>
+    setBreakpoint(sessionId: string, oid: number, line: number, enabled: boolean): Promise<DebugSnapshot>
+    /** Assign a SQL expression to a variable of the focused frame. */
+    setVariable(sessionId: string, name: string, line: number, value: string): Promise<DebugSnapshot>
+    /** Abort the target, roll back and close both connections. */
+    stop(sessionId: string): Promise<DebugSnapshot>
+    /** Remove the session after the tab closes. */
+    close(sessionId: string): Promise<void>
   }
   library: {
     /** Named SQL statements, newest edit first. */

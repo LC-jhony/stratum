@@ -212,6 +212,112 @@ export interface QueryResult extends RawResult {
   error?: string
 }
 
+/* ------------------------------------------------------------------ PL/pgSQL debugger */
+
+/** One argument of a routine as PostgreSQL reports it. */
+export interface DebugRoutineArgument {
+  /** Parameter name, or `arg1`, `arg2`… when the routine does not name it. */
+  name: string
+  /** Canonical SQL type (`integer`, `character varying`, `public.my_type`). */
+  type: string
+  /** Trailing input parameter with a DEFAULT: it may be left empty. */
+  optional: boolean
+}
+
+/** A debuggable PostgreSQL routine (PL/pgSQL function or procedure). */
+export interface DebugRoutine {
+  oid: number
+  schema: string
+  name: string
+  kind: 'function' | 'procedure'
+  language: string
+  /** Human-readable input signature, e.g. `(id integer, name text)`. */
+  signature: string
+  returnType: string
+  returnsSet: boolean
+  /** VARIADIC input: the generated call would need an ARRAY[...] expression. */
+  variadic: boolean
+  arguments: DebugRoutineArgument[]
+}
+
+/** Where the target is stopped after a breakpoint or a step. */
+export interface DebugBreakpoint {
+  oid: number
+  /** 1-based line inside the routine body; a negative value means "at the entry". */
+  line: number
+  target?: string
+}
+
+/** One PL/pgSQL call-stack frame, deepest first (`level` 0 is the current one). */
+export interface DebugFrame {
+  level: number
+  name: string
+  oid: number
+  line: number
+  args: string
+}
+
+/** One local variable or parameter of the focused frame. */
+export interface DebugVariable {
+  name: string
+  /** Declaration line in the routine body (0 when not reported). */
+  line: number
+  unique: boolean
+  constant: boolean
+  notNull: boolean
+  typeOid: number
+  /** Formatted type name; falls back to `oid N` when the catalog lookup fails. */
+  type: string
+  value: string | null
+}
+
+/** Source body of the function currently shown. */
+export interface DebugSource {
+  oid: number
+  schema: string
+  name: string
+  text: string
+}
+
+/** Outcome of the target invocation (only the first rows are kept for the panel). */
+export interface DebugResult {
+  sql: string
+  durationMs: number
+  columns: ColumnMeta[]
+  rows: unknown[][]
+  /** More rows were returned than the debugger kept. */
+  truncated: boolean
+  error?: string
+}
+
+export type DebugStatus = 'paused' | 'running' | 'finished' | 'failed' | 'stopped'
+
+/** Everything the debug tab needs after a start or a step command. */
+export interface DebugSnapshot {
+  id: string
+  status: DebugStatus
+  routine: DebugRoutine
+  breakpoint?: DebugBreakpoint
+  frames: DebugFrame[]
+  /** Level of the frame whose variables and source are shown. */
+  selectedFrame: number
+  source?: DebugSource
+  variables: DebugVariable[]
+  /** Breakpoints registered on the target, mirrored for the gutter. */
+  breakpoints: DebugBreakpoint[]
+  result?: DebugResult
+  error?: string
+}
+
+/** Whether the pldebugger proxy is installed in this database. */
+export interface DebugProbe {
+  available: boolean
+  serverVersion?: string
+  proxyApiVersion?: number
+  error?: string
+  hint?: string
+}
+
 export interface ColumnInfo {
   name: string
   dataType: string

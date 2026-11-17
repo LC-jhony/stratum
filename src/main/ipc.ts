@@ -5,6 +5,7 @@ import { listDockerContainers } from './services/docker'
 import type { AiService } from './services/aiService'
 import type { ConnectionManager } from './services/connectionManager'
 import type { ConnectionService } from './services/connectionService'
+import type { DebugService } from './services/debugService'
 import type { DesktopService } from './services/desktopService'
 import type { DriverService } from './services/driverService'
 import type { ExtensionService } from './services/extensionService'
@@ -32,6 +33,11 @@ import {
   savepointNameSchema,
   scriptPathSchema,
   taskInputSchema,
+  debugOidSchema,
+  debugLineSchema,
+  debugFrameSchema,
+  debugSessionIdSchema,
+  debugValuesSchema,
 } from './ipc/schemas'
 type Handlers = { [G in keyof StratumApi]: StratumApi[G] extends Record<string, (...a: any[]) => any> ? StratumApi[G] : never }
 /** Main-process side of the API: renderer-bound callbacks such as onState live in preload only. */
@@ -46,6 +52,7 @@ type Handler = (...args: any[]) => unknown
 export interface IpcDependencies {
   connections: ConnectionService
   sessions: ConnectionManager
+  debug: DebugService
   settings: SettingsService
   history: HistoryService
   library: QueryLibraryService
@@ -78,7 +85,7 @@ export function registerIpc(d: IpcDependencies) {
     })
   }
 
-  const api: Pick<IpcHandlers, 'connections' | 'db' | 'themes' | 'settings' | 'history' | 'library' | 'ai' | 'tasks' | 'extensions' | 'drivers' | 'dialogs' | 'script' | 'export' | 'docker' | 'update' | 'window'> = {
+  const api: Pick<IpcHandlers, 'connections' | 'db' | 'debug' | 'themes' | 'settings' | 'history' | 'library' | 'ai' | 'tasks' | 'extensions' | 'drivers' | 'dialogs' | 'script' | 'export' | 'docker' | 'update' | 'window'> = {
     connections: {
       list: () => d.connections.list(),
       save: (c) => d.connections.save(c),
@@ -105,6 +112,20 @@ export function registerIpc(d: IpcDependencies) {
       releaseSavepoint: (id, name) => d.sessions.require(id).releaseSavepoint(name),
       sessions: (id) => d.sessions.require(id).sessions(),
       killSession: (id, pid) => d.sessions.require(id).killSession(pid),
+    },
+    debug: {
+      probe: (id) => d.debug.probe(id),
+      routines: (id) => d.debug.routines(id),
+      start: (id, oid, values) => d.debug.start(id, oid, values),
+      snapshot: (sessionId) => d.debug.snapshot(sessionId),
+      resume: (sessionId) => d.debug.step(sessionId, 'continue'),
+      stepOver: (sessionId) => d.debug.step(sessionId, 'step_over'),
+      stepInto: (sessionId) => d.debug.step(sessionId, 'step_into'),
+      selectFrame: (sessionId, level) => d.debug.selectFrame(sessionId, level),
+      setBreakpoint: (sessionId, oid, line, enabled) => d.debug.setBreakpoint(sessionId, oid, line, enabled),
+      setVariable: (sessionId, name, line, value) => d.debug.setVariable(sessionId, name, line, value),
+      stop: (sessionId) => d.debug.stop(sessionId),
+      close: (sessionId) => d.debug.close(sessionId),
     },
     themes: {
       list: () => d.themes.list(),
@@ -200,6 +221,14 @@ export function registerIpc(d: IpcDependencies) {
     plan: [idSchema, sqlSchema], transaction: [idSchema], begin: [idSchema], commit: [idSchema], rollback: [idSchema],
     savepoint: [idSchema, savepointNameSchema], rollbackToSavepoint: [idSchema, savepointNameSchema], releaseSavepoint: [idSchema, savepointNameSchema],
     sessions: [idSchema], killSession: [idSchema, sessionIdSchema],
+  })
+  route('debug', api.debug as unknown as Record<string, Handler>, {
+    probe: [idSchema], routines: [idSchema], start: [idSchema, debugOidSchema, debugValuesSchema],
+    snapshot: [debugSessionIdSchema], resume: [debugSessionIdSchema], stepOver: [debugSessionIdSchema], stepInto: [debugSessionIdSchema],
+    selectFrame: [debugSessionIdSchema, debugFrameSchema],
+    setBreakpoint: [debugSessionIdSchema, debugOidSchema, debugLineSchema, z.boolean()],
+    setVariable: [debugSessionIdSchema, z.string().min(1).max(200), z.number().int().min(0).max(2_147_483_647), z.string().max(1_000_000)],
+    stop: [debugSessionIdSchema], close: [debugSessionIdSchema],
   })
   route('themes', api.themes as unknown as Record<string, Handler>, {
     list: [], read: [themePathSchema], importVsCodeExtensions: [],

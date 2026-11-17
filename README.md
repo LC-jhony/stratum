@@ -28,6 +28,7 @@ on macOS, and themed minimize/maximize/close controls on Linux (including Waylan
 - [The workbench](#the-workbench)
 - [SQL completion](#sql-completion)
 - [Query console](#query-console)
+- [Stored-routine debugger](#stored-routine-debugger)
 - [Results grid](#results-grid)
 - [Table data editor](#table-data-editor)
 - [Exporting data](#exporting-data)
@@ -67,6 +68,10 @@ on macOS, and themed minimize/maximize/close controls on Linux (including Waylan
   per-connection history, DataGrip-style SQL parameter prompts, dialect-aware **Format SQL**
   (`Ctrl/⌘+Shift+F`, formats the selection or the whole buffer), and optional session restore that
   reopens SQL consoles with their text after a restart.
+- **Stored-routine debugger.** PL/pgSQL functions and procedures on PostgreSQL via `pldbgapi`:
+  entry and gutter breakpoints, Continue / Step over / Step into, call stack, live variables and the
+  routine result. The target runs in a transaction that is never committed; Stop aborts and rolls it
+  back.
 - **DataGrip-style completion.** Dialect-aware suggestions for 23 SQL dialects: aliases, qualified
   names, INSERT auto-fill, JOIN generation from foreign keys, live templates and a DataGrip-like
   ranker (match quality, label length, word usage).
@@ -98,6 +103,7 @@ on macOS, and themed minimize/maximize/close controls on Linux (including Waylan
 | Development | Node.js 22.12+ and npm (Node 24 LTS is also supported) |
 | Running from source, Linux | an X11/Wayland session; `xvfb` only for `npm run smoke` |
 | JDBC data sources | Java 11+ on `PATH`, or a `JAVA_HOME` configured in Settings |
+| PL/pgSQL debugger | PostgreSQL 11+ with `pldbgapi` installed and `plugin_debugger` in `shared_preload_libraries` |
 | Everything else | bundled (Electron ships Chromium + Node; SQLite runs as WASM, so no native build step) |
 
 ## Install
@@ -288,7 +294,7 @@ compromised GitHub release account.
 
 | Connection type | Driver | Notes |
 |---|---|---|
-| PostgreSQL | `pg` (bundled) | SSL toggle; read-only enforced with `default_transaction_read_only`. |
+| PostgreSQL | `pg` (bundled) | SSL toggle; read-only enforced with `default_transaction_read_only`; PL/pgSQL debugger with `pldbgapi`. |
 | MySQL / MariaDB | `mysql2` (bundled) | SSL toggle; read-only enforced with `session transaction read only`; big numbers arrive as strings. |
 | SQLite | `sql.js` (WASM, bundled) | No native modules; file or `:memory:`; writes persist to the file after each write outside an open transaction. |
 | MongoDB | `mongodb` (bundled) | Documents, not SQL: the console speaks mongosh-style expressions, collections load read-only in the data editor, and the Explorer shows databases → collections → sampled fields and indexes. |
@@ -522,8 +528,8 @@ The window is the familiar IDE layout:
 - **Side bar:** the Database Explorer tree. Rows show connection state (color-coded), the server
   version, schema table counts, table/view icons, and for columns their data type, `not null`
   marker and PK/FK coloring; indexes show their columns and a `unique` badge.
-- **Editor area:** tabs for consoles, table editors and diagrams. Console titles are numbered per
-  connection (`shop.db console`, `shop.db [2]`…).
+- **Editor area:** tabs for consoles, table editors, diagrams and live debug sessions. Console
+  titles are numbered per connection (`shop.db console`, `shop.db [2]`…).
 - **Status bar:** the active data source with its version, and the active color theme (click to
   change it).
 
@@ -582,6 +588,29 @@ node scripts/datagrip-catalog.mjs keywords.json tokens.json <functions-dir> src/
 - **Paging.** Results fetch `query.pageSize` rows (default 100) at a time; the results footer offers
   **Fetch next N** and **Fetch all** (capped at 50 pages per click, cancellable). The meta line
   shows `rows[+] · duration`.
+
+## Stored-routine debugger
+
+PostgreSQL only, and the server must expose the `pldbgapi` proxy
+(`plugin_debugger` in `shared_preload_libraries`). Open it from the bug button in a PostgreSQL
+console toolbar, the data-source context menu, or **Debug Stored Routine…** in the command palette.
+
+- **Picker.** Searches PL/pgSQL functions and procedures, groups them by schema, and fills their
+  parameters. Each value is a SQL expression (`42`, `'ana'`, `now()`) cast to the declared type;
+  parameters with defaults may be omitted at the end. The dialog previews the exact target call.
+- **Session.** The routine stops at its entry breakpoint, on its first executable statement. The
+  source opens read-only; click the gutter to toggle breakpoints, then use **Continue**, **Step
+  over** or **Step into**. The stack, variables and result update after every stop. Click a
+  variable value to assign a new SQL expression.
+- **Safety.** The target lives in an explicit transaction that the debugger never commits. **Stop**,
+  closing the tab, or quitting aborts the target and rolls the transaction back. Stop also works
+  while a step is blocked. Rollback covers transactional changes; sequence increments and external
+  calls made by the routine are not undone.
+- **Limits.** One routine invocation per session; global breakpoints and MySQL debugging are not
+  exposed. PostgreSQL 10 and older lack `pg_proc.prokind` and are not supported.
+
+The implementation notes — two-connection attach, `PLDBGBREAK` port handling, extended-protocol
+safety and transaction rules — are in [docs/architecture/phase-12.md](docs/architecture/phase-12.md).
 
 ## Results grid
 
@@ -783,7 +812,8 @@ src/main       Electron main
   db/            providers: Transport (wire) × Dialect (SQL/model) = DbSession
   services/      ConnectionService, ConnectionManager, SessionFactory, SSH tunnels,
                  Docker helper, JsonStore, SettingsService, DesktopService,
-                 ThemeService, JdbcSidecar
+                 ThemeService, JdbcSidecar, DebugService
+  debug/         PL/pgSQL session: catalog, two-connection attach, pldbg_* commands
 src/preload    contextBridge: one typed `window.stratum` object
 src/renderer   React workbench
   ipc/           the single typed renderer-side bridge
@@ -791,7 +821,7 @@ src/renderer   React workbench
   theme/         color → CSS vars + Monaco theme · file icon themes · product icon themes
   ui/            theme-aware icons, data grid, export menu, value dialog
   erd/           graph build → ELK placement → own orthogonal routing → pure SVG renderer
-  features/      connections · console · table · ERD · explorer · settings
+  features/      connections · console · table · ERD · explorer · settings · debug
   workbench/     app shell: command palette and tab strip
 ```
 
@@ -999,6 +1029,7 @@ offline and repeatable.
 | Suite | Covers |
 |---|---|
 | `db.test.ts` | DbSession paging, errors-as-results, transactional submit, read-only; introspection of tables/views/PKs/FKs/indexes; ERD layout, overlap and themed SVG; engine-specific introspection (Oracle, ClickHouse, Cassandra, SAP ASE, Db2) against a fake runner. |
+| `debug.test.ts` | `PLDBGBREAK` port notices, routine validation (language, triggers, pseudo-types, VARIADIC), quoted and cast target calls, default omission, and source/breakpoint line rules. |
 | `sql.test.ts` | Statement splitting (quotes, dollar-quoting, comments), caret semantics, `returnsRows`, DML generation. |
 | `sqlComplete.test.ts` | Alias scoping, qualified names, INSERT auto-fill, FK join generation, preferences, dialect catalogs and template gating. |
 | `sqlRank.test.ts` | Ranking signals: exact/prefix/middle/greedy, shorter labels, usage lift, bucket dominance. |
@@ -1065,6 +1096,15 @@ deletes.
 Live Docker checks need a daemon: `STRATUM_TEST_DOCKER=unix:///var/run/docker.sock` (or
 `tcp://127.0.0.1:2375`) and `npx vitest run tests/dockerLive.test.ts` — two read-only container
 listings and the published-port shape.
+
+Live PL/pgSQL debugger checks need a PostgreSQL with `pldbgapi` installed and `plugin_debugger`
+preloaded, plus the demo routines from `tests/debugLive.test.ts`. Set `STRATUM_PG_DEBUG=1` and,
+when the server is not the local disposable one, `STRATUM_PG_HOST`, `STRATUM_PG_PORT`,
+`STRATUM_PG_USER`, `STRATUM_PG_PASSWORD` and `STRATUM_PG_DATABASE`; then run
+`npx vitest run tests/debugLive.test.ts` — attach, entry stop, line breakpoint, variable edit,
+target result and rollback. The UI equivalent is
+`STRATUM_SMOKE=$PWD/scripts/smoke-debug.js`, described in
+[docs/architecture/phase-12.md](docs/architecture/phase-12.md).
 
 The smoke run complements them with an end-to-end pass through the real Electron renderer.
 
@@ -1163,6 +1203,7 @@ src/
     sqlParams.ts     SQL parameter patterns and substitution
     sqlFormat.ts     dialect-aware Format SQL (sql-formatter)
     workspace.ts     versioned console snapshot used by session restore
+    debug.ts         PL/pgSQL debugger rules: notices, validation, target call
     update.ts        update labels, progress and release-notes helpers
     quoting.ts       dialect identifier quoting
     gridView.ts      result filtering and sorting
@@ -1190,6 +1231,8 @@ src/
       rabbitmqDialect.ts  RabbitMQ model: vhosts as schemas, queues as tables
       normalize.ts   driver values -> JSON-safe values
       transports/    sqlite.ts · postgres.ts · mysql.ts · jdbc.ts · mongodb.ts · redis.ts · elastic.ts · cassandra.ts · s3.ts · ftp.ts · kafka.ts · rabbitmq.ts
+    debug/
+      postgresDebugSession.ts  two-connection pldbgapi attach, stack/variables, stop
     services/
       connectionService.ts  data-source metadata + lifecycle facade for IPC
       connectionManager.ts  live sessions per data source
@@ -1202,6 +1245,7 @@ src/
       store.ts              atomic JsonStore + safeStorage password sealing
       themeService.ts       theme discovery, import and asset protocol roots
       updateService.ts      electron-updater state machine, schedule and install
+      debugService.ts       debug session registry and SSH/proxy helper ownership
       jdbcSidecar.ts        shared jdbc-adapter-server process
   preload/index.ts  contextBridge: window.stratum
   renderer/src/

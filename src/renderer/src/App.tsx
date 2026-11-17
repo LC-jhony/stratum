@@ -11,6 +11,8 @@ import { applyFontPrefs } from './theme/fonts'
 import { applyAppearance } from './theme/appearance'
 import { CommandPalette, type PaletteItem } from './workbench/CommandPalette'
 import { ConsoleEditor } from './features/console/ConsoleEditor'
+import { DebugRoutineDialog } from './features/debug/DebugRoutineDialog'
+import { DebugView } from './features/debug/DebugView'
 import { DatasourceDialog } from './features/connections/DatasourceDialog'
 import { ErdView } from './features/erd/ErdView'
 import { Explorer } from './features/explorer/Explorer'
@@ -151,6 +153,12 @@ export function App() {
         else window.alert('The session monitor is available for PostgreSQL and MySQL data sources.')
         return
       }
+      case 'debug.open': {
+        const current = s.connections.find((c) => c.id === cur?.connectionId)
+        const postgres = current?.kind === 'postgres' ? current : s.connections.length === 1 && s.connections[0].kind === 'postgres' ? s.connections[0] : undefined
+        if (!postgres) { window.alert('Select a PostgreSQL data source before debugging a stored routine.'); return }
+        return s.openDebugPicker(postgres.id)
+      }
       case 'erd.open': return cur && isSqlKind(s.connections.find((c) => c.id === cur.connectionId)?.kind) ? s.openDiagram(cur.connectionId) : undefined
       case 'explorer.refresh': return void (cur && s.refresh(cur.connectionId))
       case 'datasource.reconnect': return void (cur && s.reconnect(cur.connectionId))
@@ -188,7 +196,7 @@ export function App() {
       else if (mod && !e.altKey && e.key.toLowerCase() === 's') { e.preventDefault(); void command(e.shiftKey ? 'script.saveAs' : 'script.save') }
       else if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') { e.preventDefault(); void command('script.open') }
       else if (mod && !e.shiftKey && !e.altKey && e.key === '1') { e.preventDefault(); void command('view.explorer') }
-      if (e.key === 'Escape') set({ palette: null, dialog: null, objectSearchOpen: false, libraryOpen: false, extensionsOpen: false, driverManagerOpen: false, sessionMonitor: undefined })
+      if (e.key === 'Escape') set({ palette: null, dialog: null, objectSearchOpen: false, libraryOpen: false, extensionsOpen: false, driverManagerOpen: false, sessionMonitor: undefined, debugPicker: undefined })
     }
     // Capture: Monaco consumes some modified keys before they reach the window bubble phase.
     addEventListener('keydown', h, true); return () => removeEventListener('keydown', h, true)
@@ -215,6 +223,7 @@ export function App() {
       { id: 'search-objects', label: 'Search Database Objects…', hint: ipc.platform === 'darwin' ? '⇧⌘O' : 'Ctrl+Shift+O', run: () => void command('object.search') },
       { id: 'library', label: 'Open Saved Queries…', hint: ipc.platform === 'darwin' ? '⌥⌘L' : 'Ctrl+Alt+L', run: () => void command('library.open') },
       { id: 'sessions', label: 'Sessions & Locks…', run: () => void command('session.monitor') },
+      { id: 'debug', label: 'Debug Stored Routine…', run: () => void command('debug.open') },
       { id: 'erd', label: 'Show Diagram for Current Data Source', run: () => void command('erd.open') },
       { id: 'refresh', label: 'Refresh Database Explorer', run: () => void command('explorer.refresh') },
       { id: 'format', label: 'Format SQL', hint: ipc.platform === 'darwin' ? '⇧⌘F' : 'Ctrl+Shift+F', run: () => void command('sql.format') },
@@ -268,7 +277,7 @@ export function App() {
           {tabs.map((t) => (
             <div key={t.id} className="tab-body" style={{ display: t.id === activeTab ? 'flex' : 'none' }}>
               <ErrorBoundary>
-                {t.type === 'console' ? <ConsoleEditor tab={t} visible={t.id === activeTab} /> : t.type === 'table' ? <TableEditor tab={t} visible={t.id === activeTab} /> : t.type === 'diagram' ? <ErdView tab={t} visible={t.id === activeTab} /> : t.type === 'designer' ? <DesignerEditor tab={t} /> : null}
+                {t.type === 'console' ? <ConsoleEditor tab={t} visible={t.id === activeTab} /> : t.type === 'table' ? <TableEditor tab={t} visible={t.id === activeTab} /> : t.type === 'diagram' ? <ErdView tab={t} visible={t.id === activeTab} /> : t.type === 'debug' ? <DebugView tab={t} visible={t.id === activeTab} /> : t.type === 'designer' ? <DesignerEditor tab={t} /> : null}
               </ErrorBoundary>
             </div>
           ))}
@@ -292,6 +301,7 @@ export function App() {
       <ExtensionsDialog />
       <DriverManagerDialog />
       <SessionMonitorDialog />
+      <DebugRoutineDialog />
       <AdminDialog />
       <ImportDialog />
     </div>
