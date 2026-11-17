@@ -10,6 +10,14 @@ describe('appearance.mode coercion', () => {
   it('rejects unknown values', () => expect(mergeSettings({ 'appearance.mode': 'sepia' })['appearance.mode']).toBe('system'))
 })
 
+describe('fileIconTheme default', () => {
+  it('starts with Dawn and still allows an explicit None', () => {
+    expect(mergeSettings(undefined)['fileIconTheme']).toBe('builtin:dawn.json')
+    expect(mergeSettings({ fileIconTheme: null })['fileIconTheme']).toBeNull()
+    expect(mergeSettings({ fileIconTheme: 'user:custom.json' })['fileIconTheme']).toBe('user:custom.json')
+  })
+})
+
 describe('workbench.sideBar.position coercion', () => {
   it('defaults to left', () => expect(mergeSettings(undefined)['workbench.sideBar.position']).toBe('left'))
   it('keeps right', () => expect(mergeSettings({ 'workbench.sideBar.position': 'right' })['workbench.sideBar.position']).toBe('right'))

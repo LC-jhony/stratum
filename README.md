@@ -716,6 +716,13 @@ Switching modes moves to the active theme's sibling when one exists ("Min Dark" 
 theme explicitly pins its kind, like VS Code. `scripts/improve-themes.py` regenerates the improved
 Carbon themes (visible borders, `tree.tableColumnsBorder`, `charts.*`) from the originals.
 
+**Settings ▸ Appearance** keeps the choice deliberately small: Theme is System / Light / Dark,
+Palette is Carbon / Min, and File icons is Dawn / Deep / Dim / You. The palette applies its dark or
+light variant according to the theme (and the OS in System mode); each file icon theme switches
+between its dark and light assets through the same palette. Imported themes remain available from
+the command palette (`Ctrl+K Ctrl+T`), the View menu and the status-bar theme button. Details in
+[docs/architecture/phase-14.md](docs/architecture/phase-14.md).
+
 ## Settings
 
 Settings live in `<userData>/settings.json` and are editable both in the dialog (`Ctrl+Alt+S`, macOS
@@ -726,6 +733,7 @@ coerced to safe values, and *Restore defaults* resets everything.
 | Key | Default | Meaning |
 |---|---|---|
 | `appearance.mode` | `system` | `dark` / `light` pin a theme kind; `system` follows the OS. |
+| `fileIconTheme` | `builtin:dawn.json` | Dawn / Deep / Dim / You; `null` keeps the built-in icons. |
 | `workbench.sideBar.position` | `left` | `left` / `right`; moves activity bar and side bar together. |
 | `workbench.restoreTabs` | `true` | Reopen SQL consoles (text only) after a restart. |
 | `editor.fontFamily` | `""` | Monospace family; empty keeps the built-in chain (JetBrains Mono, SF Mono…). |
@@ -747,7 +755,7 @@ coerced to safe values, and *Restore defaults* resets everything.
 | `jdbc.javaHome` | `""` | Java home for the sidecar; empty uses `java` from `PATH`. |
 | `update.autoCheck` | `true` | Check GitHub Releases shortly after launch and every four hours. |
 | `update.autoDownload` | `true` | Download an available update in the background; installing still needs a restart. |
-| `colorTheme`, `fileIconTheme`, `productIconTheme`, `colorScheme`, `windowBackground`, `titleBarBackground`, `titleBarForeground` | — | Managed by the theme manager. |
+| `colorTheme`, `productIconTheme`, `colorScheme`, `windowBackground`, `titleBarBackground`, `titleBarForeground` | — | Managed by the theme manager. |
 
 ## Updates
 
@@ -1051,8 +1059,8 @@ offline and repeatable.
 | `sqlRank.test.ts` | Ranking signals: exact/prefix/middle/greedy, shorter labels, usage lift, bucket dominance. |
 | `phase2.test.ts` | SQL parameter patterns and substitution; export formats (BOM, quoting, JSON, dialect-quoted INSERTs). |
 | `gridView.test.ts` | Row filtering and column sorting (numbers, nulls, stability). |
-| `settings.test.ts` / `store.test.ts` | Settings coercion and dialog preview semantics. |
-| `theme.test.ts` | Color resolution and CSS vars, WCAG contrast repair, catalog dedupe, appearance modes and siblings, Monaco conversion, file/product icon themes. |
+| `settings.test.ts` / `store.test.ts` | Settings coercion, appearance defaults (Dawn file icons, explicit None) and dialog preview semantics. |
+| `theme.test.ts` | Color resolution and CSS vars, WCAG contrast repair, Carbon/Min palette families and mode resolution, catalog dedupe, appearance modes and siblings, Monaco conversion, file/product icon themes. |
 | `themeService.test.ts` | Theme classification (color, file-icon and product-icon, including font-based themes), normalization, include merging/cycles/escapes, size cap, mtime cache, stable catalog order and extension id preservation. |
 | `fileIcons.test.ts` | Bundled icon assets, association lookup, light twins, CSS glyph decoding, asset-scheme guard, URL escaping, font CSS sanitising and memoised resolution. |
 | `update.test.ts` | Update labels, progress and release notes; friendly failure diagnosis, state preservation after a failed check/download, and safe updater cache directory parsing. |

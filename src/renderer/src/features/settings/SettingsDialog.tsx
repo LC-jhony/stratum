@@ -2,10 +2,8 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { ipc } from '../../ipc/client'
 import { DEFAULT_SETTINGS, mergeSettings, type AppearanceMode, type AppLocale, type KeywordCase, type SideBarPosition, type StratumSettings, type UiFont } from '../../../../core/settings'
 import { LOCALE_LABEL, LOCALES } from '../../../../core/i18n'
-import type { ThemeManifestEntry } from '../../../../shared/types'
 import { useWorkbench } from '../../store/workbench'
-import { themes } from '../../theme/themeManager'
-import { themeKind, type ColorThemeJson } from '../../theme/colorTheme'
+import { fileIconFamily, fileIconTheme, paletteOf, paletteTheme, themes, type FileIconThemeId, type PaletteId } from '../../theme/themeManager'
 import { resolveFileIconById, type FileIconThemeJson } from '../../theme/fileIconTheme'
 import { clampUiFontSize, MAX_UI_FONT_SIZE, MIN_UI_FONT_SIZE } from '../../theme/appearance'
 import { MONO_FONTS, systemFonts } from '../../theme/fonts'
@@ -22,9 +20,21 @@ const KEYWORD_CASES: { id: KeywordCase; label: string }[] = [
 ]
 
 const MODES: { id: AppearanceMode; label: string; hint: string }[] = [
+  { id: 'system', label: 'System', hint: 'Follow the OS color scheme' },
   { id: 'light', label: 'Light', hint: 'Always use a light theme' },
   { id: 'dark', label: 'Dark', hint: 'Always use a dark theme' },
-  { id: 'system', label: 'System', hint: 'Follow the OS color scheme' },
+]
+
+const PALETTES: { id: PaletteId; label: string; hint: string }[] = [
+  { id: 'carbon', label: 'Carbon', hint: 'Carbon palette, dark or light according to the theme' },
+  { id: 'min', label: 'Min', hint: 'Min palette, dark or light according to the theme' },
+]
+
+const FILE_ICONS: { id: FileIconThemeId; label: string }[] = [
+  { id: 'dawn', label: 'Dawn' },
+  { id: 'deep', label: 'Deep' },
+  { id: 'dim', label: 'Dim' },
+  { id: 'you', label: 'You' },
 ]
 
 const UI_FONTS: { id: UiFont; label: string; hint: string }[] = [
@@ -62,7 +72,7 @@ export function SettingsDialog() {
   const [json, setJson] = useState(() => JSON.stringify(mergeSettings(prefs), null, 2))
   const [err, setErr] = useState<string>()
   const [fonts, setFonts] = useState<string[]>(MONO_FONTS)
-  const [iconPreview, setIconPreview] = useState<Record<string, string>>({})
+  const [iconPreview, setIconPreview] = useState<Record<string, { dark?: string; light?: string }>>({})
   /** The renderer never receives the API key: only whether settings.json holds one. */
   const [hasKey, setHasKey] = useState(false)
   const [clearKey, setClearKey] = useState(false)
@@ -72,16 +82,22 @@ export function SettingsDialog() {
   const appearance0 = useRef(appearanceOf(prefs))
   useEffect(() => { let live = true; void systemFonts().then((sys) => { if (live && sys.length) setFonts([...MONO_FONTS, ...sys.filter((f) => !MONO_FONTS.includes(f))]) }); return () => { live = false } }, [])
   useEffect(() => { let live = true; void ipc.settings.get().then((s) => { if (live) setHasKey(s['ai.hasKey'] === true) }).catch(() => undefined); return () => { live = false } }, [])
-  // One representative icon per installed file-icon theme, so the picker previews what it applies.
+  // One representative icon per bundled file-icon theme, in both flavours, so the picker matches what
+  // the active palette will apply to the tree.
   useEffect(() => {
     let live = true
     void (async () => {
-      const out: Record<string, string> = {}
-      for (const entry of themes.catalog.filter((e) => e.kind === 'fileIcon')) {
+      const out: Record<string, { dark?: string; light?: string }> = {}
+      for (const entry of themes.catalog.filter((e) => e.kind === 'fileIcon' && fileIconFamily(e) !== undefined)) {
         try {
           const file = await ipc.themes.read(entry.path)
-          const icon = resolveFileIconById(file.json as FileIconThemeJson, file.baseUrl, 'folder_database')
-          if (icon?.kind === 'image') out[entry.id] = icon.url
+          const json = file.json as FileIconThemeJson
+          const dark = resolveFileIconById(json, file.baseUrl, 'folder_database', false)
+          const light = resolveFileIconById(json, file.baseUrl, 'folder_database', true)
+          out[entry.id] = {
+            dark: dark?.kind === 'image' ? dark.url : undefined,
+            light: light?.kind === 'image' ? light.url : undefined,
+          }
         } catch { /* unreadable theme: keep the picker text-only */ }
       }
       if (live) setIconPreview(out)
@@ -93,18 +109,14 @@ export function SettingsDialog() {
   const previewAppearance = (p: Partial<StratumSettings>) => { up(p); previewPrefs(p) }
   /** Color mode previews instantly (the workbench re-themes behind the dialog); Cancel restores the mode on open. */
   const pickMode = (id: AppearanceMode) => { up({ 'appearance.mode': id }); void themes.applyMode(id) }
-  /** Color theme picker: previews in memory only (like the mode); OK persists whatever theme ends up active. */
-  const pickTheme = async (id: string) => {
-    const entry = themes.catalog.find((e) => e.kind === 'color' && e.id === id)
-    if (!entry) return
-    await themes.set(entry, false)
-    const picked = themes.active.color?.json as ColorThemeJson | undefined
-    if (picked) up({ 'appearance.mode': themeKind(picked) }) // Picking a theme pins its kind, exactly like the palette.
+  /** Palette picker: the family is fixed, the dark or light variant follows the selected theme. */
+  const pickPalette = async (id: PaletteId) => {
+    const entry = paletteTheme(id, themes.mode, window.matchMedia('(prefers-color-scheme: dark)').matches, themes.catalog)
+    if (entry) await themes.set(entry, false)
   }
   /** File icon themes repaint the tree and tabs while the dialog is open; Cancel restores the previous one. */
-  const pickFileIcons = async (id: string | null) => {
-    if (!id) return themes.clear('fileIcon')
-    const entry = themes.catalog.find((e) => e.kind === 'fileIcon' && e.id === id)
+  const pickFileIcons = async (id: FileIconThemeId) => {
+    const entry = fileIconTheme(id, themes.catalog)
     if (entry) await themes.set(entry, false)
   }
   /** Side bar position previews instantly too (store only, no disk write); Cancel restores the side on open. */
@@ -124,8 +136,14 @@ export function SettingsDialog() {
   const restore = () => {
     setDraft(DEFAULT_SETTINGS); setJson(JSON.stringify(DEFAULT_SETTINGS, null, 2))
     previewPrefs(appearanceOf(DEFAULT_SETTINGS))
-    void themes.applyMode(DEFAULT_SETTINGS['appearance.mode'])
-    void themes.clear('fileIcon')
+    void (async () => {
+      const mode = DEFAULT_SETTINGS['appearance.mode']
+      const palette = paletteTheme('carbon', mode, window.matchMedia('(prefers-color-scheme: dark)').matches, themes.catalog)
+      if (palette) await themes.set(palette, false)
+      await themes.applyMode(mode)
+      const icons = fileIconTheme('dawn', themes.catalog)
+      if (icons) await themes.set(icons, false)
+    })()
   }
   const apply = async () => {
     let parsed: Record<string, unknown>
@@ -150,13 +168,10 @@ export function SettingsDialog() {
     const model = !draft['ai.model'] || draft['ai.model'] === prev?.model ? next?.model ?? '' : draft['ai.model']
     up({ 'ai.provider': id, 'ai.endpoint': endpoint, 'ai.model': model })
   }
-  const colorThemes = themes.catalog.filter((e) => e.kind === 'color')
-  const fileIconThemes = themes.catalog.filter((e) => e.kind === 'fileIcon')
-  const themeGroups: { label: string; items: ThemeManifestEntry[] }[] = [
-    { label: 'Built-in', items: colorThemes.filter((e) => e.source === 'builtin') },
-    { label: 'User themes', items: colorThemes.filter((e) => e.source === 'user') },
-    { label: 'Extensions', items: colorThemes.filter((e) => e.source === 'vscode-extension') },
-  ].filter((g) => g.items.length > 0)
+  const activePalette = paletteOf(active.color?.entry)
+  const activeFileIcons = fileIconFamily(active.fileIcon?.entry)
+  const light = document.documentElement.dataset.theme === 'light'
+  const fileIconChoices = FILE_ICONS.map((t) => ({ ...t, entry: fileIconTheme(t.id, themes.catalog) }))
   const F = ({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) => <label className={`field ${wide ? 'span-2' : ''}`}><span>{label}</span>{children}</label>
   const Check = ({ label, k }: { label: string; k: keyof StratumSettings }) => <label className="check span-2"><input type="checkbox" checked={!!draft[k]} onChange={(e) => up({ [k]: e.target.checked } as Partial<StratumSettings>)} /> {label}</label>
 
@@ -177,22 +192,26 @@ export function SettingsDialog() {
           <div className="field span-2"><span>Theme</span>
             <div className="seg" role="radiogroup" aria-label="Theme">{MODES.map((m) => <button key={m.id} type="button" role="radio" aria-checked={draft['appearance.mode'] === m.id} title={m.hint} className={draft['appearance.mode'] === m.id ? 'toggled' : ''} onClick={() => pickMode(m.id)}>{m.label}</button>)}</div>
           </div>
-          <F label="Color theme" wide>
-            <select value={active.color?.entry.id ?? ''} onChange={(e) => void pickTheme(e.target.value)}>
-              {themeGroups.map((g) => <optgroup key={g.label} label={g.label}>{g.items.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</optgroup>)}
-            </select>
-          </F>
-          <div className="field span-2"><span>File icons</span>
-            <div className="seg" role="radiogroup" aria-label="File icons">
-              <button type="button" role="radio" aria-checked={!active.fileIcon} className={!active.fileIcon ? 'toggled' : ''} onClick={() => void pickFileIcons(null)}>None</button>
-              {fileIconThemes.map((t) => (
-                <button key={t.id} type="button" role="radio" aria-checked={active.fileIcon?.entry.id === t.id} title={t.label} className={active.fileIcon?.entry.id === t.id ? 'toggled' : ''} onClick={() => void pickFileIcons(t.id)}>
-                  <span className="icon-opt">{iconPreview[t.id] && <img className="file-icon" src={iconPreview[t.id]} alt="" draggable={false} />}{t.label}</span>
-                </button>
-              ))}
+          <div className="field span-2"><span>Palette</span>
+            <div className="seg" role="radiogroup" aria-label="Palette">
+              {PALETTES.map((p) => <button key={p.id} type="button" role="radio" aria-checked={activePalette === p.id} title={p.hint} className={activePalette === p.id ? 'toggled' : ''} onClick={() => void pickPalette(p.id)}>{p.label}</button>)}
             </div>
           </div>
-          <p className="hint"><Icon id="file" /> Used by the database tree and the tab strip. Themes preview instantly; Cancel restores the one you opened with.</p>
+          {active.color && !activePalette && <p className="hint"><Icon id="symbol-color" /> Active theme: {active.color.entry.label}. Choosing Carbon or Min replaces it; other installed themes stay in the command palette.</p>}
+          <div className="field span-2"><span>File icons</span>
+            <div className="seg" role="radiogroup" aria-label="File icons">
+              {fileIconChoices.map((t) => {
+                const preview = t.entry ? iconPreview[t.entry.id] : undefined
+                const src = light ? preview?.light ?? preview?.dark : preview?.dark ?? preview?.light
+                return (
+                  <button key={t.id} type="button" role="radio" aria-checked={activeFileIcons === t.id} title={t.label} className={activeFileIcons === t.id ? 'toggled' : ''} onClick={() => void pickFileIcons(t.id)}>
+                    <span className="icon-opt">{src && <img className="file-icon" src={src} alt="" draggable={false} />}{t.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <p className="hint"><Icon id="file" /> Used by the database tree and the tab strip. Each theme has a dark and a light set; the active palette decides which one applies.</p>
           <div className="field span-2"><span>Font</span>
             <div className="seg" role="radiogroup" aria-label="Font">{UI_FONTS.map((f) => <button key={f.id} type="button" role="radio" aria-checked={draft['appearance.uiFont'] === f.id} title={f.hint} className={draft['appearance.uiFont'] === f.id ? 'toggled' : ''} onClick={() => previewAppearance({ 'appearance.uiFont': f.id })}>{f.label}</button>)}</div>
           </div>
@@ -204,7 +223,7 @@ export function SettingsDialog() {
           <div className="field span-2"><span>Side bar position</span>
             <div className="seg" role="radiogroup" aria-label="Side bar position">{SIDES.map((s) => <button key={s.id} type="button" role="radio" aria-checked={draft['workbench.sideBar.position'] === s.id} title={s.hint} className={draft['workbench.sideBar.position'] === s.id ? 'toggled' : ''} onClick={() => pickSide(s.id)}>{s.label}</button>)}</div>
           </div>
-          <p className="hint"><Icon id="symbol-field" /> Theme, File icons, Font, Text size and Compact preview live; Cancel restores the values you opened with.</p>
+          <p className="hint"><Icon id="symbol-field" /> Palette, File icons, Font, Text size and Compact preview live; Cancel restores the values you opened with.</p>
           <label className="check span-2"><input type="checkbox" checked={draft['workbench.sideBar.visible']} onChange={(e) => { up({ 'workbench.sideBar.visible': e.target.checked }); previewPrefs({ 'workbench.sideBar.visible': e.target.checked }) }} /> Show side bar</label>
           <Check label="Reopen SQL consoles after a restart" k="workbench.restoreTabs" />
 

@@ -6,7 +6,7 @@ import { contrastRatio, ensureContrast, parseHex, repairContrast } from '../src/
 import { pickIconId, resolveFileIcon } from '../src/renderer/src/theme/fileIconTheme'
 import { scopeToToken, toMonacoTheme } from '../src/renderer/src/theme/monacoTheme'
 import { hasProductIcon, productIconCss } from '../src/renderer/src/theme/productIconTheme'
-import { dedupeCatalog, pickThemeEntry, siblingTheme } from '../src/renderer/src/theme/themeManager'
+import { dedupeCatalog, fileIconFamily, fileIconTheme, kindForMode, paletteOf, paletteTheme, pickThemeEntry, siblingTheme } from '../src/renderer/src/theme/themeManager'
 
 const load = (n: string) => JSON.parse(readFileSync(`themes/${n}.json`, 'utf8'))
 
@@ -154,6 +154,56 @@ describe('appearance modes', () => {
   })
   it('matches extension themes by uiTheme when the name carries no kind word', () => {
     expect(pickThemeEntry('dark', true, catalog, nova, undefined)).toBe(nova)
+  })
+})
+describe('built-in palette and file icon families', () => {
+  const color = (id: string, label: string, uiTheme: ThemeManifestEntry['uiTheme'], source: ThemeManifestEntry['source'] = 'builtin'): ThemeManifestEntry =>
+    ({ id, label, kind: 'color', uiTheme, path: `/t/${id}`, source })
+  const icons = (id: string, label: string, source: ThemeManifestEntry['source'] = 'builtin'): ThemeManifestEntry =>
+    ({ id, label, kind: 'fileIcon', path: `/t/${id}`, source })
+  const carbonDark = color('builtin:carbon-dark.json', 'Carbon Dark', 'vs-dark')
+  const carbonLight = color('builtin:carbon-light.json', 'Carbon Light', 'vs')
+  const minDark = color('builtin:min-dark.json', 'Min Dark', 'vs-dark')
+  const minLight = color('builtin:min-light.json', 'Min Light', 'vs')
+  const nova = color('ext:acme.one:Nova:color', 'Nova', 'vs-dark', 'vscode-extension')
+
+  it('maps only Carbon and Min to a palette family', () => {
+    expect(paletteOf(carbonDark)).toBe('carbon')
+    expect(paletteOf(carbonLight)).toBe('carbon')
+    expect(paletteOf(minDark)).toBe('min')
+    expect(paletteOf(minLight)).toBe('min')
+    expect(paletteOf(nova)).toBeUndefined()
+    expect(paletteOf(undefined)).toBeUndefined()
+  })
+
+  it('resolves the family variant from the mode', () => {
+    const catalog = [carbonDark, carbonLight, minDark, minLight, nova]
+    expect(paletteTheme('carbon', 'dark', false, catalog)).toBe(carbonDark)
+    expect(paletteTheme('carbon', 'light', true, catalog)).toBe(carbonLight)
+    expect(paletteTheme('min', 'system', true, catalog)).toBe(minDark)
+    expect(paletteTheme('min', 'system', false, catalog)).toBe(minLight)
+    expect(kindForMode('system', false)).toBe('light')
+    expect(kindForMode('dark', false)).toBe('dark')
+  })
+
+  it('follows a user override kept by catalog dedupe', () => {
+    const local = color('user:carbon-dark.json', 'Carbon Dark', 'vs-dark', 'user')
+    const { catalog } = dedupeCatalog([carbonDark, carbonLight, local])
+    expect(paletteTheme('carbon', 'dark', false, catalog)).toBe(local)
+    expect(paletteOf(local)).toBe('carbon')
+  })
+
+  it('maps the four bundled file icon themes and ignores others', () => {
+    const dawn = icons('builtin:dawn.json', 'Dawn')
+    const deep = icons('builtin:deep.json', 'Deep')
+    const dim = icons('builtin:dim.json', 'Dim')
+    const you = icons('builtin:you.json', 'You')
+    const custom = icons('ext:acme.icons:Custom:fileIcon', 'Custom', 'vscode-extension')
+    const catalog = [dawn, deep, dim, you, custom]
+    expect(catalog.map((e) => fileIconFamily(e))).toEqual(['dawn', 'deep', 'dim', 'you', undefined])
+    expect(fileIconTheme('you', catalog)).toBe(you)
+    expect(fileIconTheme('dawn', catalog)).toBe(dawn)
+    expect(fileIconFamily(undefined)).toBeUndefined()
   })
 })
 describe('workbench css variables', () => {

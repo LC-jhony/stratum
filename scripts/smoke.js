@@ -115,12 +115,16 @@
   wb.getState().openSettings(); await sleep(500)
   const dlg = document.querySelector('.dialog[aria-label="Settings"]')
   const open = !!dlg, fields = dlg ? dlg.querySelectorAll('.field, .check').length : 0
+  const options = (label) => dlg ? [...dlg.querySelectorAll(`[aria-label="${label}"] [role=radio]`)].map((b) => b.textContent.trim()) : []
+  const selected = (label) => dlg?.querySelector(`[aria-label="${label}"] [role=radio][aria-checked="true"]`)?.textContent?.trim()
+  const palette = options('Palette'), fileIcons = options('File icons')
+  const selectedPalette = selected('Palette'), selectedFileIcons = selected('File icons')
   const prev = wb.getState().prefs['editor.fontSize']
   await wb.getState().savePrefs({ 'editor.fontSize': 15 })
   const persisted = (await window.stratum.settings.get())['editor.fontSize']
   await wb.getState().savePrefs({ 'editor.fontSize': prev })
   wb.getState().closeSettings(); await sleep(200)
-  return { open, fields, persisted, closed: !document.querySelector('.dialog[aria-label="Settings"]') }
+  return { open, fields, palette, fileIcons, selectedPalette, selectedFileIcons, persisted, closed: !document.querySelector('.dialog[aria-label="Settings"]') }
 })()
 //--- params
 (async () => {

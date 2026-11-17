@@ -32,6 +32,46 @@ const kindOfName = (s: string): 'dark' | 'light' | undefined => (/light/i.test(s
 /** Swaps the kind word in a name: "Min Dark" → "Min light", "min-dark.json" → "min-light.json". */
 const swapKindWord = (s: string, kind: 'dark' | 'light') => s.replace(/dark|light/i, kind)
 
+/** The kind a mode resolves to; System asks the OS. */
+export const kindForMode = (mode: AppearanceMode, osDark: boolean): 'dark' | 'light' => mode === 'system' ? (osDark ? 'dark' : 'light') : mode
+
+export type PaletteId = 'carbon' | 'min'
+export type FileIconThemeId = 'dawn' | 'deep' | 'dim' | 'you'
+
+const paletteLabel = (id: PaletteId) => id === 'carbon' ? 'Carbon' : 'Min'
+
+/** Family of a built-in color palette. Labels are matched because dedupe may keep a user override. */
+export function paletteOf(entry: ThemeManifestEntry | undefined): PaletteId | undefined {
+  if (!entry || entry.kind !== 'color') return undefined
+  const label = entry.label.trim().toLowerCase()
+  if (/^carbon(?:\s+(?:dark|light))?$/.test(label)) return 'carbon'
+  if (/^min(?:\s+(?:dark|light))?$/.test(label)) return 'min'
+  const builtin = entry.source === 'builtin' ? /^builtin:(carbon|min)-(?:dark|light)\.json$/.exec(entry.id) : null
+  return builtin ? builtin[1] as PaletteId : undefined
+}
+
+/** The palette variant for a mode: Carbon Dark/Light or Min Dark/Light. */
+export function paletteTheme(family: PaletteId, mode: AppearanceMode, osDark: boolean, catalog: ThemeManifestEntry[]): ThemeManifestEntry | undefined {
+  const kind = kindForMode(mode, osDark)
+  const label = `${paletteLabel(family)} ${kind === 'dark' ? 'Dark' : 'Light'}`
+  return catalog.find((e) => e.kind === 'color' && paletteOf(e) === family && e.label.trim().toLowerCase() === label.toLowerCase())
+    ?? catalog.find((e) => e.kind === 'color' && e.source === 'builtin' && e.id === `builtin:${family}-${kind}.json`)
+}
+
+/** Family of a bundled file icon theme; `undefined` for None or an imported theme. */
+export function fileIconFamily(entry: ThemeManifestEntry | undefined): FileIconThemeId | undefined {
+  if (!entry || entry.kind !== 'fileIcon') return undefined
+  const label = entry.label.trim().toLowerCase()
+  if (label === 'dawn' || label === 'deep' || label === 'dim' || label === 'you') return label
+  const builtin = entry.source === 'builtin' ? /^builtin:(dawn|deep|dim|you)\.json$/.exec(entry.id) : null
+  return builtin ? builtin[1] as FileIconThemeId : undefined
+}
+
+/** The bundled file icon theme for a family. Its `light` associations follow the active palette. */
+export function fileIconTheme(family: FileIconThemeId, catalog: ThemeManifestEntry[]): ThemeManifestEntry | undefined {
+  return catalog.find((e) => e.kind === 'fileIcon' && fileIconFamily(e) === family)
+}
+
 /**
  * Theme to apply for `kind`: the active theme's sibling (Min Dark ↔ Min Light, Carbon Dark ↔ Carbon Light),
  * else the bundled Carbon theme of that kind, else any theme of that kind.
@@ -51,7 +91,7 @@ export function siblingTheme(entry: ThemeManifestEntry | undefined, kind: 'dark'
 
 /** Color theme for a mode: keeps the current theme when its kind matches, otherwise switches to its sibling. */
 export function pickThemeEntry(mode: AppearanceMode, osDark: boolean, catalog: ThemeManifestEntry[], current?: ThemeManifestEntry, currentKind?: 'dark' | 'light'): ThemeManifestEntry | undefined {
-  const kind: 'dark' | 'light' = mode === 'system' ? (osDark ? 'dark' : 'light') : mode
+  const kind = kindForMode(mode, osDark)
   if (current && currentKind === kind) return current
   return siblingTheme(current, kind, catalog)
 }
@@ -63,6 +103,8 @@ class ThemeManager {
   /** Color mode from Settings: dark/light pin a theme kind, system follows the OS and reacts to switches. */
   mode: AppearanceMode = 'system'
   private listeners = new Set<Listener>()
+  /** Per-slot ticket: the last selection to start wins even if an older read resolves later. */
+  private seq: Record<keyof ActiveThemes, number> = { color: 0, fileIcon: 0, productIcon: 0 }
   private styleEl = (id: string) => { let el = document.getElementById(id) as HTMLStyleElement | null; if (!el) { el = document.createElement('style'); el.id = id; document.head.appendChild(el) } return el }
   subscribe(l: Listener) { this.listeners.add(l); return () => void this.listeners.delete(l) }
   private emit() { this.listeners.forEach((l) => l()) }
@@ -84,7 +126,7 @@ class ThemeManager {
     this.mode = stored === 'dark' || stored === 'light' || stored === 'system' ? stored : (pinnedKind ?? 'system')
     // Persist a derived mode: without it the store's default ('system') would override the pinned theme after load().
     if (this.mode !== stored) void ipc.settings.set({ 'appearance.mode': this.mode })
-    const kind: 'dark' | 'light' = this.mode === 'system' ? (this.osDark() ? 'dark' : 'light') : this.mode
+    const kind = kindForMode(this.mode, this.osDark())
     const color = pinned && (pinnedKind === undefined || pinnedKind === kind) ? pinned : siblingTheme(pinned, kind, this.catalog)
     if (color) await this.set(color, false)
     const fi = find(settings.fileIconTheme, 'fileIcon'); if (fi) await this.set(fi, false)
@@ -95,7 +137,7 @@ class ThemeManager {
 
   /** Applies the Settings color mode: forces a kind or follows the OS, switching to the active theme's sibling when needed. */
   async applyMode(mode: AppearanceMode) {
-    const kind: 'dark' | 'light' = mode === 'system' ? (this.osDark() ? 'dark' : 'light') : mode
+    const kind = kindForMode(mode, this.osDark())
     const current = this.active.color
     const currentKind = current ? themeKind(current.json as ColorThemeJson) : undefined
     if (mode === this.mode && currentKind === kind) return
@@ -106,7 +148,10 @@ class ThemeManager {
 
   async set(entry: ThemeManifestEntry, persist = true) {
     const key = entry.kind
+    const ticket = ++this.seq[key]
     const file = await ipc.themes.read(entry.path)
+    // A quick second click can start before this read resolves; the newest pick owns the slot.
+    if (ticket !== this.seq[key]) return
     this.active = { ...this.active, [key]: file }
     if (entry.kind === 'color') {
       const json = file.json as ColorThemeJson
@@ -130,6 +175,7 @@ class ThemeManager {
   }
   /** Clear an icon theme (back to defaults). */
   async clear(kind: 'fileIcon' | 'productIcon') {
+    this.seq[kind]++ // a read already in flight must not restore the theme we are clearing
     this.active = { ...this.active, [kind]: undefined }
     this.styleEl(kind === 'fileIcon' ? 'stratum-file-icon-fonts' : 'stratum-product-icons').textContent = ''
     await ipc.settings.set({ [`${kind}Theme`]: null })

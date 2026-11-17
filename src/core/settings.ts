@@ -81,6 +81,7 @@ export const DEFAULT_SETTINGS: StratumSettings = {
   'app.locale': 'system',
   'extensions.disabled': [],
   'appearance.mode': 'system',
+  'fileIconTheme': 'builtin:dawn.json',
   'appearance.uiFont': 'system',
   'appearance.customFont': '',
   'appearance.fontSize': 15,
