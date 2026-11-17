@@ -141,7 +141,7 @@ Pin a release:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/LC-jhony/stratum/main/scripts/install.sh \
-  | sudo bash -s -- --version v0.2.0
+  | sudo bash -s -- --version v0.3.0
 ```
 
 Install without root, under `~/.local` (AppImage):
@@ -1181,8 +1181,8 @@ architecture lint, tests and the production build, fetches the JDBC sidecar, and
 The tag must match `version` in `package.json`; the workflow fails otherwise. Publish a release with:
 
 ```bash
-git tag -a v0.2.0 -m "Stratum 0.2.0"
-git push origin v0.2.0
+git tag -a v0.3.0 -m "Stratum 0.3.0"
+git push origin v0.3.0
 ```
 
 `scripts/install.sh` consumes the stable asset names through `/releases/latest/download/...`, so
