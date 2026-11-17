@@ -5,10 +5,13 @@ import { isSqlKind } from '../../core/kinds'
 import { explainStatement, mysqlPlanFromJson, pgPlanFromJson, sqlitePlanFromRows, textPlan } from '../../core/plan'
 import { quote } from '../../core/quoting'
 import { readOnlyViolation, returnsRows, splitStatements, stripLeadingComments } from '../../core/sql'
+import { logger } from '../logger'
 import { normalizeRows } from './normalize'
 import type { Dialect, Transport } from './types'
 
 export const DEFAULT_PAGE = 500
+/** A keep-alive ping that takes longer than this is treated as a lost session. */
+export const DEFAULT_VALIDATION_TIMEOUT_MS = 15_000
 
 export interface ExecuteOptions { limit?: number; offset?: number; /** Return complete binary values (export flow). */ full?: boolean }
 
@@ -50,7 +53,15 @@ export class DbSession {
   async open() {
     const r = await this.transport.open()
     this.version = r.version
-    await this.applySessionSetup()
+    try {
+      await this.applySessionSetup()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      // DBeaver's "ignore init errors": the connection is alive, so a broken default schema or
+      // init script must not hide that. Log it and keep the session usable.
+      if (!this.config.session?.ignoreInitErrors) throw new Error(`Session setup failed: ${message}`)
+      logger.warn(`[db] session setup failed for ${this.config.name}; ignored: ${message}`)
+    }
     this.syncTransaction()
     return r
   }
@@ -68,6 +79,21 @@ export class DbSession {
   async ping() {
     if (this.transport.ping) await this.transport.ping()
     else await this.transport.query('select 1')
+  }
+
+  /** Ping with a deadline, so the idle sweep cannot hang on a half-open socket. */
+  async validate(timeoutMs = DEFAULT_VALIDATION_TIMEOUT_MS) {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        this.ping(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`Validation timed out after ${timeoutMs} ms.`)), timeoutMs)
+        }),
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
   }
 
   async introspect(): Promise<DatabaseModel> {

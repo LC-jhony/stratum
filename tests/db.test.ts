@@ -67,6 +67,38 @@ describe('session', () => {
     expect((await ro.execute('delete from customers')).error).toMatch(/read-only/i)
     await ro.close()
   })
+
+  it('applies SQLite PRAGMA query_only as an engine-level second guard', async () => {
+    const transport = new SqliteTransport({ ...cfg, readonly: true })
+    await transport.open()
+    await expect(transport.query('delete from customers')).rejects.toThrow(/read[- ]?only/i)
+    await transport.close()
+  })
+
+  it('prefixes session setup failures and can ignore them', async () => {
+    const broken: ConnectionConfig = { ...cfg, session: { initSql: 'select * from missing_table' } }
+    const strict = new DbSession(broken, new SqliteTransport(broken), dialects.sqlite)
+    await expect(strict.open()).rejects.toThrow(/Session setup failed/)
+    await strict.close()
+
+    const relaxed = new DbSession({ ...broken, session: { initSql: 'select * from missing_table', ignoreInitErrors: true } }, new SqliteTransport(broken), dialects.sqlite)
+    await relaxed.open()
+    expect((await relaxed.execute('select 1 as ok')).rows[0][0]).toBe(1)
+    await relaxed.close()
+  })
+
+  it('times out a keep-alive validation that never answers', async () => {
+    const cfgT: ConnectionConfig = { ...cfg, kind: 'sqlite', filePath: ':memory:' }
+    const hanging = {
+      open: async () => ({}),
+      query: async () => { throw new Error('unused') },
+      ping: () => new Promise<void>(() => undefined),
+      cancel: async () => undefined,
+      close: async () => undefined,
+    }
+    const validation = new DbSession(cfgT, hanging, dialects.sqlite)
+    await expect(validation.validate(30)).rejects.toThrow(/Validation timed out/)
+  })
 })
 describe('introspection', () => {
   it('discovers tables, views, PKs, composite PKs, FKs and indexes', async () => {

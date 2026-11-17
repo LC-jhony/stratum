@@ -56,8 +56,8 @@ export class JdbcSidecar {
     return this.timeouts.test
   }
 
-  async post<T>(endpoint: string, body: unknown): Promise<T> {
-    const ms = this.timeoutFor(endpoint)
+  async post<T>(endpoint: string, body: unknown, timeoutMs?: number): Promise<T> {
+    const ms = timeoutMs ?? this.timeoutFor(endpoint)
     let res: Response
     try {
       res = await fetch(`${this.base}/${endpoint}`, {

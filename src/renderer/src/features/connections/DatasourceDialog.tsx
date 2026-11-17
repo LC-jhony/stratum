@@ -6,6 +6,7 @@ import type { ConnectionColor, ConnectionConfig, ConnectionProfile, ConnectionVi
 import { DIALECTS } from '../../../../core/dialects'
 import { ENGINE_PRESETS, urlForEngine } from '../../../../core/engines'
 import { inferDockerKind, publishedPorts, type DockerContainer, type DockerPort } from '../../../../core/docker'
+import { connectionPreview } from '../../../../core/connectionPreview'
 import { isSqlKind } from '../../../../core/kinds'
 import { COLOR_LABEL, CONNECTION_COLORS, colorVar, confirmsWrites, PROFILE_ORDER, PROFILE_PRESETS } from '../../../../core/profiles'
 import { useWorkbench } from '../../store/workbench'
@@ -256,15 +257,40 @@ export function DatasourceDialog() {
   const proxyOn = !!proxyCfg.enabled
   const proxyOk = !proxyOn || (!sql && !!proxyCfg.host?.trim() && !sshOn)
   const ok = (sql ? !!c.filePath : c.kind === 'mongodb' ? uriSet || !!c.host : c.kind === 'jdbc' ? !!c.jdbc?.url && !!c.jdbc.driverPath : c.kind === 's3' ? true : !!c.host) && sshOk && proxyOk
+  const preview = connectionPreview(c)
+  const copyPreview = async () => {
+    try {
+      await navigator.clipboard.writeText(preview.text)
+      setNote({ tone: 'ok', text: 'Connection string copied without secrets.' })
+    } catch {
+      setNote({ tone: 'bad', text: 'The clipboard is not available on this system.' })
+    }
+  }
+  const pickProfile = (value: string) => {
+    const profile = value === 'none' ? undefined : value as ConnectionProfile
+    // Apply the preset to new/edited connections only; clearing the profile keeps the last choice.
+    up({
+      profile,
+      confirmWrites: undefined,
+      ...(profile ? { session: { ...c.session, autoCommit: PROFILE_PRESETS[profile].autoCommit } } : {}),
+    })
+  }
   const hint = dockerHelper
     ? 'Scan the Docker daemon and pick a published port to fill Host/Port; the server type follows the image when it is recognized.'
     : !sshOk ? 'Complete the SSH tunnel settings.' : !proxyOk ? 'Complete the proxy settings, or disable the SSH tunnel (both helpers cannot be active).' : ok ? 'Ready.' : sql ? 'Pick the database file first.' : c.kind === 'mongodb' ? 'Connection string or host is required.' : c.kind === 'jdbc' ? 'JDBC URL and driver file are required.' : c.kind === 'rabbitmq' ? 'Set the Management API host (port 15672 by default).' : 'Host and port are required.'
 
   const doTest = async () => {
     setBusy(true)
-    const r = await ipc.connections.test({ ...c, name })
-    setBusy(false)
-    setNote(r.ok ? { tone: 'ok', text: `Succeeded · ${c.kind} ${r.version ?? ''}`.trim() } : { tone: 'bad', text: r.error ?? 'Failed' })
+    try {
+      const r = await ipc.connections.test({ ...c, name })
+      setNote(r.ok
+        ? { tone: 'ok', text: `Connected in ${r.latencyMs} ms · ${[r.version, r.driver].filter(Boolean).join(' · ') || c.kind}` }
+        : { tone: 'bad', text: [r.error ?? 'Connection failed.', r.hint].filter(Boolean).join(' — ') })
+    } catch (e) {
+      setNote({ tone: 'bad', text: cleanIpcError(e) })
+    } finally {
+      setBusy(false)
+    }
   }
   const save = async (thenConnect: boolean) => {
     const cfg = { ...c, name }
@@ -813,7 +839,12 @@ export function DatasourceDialog() {
           <input className="ds-field ds-c5" placeholder="database (USE on MySQL)" value={sessionCfg.defaultCatalog ?? ''} onChange={(e) => setSession({ defaultCatalog: e.target.value })} />
 
           <Lbl className="ds-c1">Auto-commit</Lbl>
-          <div className="ds-c2 ds-start"><Switch label="Auto-commit" checked={sessionCfg.autoCommit !== false} onChange={(autoCommit) => setSession({ autoCommit })} /></div>
+          <div className="ds-c2 ds-start ds-inline">
+            <Switch label="Auto-commit" checked={sessionCfg.autoCommit !== false} onChange={(autoCommit) => setSession({ autoCommit })} />
+            {c.profile && (sessionCfg.autoCommit ?? true) !== PROFILE_PRESETS[c.profile].autoCommit && (
+              <button type="button" className="ds-link" onClick={() => setSession({ autoCommit: PROFILE_PRESETS[c.profile!].autoCommit })}>Use profile default</button>
+            )}
+          </div>
           <Lbl className="ds-c4">Isolation</Lbl>
           <select className="ds-field ds-c5" value={sessionCfg.isolation ?? 'default'} onChange={(e) => setSession({ isolation: e.target.value as SessionConfig['isolation'] })}>
             <option value="default">Server default</option>
@@ -827,6 +858,15 @@ export function DatasourceDialog() {
           <input className="ds-field ds-c2" type="number" min={0} placeholder="0 = off" value={sessionCfg.keepAliveSeconds ?? ''} onChange={(e) => setSession({ keepAliveSeconds: e.target.value === '' ? undefined : Number(e.target.value) })} />
           <Lbl className="ds-c4">Close when idle (s)</Lbl>
           <input className="ds-field ds-c5" type="number" min={0} placeholder="0 = keep open" value={sessionCfg.idleTimeoutSeconds ?? ''} onChange={(e) => setSession({ idleTimeoutSeconds: e.target.value === '' ? undefined : Number(e.target.value) })} />
+
+          <Lbl className="ds-c1">Connect timeout (ms)</Lbl>
+          <input className="ds-field ds-c2" type="number" min={100} max={600000} placeholder="10000 (driver default)" value={sessionCfg.connectTimeoutMs ?? ''} onChange={(e) => setSession({ connectTimeoutMs: e.target.value === '' ? undefined : Number(e.target.value) })} />
+          <Lbl className="ds-c4">Validation timeout (ms)</Lbl>
+          <input className="ds-field ds-c5" type="number" min={100} max={120000} placeholder="15000" value={sessionCfg.validationTimeoutMs ?? ''} onChange={(e) => setSession({ validationTimeoutMs: e.target.value === '' ? undefined : Number(e.target.value) })} />
+
+          <Lbl className="ds-c1">Init errors</Lbl>
+          <div className="ds-c2 ds-start"><Switch label="Ignore init errors" checked={sessionCfg.ignoreInitErrors === true} onChange={(ignoreInitErrors) => setSession({ ignoreInitErrors: ignoreInitErrors || undefined })} /></div>
+          <p className="ds-note ds-c4 ds-c5">Keep the session when init SQL, the default schema or the isolation level fails. The failure is written to the log.</p>
 
           <div className="ds-row-full">
             <p className="ds-note">With auto-commit off, the first statement opens a transaction that stays open until Commit or Rollback. An idle close never discards an open transaction.</p>
@@ -979,7 +1019,7 @@ export function DatasourceDialog() {
           </div>
           <div className="ds-row-full ds-profile-row">
             <Lbl style={{ width: 190 }}>Profile</Lbl>
-            <Seg tight value={c.profile ?? 'none'} onChange={(v) => up({ profile: v === 'none' ? undefined : (v as ConnectionProfile), confirmWrites: undefined })} options={[
+            <Seg tight value={c.profile ?? 'none'} onChange={pickProfile} options={[
               { id: 'none', label: 'None' },
               ...PROFILE_ORDER.map((id) => ({ id, label: PROFILE_PRESETS[id].label })),
             ]} />
@@ -1026,6 +1066,13 @@ export function DatasourceDialog() {
           {tab === 'ssh' && <section className="ds-pane" role="tabpanel" aria-label="SSH Tunnel">{sshFields}</section>}
           {tab === 'socks' && <section className="ds-pane" role="tabpanel" aria-label="Socks Proxy">{proxy('SOCKS5 proxy', 1080, 'socks5')}</section>}
           {tab === 'http' && <section className="ds-pane" role="tabpanel" aria-label="HTTP Proxy">{proxy('HTTP proxy', 3128, 'http')}</section>}
+        </div>
+
+        <div className="ds-preview" aria-label="Connection preview">
+          <span className="ds-preview-label">Preview</span>
+          <code className="ds-preview-text" title={preview.text}>{preview.text}</code>
+          {preview.helper && <span className="ds-preview-helper" title={preview.helper}>{preview.helper}</span>}
+          <button type="button" className="ds-btn ds-btn-sm" title="Copy connection string without secrets" onClick={() => void copyPreview()}><Icon id="copy" />Copy</button>
         </div>
 
         <footer className="ds-foot">

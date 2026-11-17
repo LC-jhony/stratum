@@ -32,6 +32,8 @@ export class SqliteTransport implements Transport {
     }
     this.db = new SQL.Database(data)
     this.db.run('PRAGMA foreign_keys = ON')
+    // Engine-level guard: keep the read-only promise even if a future caller bypasses DbSession.
+    if (this.cfg.readonly) this.db.run('PRAGMA query_only = ON')
     return { version: String(this.db.exec('select sqlite_version()')[0]?.values[0]?.[0] ?? '') }
   }
 

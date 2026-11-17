@@ -1,4 +1,8 @@
-import type { ConnectionConfig, SessionStateChange } from '../../shared/types'
+import type {
+  ConnectionConfig, ConnectionTestResult, ConnectionTestStage, SessionStateChange,
+} from '../../shared/types'
+import { classifyConnectionError, driverLabel } from '../../core/diagnostics'
+import { redactSecrets } from '../../core/connectionPreview'
 import type { DbSession } from '../db/session'
 import type { ConnectionStore } from './store'
 import type { SessionFactory } from './sessionFactory'
@@ -24,15 +28,27 @@ export class ConnectionManager {
     this.timer.unref?.()
   }
 
-  async test(cfg: ConnectionConfig) {
+  async test(cfg: ConnectionConfig): Promise<ConnectionTestResult> {
+    const t0 = performance.now()
+    const elapsed = () => Math.max(1, Math.round(performance.now() - t0))
+    const driver = driverLabel(cfg)
+    // The helper runs before the database: an error there is an SSH/proxy failure, not a bad SQL port.
+    let stage: ConnectionTestStage = cfg.ssh?.enabled ? 'tunnel' : cfg.proxy?.enabled ? 'proxy' : 'connect'
     try {
       // A separate id keeps this tunnel apart from a live session's (and from concurrent tests).
       const s = await this.factory.createWithTunnel({ ...cfg, id: `test-${cfg.id}` })
-      try { const r = await s.open(); return { ok: true, version: r.version } }
-      finally { await s.close() }
+      try {
+        stage = 'connect'
+        const r = await s.open()
+        return { ok: true, latencyMs: elapsed(), version: r.version, driver }
+      } finally {
+        await s.close()
+      }
     } catch (e) {
       // Tunnel or transport failure: report it in the dialog status line instead of rejecting.
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      // Driver/JDBC messages can echo URLs, so strip user-info and secret query parameters first.
+      const error = redactSecrets(e instanceof Error ? e.message : String(e))
+      return { ok: false, latencyMs: elapsed(), driver, error, ...classifyConnectionError(error, stage) }
     }
   }
 
@@ -96,7 +112,7 @@ export class ConnectionManager {
       const keepAlive = cfg.keepAliveSeconds
       if (!keepAlive || keepAlive <= 0 || idleMs < keepAlive * 1000 || this.pinging.has(id)) continue
       this.pinging.add(id)
-      void s.ping()
+      void s.validate(cfg.validationTimeoutMs)
         .catch((e: unknown) => this.close(id).then(() => this.opts.onSessionState?.({ id, status: 'lost', reason: e instanceof Error ? e.message : String(e) })))
         .finally(() => this.pinging.delete(id))
     }

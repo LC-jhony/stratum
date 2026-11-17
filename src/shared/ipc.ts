@@ -4,7 +4,7 @@ import type { DriverJar } from './drivers'
 import type { ExtensionView } from './extensions'
 import type { ScheduledTask, TaskFormat, TaskInput } from './tasks'
 import type {
-  ConnectionConfig, ConnectionView, DatabaseModel, QueryPlan, QueryResult, SavedQuery, SessionInfo,
+  ConnectionConfig, ConnectionTestResult, ConnectionView, DatabaseModel, QueryPlan, QueryResult, SavedQuery, SessionInfo,
   SessionStateChange, ThemeFile, ThemeManifestEntry, TransactionState,
 } from './types'
 import type { UpdateState } from './update'
@@ -25,7 +25,7 @@ export interface StratumApi {
     /** Omit password / ssh password to keep the stored secret. */
     save(c: ConnectionConfig): Promise<void>
     remove(id: string): Promise<void>
-    test(c: ConnectionConfig): Promise<{ ok: boolean; version?: string; error?: string }>
+    test(c: ConnectionConfig): Promise<ConnectionTestResult>
     open(id: string): Promise<{ version?: string }>
     close(id: string): Promise<void>
     /** Close and open again, applying edited settings, init SQL and a fresh tunnel. */

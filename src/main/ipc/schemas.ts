@@ -32,6 +32,9 @@ const session = z.object({
   isolation: z.enum(['default', 'read uncommitted', 'read committed', 'repeatable read', 'serializable']).optional(),
   keepAliveSeconds: z.number().int().min(0).max(86_400).optional(),
   idleTimeoutSeconds: z.number().int().min(0).max(604_800).optional(),
+  connectTimeoutMs: z.number().int().min(100).max(600_000).optional(),
+  validationTimeoutMs: z.number().int().min(100).max(120_000).optional(),
+  ignoreInitErrors: z.boolean().optional(),
 }).passthrough()
 const proxy = z.object({
   enabled: z.boolean(),

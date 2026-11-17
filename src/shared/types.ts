@@ -65,6 +65,43 @@ export interface SessionConfig {
   keepAliveSeconds?: number
   /** Close an idle session after this many seconds (0 keeps it open). Never closes an open transaction. */
   idleTimeoutSeconds?: number
+  /** Milliseconds allowed to establish the socket/connection; the driver default applies when absent. */
+  connectTimeoutMs?: number
+  /** Milliseconds allowed for one keep-alive validation round trip (default 15000). */
+  validationTimeoutMs?: number
+  /** Keep the session usable when init SQL, default schema/catalog or isolation fails. */
+  ignoreInitErrors?: boolean
+}
+
+/** Where a connection attempt failed; shown next to the human-readable error. */
+export type ConnectionTestStage =
+  | 'config' | 'resolve' | 'connect' | 'tls' | 'auth' | 'bootstrap' | 'driver' | 'tunnel' | 'proxy' | 'unknown'
+
+/** Stable failure category, independent of the driver that produced the message. */
+export type ConnectionFailureCode =
+  | 'dns' | 'refused' | 'unreachable' | 'timeout' | 'tls' | 'auth' | 'database' | 'driver'
+  | 'file' | 'readonly' | 'bootstrap' | 'tunnel' | 'proxy' | 'invalid' | 'unknown'
+
+/** Structured diagnosis for a failed connection attempt. */
+export interface ConnectionDiagnosis {
+  code: ConnectionFailureCode
+  stage: ConnectionTestStage
+  /** One actionable sentence for the dialog status line. */
+  hint: string
+}
+
+/** Result of "Test Connection": enough detail to fix the problem without reading a driver stack. */
+export interface ConnectionTestResult {
+  ok: boolean
+  /** Wall-clock duration of the attempt, including the tunnel and session setup. */
+  latencyMs: number
+  version?: string
+  /** Driver or adapter that handled the attempt (pg, mysql2, JDBC class…). */
+  driver?: string
+  code?: ConnectionFailureCode
+  stage?: ConnectionTestStage
+  error?: string
+  hint?: string
 }
 
 /** SOCKS5 or HTTP CONNECT proxy used as a connection helper for network databases. */

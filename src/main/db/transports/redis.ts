@@ -194,7 +194,7 @@ export class RedisTransport implements Transport {
       lazyConnect: true,
       maxRetriesPerRequest: 1,
       retryStrategy: () => null,
-      connectTimeout: 10_000,
+      connectTimeout: this.cfg.session?.connectTimeoutMs ?? 10_000,
     }
   }
 

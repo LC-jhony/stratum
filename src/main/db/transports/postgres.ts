@@ -30,7 +30,7 @@ export class PostgresTransport implements Transport {
       database: c.database,
       // Certificate verification is opt-in: existing profiles that only enable SSL keep working.
       ssl: c.ssl ? { rejectUnauthorized: c.sslVerify === true, ...tls } : undefined,
-      connectionTimeoutMillis: 10_000,
+      connectionTimeoutMillis: c.session?.connectTimeoutMs ?? 10_000,
     }
   }
 

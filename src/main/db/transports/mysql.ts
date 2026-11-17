@@ -29,7 +29,7 @@ export class MysqlTransport implements Transport {
       dateStrings: false,
       supportBigNumbers: true,
       bigNumberStrings: true,
-      connectTimeout: 10_000,
+      connectTimeout: c.session?.connectTimeoutMs ?? 10_000,
     }
   }
 

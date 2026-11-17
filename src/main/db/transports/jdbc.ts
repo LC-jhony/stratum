@@ -10,7 +10,7 @@ interface ConnectResponse { success: boolean; err?: string; fullErr?: string; ve
 export class JdbcTransport implements Transport {
   private inTx = false
   constructor(private cfg: ConnectionConfig, private sidecar: JdbcSidecar) {}
-  private post<T>(endpoint: string, body: unknown): Promise<T> { return this.sidecar.post<T>(endpoint, body) }
+  private post<T>(endpoint: string, body: unknown, timeoutMs?: number): Promise<T> { return this.sidecar.post<T>(endpoint, body, timeoutMs) }
   async open() {
     const j = this.cfg.jdbc
     if (!j) throw new Error('Missing JDBC settings')
@@ -18,7 +18,7 @@ export class JdbcTransport implements Transport {
     const r = await this.post<ConnectResponse>('connect', {
       id: this.cfg.id, jdbcUrl: j.url, driver: j.driverClass || undefined, driverPath: j.driverPath,
       username: this.cfg.user, password: this.cfg.password, readonly: !!this.cfg.readonly,
-    })
+    }, this.cfg.session?.connectTimeoutMs)
     if (!r.success) throw new Error(r.err ?? 'JDBC connection failed')
     return { version: r.version }
   }

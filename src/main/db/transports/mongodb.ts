@@ -347,7 +347,7 @@ export class MongoTransport implements Transport {
   }
 
   async open() {
-    const client = new MongoClient(this.uri(), { serverSelectionTimeoutMS: 10_000, appName: 'Stratum' })
+    const client = new MongoClient(this.uri(), { serverSelectionTimeoutMS: this.cfg.session?.connectTimeoutMs ?? 10_000, appName: 'Stratum' })
     await client.connect()
     this.client = client
     const info = await client.db('admin').command({ buildInfo: 1 })

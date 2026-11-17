@@ -8,6 +8,8 @@ export interface ProfilePreset {
   color: ConnectionColor
   /** Ask before every statement that can change data, schema or permissions. */
   confirmWrites: boolean
+  /** Default for new connections: dev keeps auto-commit, test/prod open an explicit transaction. */
+  autoCommit: boolean
   description: string
 }
 
@@ -17,9 +19,9 @@ export interface ProfilePreset {
  * either without losing the label.
  */
 export const PROFILE_PRESETS: Record<ConnectionProfile, ProfilePreset> = {
-  dev: { id: 'dev', label: 'Development', color: 'green', confirmWrites: false, description: 'Local or shared development server. Writes run without an extra prompt.' },
-  test: { id: 'test', label: 'Test', color: 'yellow', confirmWrites: true, description: 'Staging or QA server. Every write asks for confirmation.' },
-  prod: { id: 'prod', label: 'Production', color: 'red', confirmWrites: true, description: 'Live data. Every write asks for confirmation and the connection is marked in red.' },
+  dev: { id: 'dev', label: 'Development', color: 'green', confirmWrites: false, autoCommit: true, description: 'Local or shared development server. Writes run without an extra prompt and stay in auto-commit.' },
+  test: { id: 'test', label: 'Test', color: 'yellow', confirmWrites: true, autoCommit: false, description: 'Staging or QA server. Every write asks for confirmation and opens a transaction you commit explicitly.' },
+  prod: { id: 'prod', label: 'Production', color: 'red', confirmWrites: true, autoCommit: false, description: 'Live data. Every write asks for confirmation, the connection is marked in red and transactions must be committed explicitly.' },
 }
 
 export const PROFILE_ORDER: ConnectionProfile[] = ['dev', 'test', 'prod']

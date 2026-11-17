@@ -10,6 +10,12 @@ describe('connection profiles', () => {
     expect(PROFILE_PRESETS.prod.confirmWrites).toBe(true)
   })
 
+  it('defaults new dev connections to auto-commit and test/prod to explicit transactions', () => {
+    expect(PROFILE_PRESETS.dev.autoCommit).toBe(true)
+    expect(PROFILE_PRESETS.test.autoCommit).toBe(false)
+    expect(PROFILE_PRESETS.prod.autoCommit).toBe(false)
+  })
+
   it('lets an explicit color or confirmation flag override the preset', () => {
     expect(connectionColor({ profile: 'prod' })).toBe('red')
     expect(connectionColor({ profile: 'prod', color: 'blue' })).toBe('blue')
