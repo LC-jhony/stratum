@@ -1,8 +1,10 @@
 import { app, Notification, shell, type BrowserWindow } from 'electron'
 import { autoUpdater, type ProgressInfo, type UpdateInfo } from 'electron-updater'
 import { readFileSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
-import { normalizeReleaseNotes } from '../../core/update'
+import { afterUpdateFailure, describeUpdateError, normalizeReleaseNotes, updaterCacheDirName } from '../../core/update'
 import type { UpdateOrigin, UpdatePackageKind, UpdateProgress, UpdateState } from '../../shared/update'
 import { logger } from '../logger'
 import type { SettingsService } from './settingsService'
@@ -11,6 +13,13 @@ const RELEASES_URL = 'https://github.com/LC-jhony/stratum/releases'
 const FIRST_CHECK_DELAY_MS = 20_000
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
 const PROGRESS_THROTTLE_MS = 150
+
+/** The same per-platform cache root electron-updater uses (Electron no longer exposes `cache`). */
+const cacheRoot = (): string => process.platform === 'win32'
+  ? process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local')
+  : process.platform === 'darwin'
+    ? path.join(os.homedir(), 'Library', 'Caches')
+    : process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache')
 
 /** How this copy was installed. Mirrors electron-updater's own Linux `package-type` detection. */
 export function detectPackageKind(): UpdatePackageKind {
@@ -40,11 +49,6 @@ const disabledReason = (kind: UpdatePackageKind): string => {
   }
 }
 
-const friendlyError = (error: unknown): string => {
-  const raw = error instanceof Error ? error.message : String(error)
-  return raw.replace(/^Error:\s*/, '').replace(/\s+/g, ' ').trim().slice(0, 500) || 'The update failed for an unknown reason.'
-}
-
 const progressOf = (info: ProgressInfo): UpdateProgress => ({
   percent: Number.isFinite(info.percent) ? info.percent : 0,
   transferred: info.transferred || 0,
@@ -71,6 +75,8 @@ export class UpdateService {
   private readonly disabled: string | undefined
   /** True once the user asked to install; the window then exits without the graceful quit delay. */
   private quittingForUpdate = false
+  /** One desktop notification per downloaded version and run. */
+  private notifiedVersion?: string
 
   constructor(private readonly deps: { getWindow: () => BrowserWindow | null; settings: SettingsService }) {
     const packageKind = detectPackageKind()
@@ -99,16 +105,21 @@ export class UpdateService {
     }
     autoUpdater.on('checking-for-update', () => this.set({ phase: 'checking' }))
     autoUpdater.on('update-available', (info) => this.available(info))
-    autoUpdater.on('update-not-available', () => this.set({
-      phase: 'up-to-date',
-      version: undefined,
-      releaseName: undefined,
-      releaseNotes: undefined,
-      releaseDate: undefined,
-      progress: undefined,
-      checkedAt: new Date().toISOString(),
-      error: undefined,
-    }))
+    autoUpdater.on('update-not-available', () => {
+      this.set({
+        phase: 'up-to-date',
+        version: undefined,
+        releaseName: undefined,
+        releaseNotes: undefined,
+        releaseDate: undefined,
+        progress: undefined,
+        checkedAt: new Date().toISOString(),
+        error: undefined,
+      })
+      // The feed says no newer version exists, so any artifact left in the updater cache is for
+      // this version or older. Valet Deck 0.1.1 kept a 0.1.1 .deb in `pending` after updating.
+      void this.clearStaleUpdateCache()
+    })
     autoUpdater.on('download-progress', (info) => this.progress(info))
     autoUpdater.on('update-downloaded', (info) => {
       this.set({
@@ -143,6 +154,24 @@ export class UpdateService {
     this.intervalTimer = undefined
   }
 
+  /**
+   * Removes the updater's `pending` folder once the feed confirms this is the latest version.
+   * electron-updater does not purge it after an out-of-band update, which leaves a full installer
+   * behind (the installed Valet Deck 0.1.1 still had its own 0.1.1 .deb cached).
+   */
+  private async clearStaleUpdateCache(): Promise<void> {
+    if (!app.isPackaged || this.state.phase === 'downloading' || this.state.phase === 'ready') return
+    try {
+      const name = updaterCacheDirName(readFileSync(path.join(process.resourcesPath, 'app-update.yml'), 'utf8'))
+      if (!name) return
+      const pending = path.join(cacheRoot(), name, 'pending')
+      await rm(pending, { recursive: true, force: true })
+      logger.info('[updates] cleared stale update cache', pending)
+    } catch (error) {
+      logger.warn('[updates] could not clear the update cache', error)
+    }
+  }
+
   getState(): UpdateState { return structuredClone(this.state) }
 
   private async autoCheck() {
@@ -165,7 +194,11 @@ export class UpdateService {
     this.origin = origin
     this.set({ phase: 'checking', origin, error: undefined })
     this.checking = autoUpdater.checkForUpdates()
-      .then(() => this.getState())
+      .then(() => {
+        // A feed that resolves without emitting any event must not leave the panel checking forever.
+        if (this.state.phase === 'checking') this.set({ phase: 'up-to-date', checkedAt: new Date().toISOString() })
+        return this.getState()
+      })
       .catch((error) => this.fail(error, origin))
       .finally(() => { this.checking = undefined })
     return this.checking
@@ -240,8 +273,7 @@ export class UpdateService {
   }
 
   private fail(error: unknown, origin: UpdateOrigin = this.origin): UpdateState {
-    const message = friendlyError(error)
-    this.set({ phase: 'error', origin, error: message, checkedAt: new Date().toISOString() })
+    this.set({ ...afterUpdateFailure(this.state, describeUpdateError(error), new Date().toISOString()), origin })
     return this.getState()
   }
 
@@ -253,13 +285,15 @@ export class UpdateService {
 
   private notifyReady() {
     if (process.env.STRATUM_SMOKE) return
+    const version = this.state.version
+    if (version && version === this.notifiedVersion) return
     try {
       if (!Notification.isSupported()) return
       const win = this.deps.getWindow()
       if (win?.isFocused()) return
       const notification = new Notification({
         title: 'Stratum update ready',
-        body: this.state.version ? `Version ${this.state.version} is downloaded. Restart to install it.` : 'The update is downloaded. Restart to install it.',
+        body: version ? `Version ${version} is downloaded. Restart to install it.` : 'The update is downloaded. Restart to install it.',
       })
       notification.on('click', () => {
         const current = this.deps.getWindow()
@@ -268,6 +302,7 @@ export class UpdateService {
         current.focus()
         current.webContents.send('command', 'update.open')
       })
+      this.notifiedVersion = version
       notification.show()
     } catch { /* notifications are optional; the status bar still shows the update */ }
   }

@@ -1,3 +1,5 @@
+import { assetUrl, cssUrl } from './fileIconTheme'
+
 /** VS Code product icon theme: https://code.visualstudio.com/api/extension-guides/product-icon-theme */
 export interface ProductIconThemeJson {
   fonts?: { id: string; src: { path: string; format: string }[]; weight?: string; style?: string }[]
@@ -10,8 +12,22 @@ const resolve = (t: ProductIconThemeJson, id: string, depth = 0): { fontCharacte
   return d
 }
 
-/** True when the theme repoints this id to a glyph (alias-resolved, same rule as the emitted CSS). */
-export const hasProductIcon = (t: ProductIconThemeJson, id: string): boolean => !!resolve(t, id)?.fontCharacter
+/** Theme ids and formats end up in CSS declarations; keep them to characters that cannot break out. */
+const cssIdent = (value: string): string => value.replace(/[^\w-]/g, '') || 'default'
+const cssKeyword = (value: string | undefined, fallback: string): string => (value ?? '').replace(/[^\w-]/g, '') || fallback
+
+/** A trailing odd backslash would escape the closing quote of `content:"…"`. */
+function cssContent(value: string): string | undefined {
+  const clean = value.replace(/["\n\r\0]/g, '')
+  const trailing = clean.match(/\\+$/)?.[0].length ?? 0
+  return trailing % 2 === 0 ? clean : undefined
+}
+
+/** True when the theme repoints this id to a glyph the emitted CSS can safely carry. */
+export const hasProductIcon = (t: ProductIconThemeJson, id: string): boolean => {
+  const char = resolve(t, id)?.fontCharacter
+  return char !== undefined && cssContent(char) !== undefined
+}
 
 /**
  * Produces CSS that re-points `.codicon-<id>` glyphs at the theme's font/char.
@@ -19,15 +35,28 @@ export const hasProductIcon = (t: ProductIconThemeJson, id: string): boolean => 
  */
 export function productIconCss(t: ProductIconThemeJson, baseUrl: string): string {
   const fonts = t.fonts ?? []
-  const face = fonts.map((f) => `@font-face{font-family:'stratum-pi-${f.id}';src:${f.src.map((s) => `url('${new URL(s.path, baseUrl).href}') format('${s.format}')`).join(',')};font-weight:${f.weight ?? 'normal'};font-style:${f.style ?? 'normal'}}`)
+  const faces = fonts.map((font) => {
+    const sources = font.src
+      .map((source) => {
+        const url = assetUrl(baseUrl, source.path)
+        if (!url) return ''
+        const format = source.format.replace(/[^\w-]/g, '')
+        return `url('${cssUrl(url)}')${format ? ` format('${format}')` : ''}`
+      })
+      .filter(Boolean)
+    if (!sources.length) return ''
+    return `@font-face{font-family:'stratum-pi-${cssIdent(font.id)}';src:${sources.join(',')};font-weight:${cssKeyword(font.weight, 'normal')};font-style:${cssKeyword(font.style, 'normal')}}`
+  }).filter(Boolean)
   const rules: string[] = []
   const seen = new Set<string>()
   for (const id of Object.keys(t.iconDefinitions)) {
     const d = resolve(t, id)
     if (!d?.fontCharacter || seen.has(id)) continue
     seen.add(id)
-    const fam = `stratum-pi-${d.fontId ?? fonts[0]?.id ?? 'default'}`
-    rules.push(`.codicon-${id.replace(/[^\w-]/g, '\\$&')}::before{content:"${d.fontCharacter.replace(/"/g, '')}";font-family:'${fam}',codicon}`)
+    const fam = `stratum-pi-${cssIdent(d.fontId ?? fonts[0]?.id ?? 'default')}`
+    const char = cssContent(d.fontCharacter)
+    if (char === undefined) continue
+    rules.push(`.codicon-${id.replace(/[^\w-]/g, '\\$&')}::before{content:"${char}";font-family:'${fam}',codicon}`)
   }
-  return [...face, ...rules].join('\n')
+  return [...faces, ...rules].join('\n')
 }

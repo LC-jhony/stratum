@@ -1,4 +1,4 @@
-import { resolveFileIcon, resolveFileIconById } from '../theme/fileIconTheme'
+import { decodeFontCharacter, resolveFileIcon, resolveFileIconById, type FileIconThemeJson } from '../theme/fileIconTheme'
 import { useFileIconTheme, useProductIconTheme } from '../theme/useTheme'
 import { hasProductIcon, type ProductIconThemeJson } from '../theme/productIconTheme'
 import { APP_ICONS, GLYPH_ICONS } from './iconMap'
@@ -43,13 +43,13 @@ const THEME_ICON_FALLBACK: Record<string, string> = {
 export function FileIcon({ name = '', icon, kind = 'file', fallback = 'file', style }: { name?: string; icon?: string; kind?: 'file' | 'folder' | 'folderExpanded'; fallback?: string; style?: React.CSSProperties }) {
   const active = useFileIconTheme()
   const light = document.documentElement.dataset.theme === 'light'
-  const theme = active?.json as never
+  const theme = active?.json as FileIconThemeJson | undefined
   // An explicit id wins; the file-name lookup is the fallback for themes that only associate extensions.
   const r = !active ? undefined : icon
     ? resolveFileIconById(theme, active.baseUrl, icon, light) ?? (name ? resolveFileIcon(theme, active.baseUrl, name, kind, light) : undefined)
     : resolveFileIcon(theme, active.baseUrl, name, kind, light)
   if (r?.kind === 'image') return <img className="file-icon" style={style} src={r.url} alt="" draggable={false} />
-  if (r?.kind === 'glyph') return <span className="file-icon glyph" style={{ fontFamily: r.fontFamily, color: r.color, ...style }}>{JSON.parse(`"${r.char.replace(/"/g, '')}"`)}</span>
+  if (r?.kind === 'glyph') return <span className="file-icon glyph" style={{ fontFamily: r.fontFamily, color: r.color, ...style }}>{decodeFontCharacter(r.char)}</span>
   const themed = icon ? THEME_ICON_FALLBACK[icon] ?? (icon in APP_ICONS ? icon : undefined) : undefined
   const id = kind === 'folder' ? 'folder' : kind === 'folderExpanded' ? 'folder-opened' : fallback !== 'file' ? fallback : themed ?? fallback
   return <Icon id={id} style={style} />

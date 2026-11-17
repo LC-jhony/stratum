@@ -1,3 +1,5 @@
+import { repairContrast } from './contrast'
+
 export interface TokenColorRule { name?: string; scope?: string | string[]; settings: { foreground?: string; background?: string; fontStyle?: string } }
 export interface ColorThemeJson {
   name?: string; type?: 'dark' | 'light' | 'hc' | 'hcLight'
@@ -73,13 +75,16 @@ export function resolveColors(theme: ColorThemeJson): Record<string, string> {
     if (donor) out[key] = own[donor]
     else if (/border$/i.test(key) && !out[key]) out[key] = FALLBACK_BORDER // no border anywhere: a faint neutral hairline beats an invisible one
   }
+  // A third-party theme may paint white text on a light brand accent. Repair only the pairs the
+  // workbench renders as text or icons; editor.* stays untouched because Monaco keeps the raw theme.
+  const fixed = repairContrast(out)
   // VS Code derives this one from the active colour (40% alpha) instead of hard-coding it, so a theme with a
   // light activity bar (Min Light) does not inherit the white meant for dark bars, which would be invisible.
   if (!own['activityBar.inactiveForeground']) {
-    const fg = out['activityBar.foreground']
-    if (/^#[0-9a-f]{6}$/i.test(fg)) out['activityBar.inactiveForeground'] = `${fg}66`
+    const fg = fixed['activityBar.foreground']
+    if (/^#[0-9a-f]{6}$/i.test(fg)) fixed['activityBar.inactiveForeground'] = `${fg}66`
   }
-  return out
+  return fixed
 }
 
 /** `editor.background` -> `--vscode-editor-background` (same convention as VS Code, so snippets and extensions port over). */

@@ -274,6 +274,7 @@ export function SettingsDialog() {
               {update?.phase === 'ready' && <button type="button" className="primary" onClick={() => void installUpdate()}>Restart and install</button>}
               {update?.phase === 'disabled' && <button type="button" onClick={() => void ipc.update.openReleasePage()}>Open releases</button>}
             </div>
+            {update?.error && update.phase !== 'error' && <p className="hint error">{update.error}</p>}
           </div>
           {updateMeter && update?.phase === 'downloading' && (
             <div className="span-2 update-settings-progress">

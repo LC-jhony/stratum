@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { ThemeManifestEntry } from '../src/shared/types'
 import { cssVarName, resolveColors, toCssVars } from '../src/renderer/src/theme/colorTheme'
+import { contrastRatio, ensureContrast, parseHex, repairContrast } from '../src/renderer/src/theme/contrast'
 import { pickIconId, resolveFileIcon } from '../src/renderer/src/theme/fileIconTheme'
 import { scopeToToken, toMonacoTheme } from '../src/renderer/src/theme/monacoTheme'
-import { productIconCss } from '../src/renderer/src/theme/productIconTheme'
+import { hasProductIcon, productIconCss } from '../src/renderer/src/theme/productIconTheme'
 import { dedupeCatalog, pickThemeEntry, siblingTheme } from '../src/renderer/src/theme/themeManager'
 
 const load = (n: string) => JSON.parse(readFileSync(`themes/${n}.json`, 'utf8'))
@@ -31,11 +32,85 @@ describe('color theme engine', () => {
   it('derives the inactive activity bar foreground from the active one, like VS Code', () => {
     expect(resolveColors({ type: 'light', colors: { 'activityBar.foreground': '#9e9e9e' } })['activityBar.inactiveForeground']).toBe('#9e9e9e66')
     // Min Light keeps white inactive icons on its light bar if this is not derived.
-    expect(resolveColors(load('min-light'))['activityBar.inactiveForeground']).toBe('#9E9E9E66')
+    expect(resolveColors(load('min-light'))['activityBar.inactiveForeground']).toBe('#8c8c8c66')
     expect(resolveColors(load('min-dark'))['activityBar.inactiveForeground']).toBe('#7D7D7D66')
     expect(resolveColors(load('carbon-dark'))['activityBar.inactiveForeground']).toBe(load('carbon-dark').colors['activityBar.inactiveForeground'])
   })
   it('emits css vars for every resolved key', () => expect(Object.keys(toCssVars(resolveColors(load('carbon-dark')))).length).toBeGreaterThan(250))
+})
+describe('contrast repair', () => {
+  it('computes WCAG contrast and ignores unusable colours', () => {
+    expect(contrastRatio('#000000', '#FFFFFF')).toBeCloseTo(21, 5)
+    expect(contrastRatio('#777777', '#888888')).toBeLessThan(2)
+    expect(contrastRatio('not-a-colour', '#FFFFFF')).toBeUndefined()
+    expect(parseHex('#abc')).toEqual({ r: 170, g: 187, b: 204, a: 1 })
+    expect(parseHex('#11223380')?.a).toBeCloseTo(0.5, 2)
+  })
+
+  it('keeps a pair that already passes untouched', () => {
+    expect(ensureContrast('#000000', '#FFFFFF')).toEqual({ fg: '#000000', bg: '#FFFFFF', changed: false })
+  })
+
+  it('darkens a filled surface instead of washing out the label', () => {
+    const fix = ensureContrast('#FFFFFF', '#FF0000', 4.5, 'bg')
+    expect(fix.changed).toBe(true)
+    expect(fix.fg).toBe('#FFFFFF')
+    expect(fix.bg).not.toBe('#FF0000')
+    expect(contrastRatio(fix.fg, fix.bg)!).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('moves text when the surface is the part worth keeping', () => {
+    const fix = ensureContrast('#BBBBBB', '#FFFFFF', 4.5, 'fg')
+    expect(fix.bg).toBe('#FFFFFF')
+    expect(contrastRatio(fix.fg, fix.bg)!).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('leaves translucent colours alone: their real backdrop is unknown', () => {
+    expect(ensureContrast('#FFFFFF80', '#000000')).toEqual({ fg: '#FFFFFF80', bg: '#000000', changed: false })
+  })
+
+  it('repairs the bundled Carbon button without changing its hue', () => {
+    const original = load('carbon-dark').colors
+    const fixed = resolveColors(load('carbon-dark'))
+    expect(original['button.foreground']).toBe('#FFFFFF')
+    expect(fixed['button.background']).not.toBe(original['button.background'])
+    expect(contrastRatio(fixed['button.foreground'], fixed['button.background'])!).toBeGreaterThanOrEqual(4.5)
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(fixed['button.background'].slice(i, i + 2), 16))
+    expect(r).toBeGreaterThan(g + 80)
+    expect(r).toBeGreaterThan(b + 80)
+  })
+
+  it('raises the Min status bar and activity bar to their targets', () => {
+    for (const name of ['min-light', 'min-dark']) {
+      const c = resolveColors(load(name))
+      expect(contrastRatio(c['statusBar.foreground'], c['statusBar.background'])!, name).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(c['activityBar.foreground'], c['activityBar.background'])!, name).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  it('leaves every bundled chrome pair legible', () => {
+    const pairs = [
+      ['button.foreground', 'button.background', 4.5],
+      ['statusBar.foreground', 'statusBar.background', 4.5],
+      ['activityBar.foreground', 'activityBar.background', 3],
+      ['sideBar.foreground', 'sideBar.background', 4.5],
+      ['menu.foreground', 'menu.background', 4.5],
+      ['input.foreground', 'input.background', 4.5],
+      ['tab.activeForeground', 'tab.activeBackground', 4.5],
+    ] as const
+    for (const name of ['carbon-dark', 'carbon-light', 'min-dark', 'min-light']) {
+      const c = resolveColors(load(name))
+      for (const [fg, bg, target] of pairs) {
+        if (parseHex(c[bg])?.a !== 1) continue
+        expect(contrastRatio(c[fg], c[bg])!, `${name} ${fg} on ${bg}`).toBeGreaterThanOrEqual(target)
+      }
+    }
+  })
+
+  it('leaves missing and malformed pairs unchanged', () => {
+    expect(repairContrast({ 'button.foreground': '#FFFFFF' })).toEqual({ 'button.foreground': '#FFFFFF' })
+    expect(repairContrast({ 'button.foreground': 'white', 'button.background': '#000000' })).toEqual({ 'button.foreground': 'white', 'button.background': '#000000' })
+  })
 })
 describe('theme catalog dedupe', () => {
   const e = (id: string, label: string, source: ThemeManifestEntry['source'], kind: ThemeManifestEntry['kind'] = 'color'): ThemeManifestEntry => ({ id, label, kind, uiTheme: 'vs-dark', path: `/t/${id}`, source })
@@ -124,5 +199,12 @@ describe('product icon themes', () => {
     expect(css).toContain('stratum-asset://local/pi/f.woff')
     expect(css).toContain('.codicon-database::before{content:"\\e900"')
     expect(css).toContain('.codicon-table::before{content:"\\e900"')
+  })
+
+  it('refuses a glyph that would escape its CSS declaration', () => {
+    const theme = { iconDefinitions: { broken: { fontCharacter: '\\' }, ok: { fontCharacter: '\\e900' } } }
+    expect(hasProductIcon(theme, 'broken')).toBe(false)
+    expect(hasProductIcon(theme, 'ok')).toBe(true)
+    expect(productIconCss(theme, 'stratum-asset://local/pi/')).not.toContain('codicon-broken')
   })
 })

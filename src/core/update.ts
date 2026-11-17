@@ -1,6 +1,54 @@
 /** Pure helpers for the update UI. No Electron, no network: easy to test and safe to share. */
 import type { UpdatePackageKind, UpdatePhase, UpdateProgress, UpdateState } from '../shared/update'
 
+const NETWORK = /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ERR_INTERNET_DISCONNECTED|net::ERR_|socket hang up|timed?\s*out/i
+const FEED = /(?:^|\D)404(?:\D|$)|latest-(?:linux|mac|win)|Cannot find|Unable to find|no published versions/i
+const PERMISSION = /EACCES|EPERM|permission denied|operation not permitted/i
+const CHECKSUM = /sha512|checksum|signature (?:mismatch|verification)/i
+
+/**
+ * Turns an electron-updater failure into a sentence a person can act on. Technical details stay
+ * in the main-process log; the panel shows the diagnosis and the next step instead of a stack.
+ */
+export function describeUpdateError(error: unknown): string {
+  const raw = (error instanceof Error ? error.message : String(error ?? ''))
+    .replace(/^Error:\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!raw) return 'The update failed for an unknown reason.'
+  if (CHECKSUM.test(raw)) return 'The download failed its integrity check and was discarded. Try again.'
+  if (NETWORK.test(raw)) return 'No network connection: the update could not be checked. Try again when you are online.'
+  if (FEED.test(raw)) return 'The release does not include the update metadata for this platform, so the update cannot be verified. Download it from GitHub Releases.'
+  if (PERMISSION.test(raw)) return 'The downloaded update cannot be installed with the current permissions.'
+  return raw.slice(0, 500)
+}
+
+/**
+ * State after a failed check or download. A version that was already known stays known: an
+ * offline background check must not hide the downloaded installer or the offered version.
+ */
+export function afterUpdateFailure(state: UpdateState, message: string, at = new Date().toISOString()): UpdateState {
+  // A failed download still knows which version was offered, so the panel can offer it again.
+  const keep = state.phase === 'available' || state.phase === 'downloading' || state.phase === 'ready'
+  return {
+    ...state,
+    phase: keep ? (state.phase === 'downloading' ? 'available' : state.phase) : 'error',
+    error: message,
+    checkedAt: at,
+  }
+}
+
+/**
+ * Reads `updaterCacheDirName` from an app-update.yml without pulling a YAML parser into core.
+ * Only a plain directory name is accepted; anything with separators or traversal is ignored.
+ */
+export function updaterCacheDirName(config: string): string | undefined {
+  const match = config.match(/^\s*updaterCacheDirName:\s*([^\s#]+)\s*(?:#.*)?$/m)
+  if (!match) return undefined
+  const name = match[1].replace(/^["']|["']$/g, '')
+  return /^[\w.-]+$/.test(name) && name !== '.' && name !== '..' ? name : undefined
+}
+
 const PACKAGE_LABELS: Record<UpdatePackageKind, string> = {
   appimage: 'AppImage',
   deb: 'Debian package',

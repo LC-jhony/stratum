@@ -697,6 +697,19 @@ sane fallbacks for borders and scrollbars, and the Monaco theme is derived from 
 `tokenColors`. File icon themes resolve their icons (glyph or image) against the theme base, and
 product icon themes re-map codicon glyphs.
 
+Theme files are cached by path and invalidated by mtime/size, so switching back to a theme does not
+re-parse the catalog. `include` chains are inlined, but only inside the built-in, user and extension
+folders; an include that escapes them, a cycle or an over-long chain is rejected. Icon assets are
+served only through `stratum-asset://`, glyph escapes (`\e001`) are decoded with the CSS rules, and
+theme-provided CSS identifiers are sanitised.
+
+Chrome pairs that carry text are measured with WCAG contrast after the theme and its fallbacks are
+merged. A filled surface is darkened (or lightened) just enough to keep its label readable, and
+panel text moves instead; hue and saturation are preserved. Carbon's button and Min's status and
+activity bars are repaired this way. `editor.*` stays as authored because Monaco renders the raw
+theme. The algorithms are described in
+[docs/architecture/phase-13.md](docs/architecture/phase-13.md).
+
 **Appearance modes** (`appearance.mode`): Dark and Light pin a kind, System follows the OS live.
 Switching modes moves to the active theme's sibling when one exists ("Min Dark" ↔ "Min Light",
 "Carbon Dark" ↔ "Carbon Light") and falls back to the bundled Carbon theme of that kind. Picking a
@@ -761,7 +774,10 @@ the matching `latest.yml` / `latest-mac.yml` metadata.
   builds do not self-update; the panel offers *Open releases* instead.
 
 Updates only move forward, prereleases are ignored, and the feed is HTTPS. If a check fails, the
-panel shows the reason and a *Try again* button; the previous version keeps working.
+panel shows the reason and a *Try again* button; the previous version keeps working. Network,
+missing feed metadata, permission and integrity failures are translated into an actionable sentence,
+and a failed check does not discard a version that is already offered or downloaded. When the feed
+confirms the installed version is current, the updater's leftover `pending` download is removed.
 
 ## Keyboard shortcuts
 
@@ -1036,7 +1052,10 @@ offline and repeatable.
 | `phase2.test.ts` | SQL parameter patterns and substitution; export formats (BOM, quoting, JSON, dialect-quoted INSERTs). |
 | `gridView.test.ts` | Row filtering and column sorting (numbers, nulls, stability). |
 | `settings.test.ts` / `store.test.ts` | Settings coercion and dialog preview semantics. |
-| `theme.test.ts` | Color resolution and CSS vars, catalog dedupe, appearance modes and siblings, Monaco conversion, file/product icon themes. |
+| `theme.test.ts` | Color resolution and CSS vars, WCAG contrast repair, catalog dedupe, appearance modes and siblings, Monaco conversion, file/product icon themes. |
+| `themeService.test.ts` | Theme classification (color, file-icon and product-icon, including font-based themes), normalization, include merging/cycles/escapes, size cap, mtime cache, stable catalog order and extension id preservation. |
+| `fileIcons.test.ts` | Bundled icon assets, association lookup, light twins, CSS glyph decoding, asset-scheme guard, URL escaping, font CSS sanitising and memoised resolution. |
+| `update.test.ts` | Update labels, progress and release notes; friendly failure diagnosis, state preservation after a failed check/download, and safe updater cache directory parsing. |
 | `fonts.test.ts` / `xlsx.test.ts` | Font stacks; the XLSX writer (CRC-32, refs, sheet names, OOXML package, escaping, base64 round-trip). |
 | `mongo.test.ts` | mongosh statement parser (JS-ish documents, BSON constructors, chain methods, rejects with messages), paging rewrite and read classification, BSON printing and document→row mapping; the shared MQL splitter and the capability registry. |
 | `redis.test.ts` | redis-cli tokenizer (quotes and `sdssplitargs` escapes), statement splitter and caret, the read-only allowlist (accepts reads/subcommand families, rejects writes/admin/blocking), `INSPECT` paging rewrite, reply→grid mappings and the capability registry. |

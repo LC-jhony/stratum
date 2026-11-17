@@ -75,6 +75,7 @@ export function UpdateStatus() {
               <span> · {packageKindLabel(update.packageKind)}</span>
             </p>
             <p className={`update-message${update.phase === 'error' ? ' error' : ''}`}>{updatePhaseLabel(update)}</p>
+            {update.error && update.phase !== 'error' && <p className="update-message error">{update.error}</p>}
 
             {progress && (update.phase === 'downloading' || update.phase === 'ready') && (
               <div className="update-progress">
